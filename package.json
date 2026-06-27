@@ -1,10 +1,10 @@
 {
-  "name": "torlink",
+  "name": "torlnk",
   "version": "1.0.0",
   "description": "A sleek, zero-setup torrent finder and downloader that lives right in your terminal.",
   "type": "module",
   "bin": {
-    "torlink": "./dist/index.js"
+    "torlnk": "./dist/index.js"
   },
   "files": [
     "dist",

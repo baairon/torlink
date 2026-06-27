@@ -18,10 +18,10 @@ export function parseCliArgs(argv: string[]): CliCommand {
 export const HELP_TEXT = `torlink, terminal-native torrent search
 
 usage
-  torlink                      open the search TUI
-  torlink "magnet:?xt=..."     start a download on launch
-  torlink path/to/file.torrent open a .torrent file on launch
-  torlink --version            print the version
+  torlnk                      open the search TUI
+  torlnk "magnet:?xt=..."     start a download on launch
+  torlnk path/to/file.torrent open a .torrent file on launch
+  torlnk --version            print the version
 
 once open: type to search every source at once, enter to run, arrows to move,
 d to download, ? for keys

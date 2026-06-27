@@ -11,7 +11,7 @@ torlink is a torrent finder that lives in your terminal, with zero setup and not
 3. **Start it:**
 
    ```sh
-   npx torlink
+   npx torlnk
    ```
 
 That's the only thing you'll type. torlink opens straight to a search bar: search for what you want, paste in a magnet link, or just press Enter on an empty box to browse the curated library. From there it's all keypresses, nothing to memorize, and `?` brings up the full list anytime.
@@ -63,7 +63,7 @@ To run or work on torlink locally:
    Or build it and run the bundled version:
    ```sh
    npm run build
-   npx torlink
+   npx torlnk
    ```
 
 ## Privacy
