@@ -37,9 +37,9 @@ export function Sidebar() {
   const seeding = queue.seedingCount;
 
   useInput(
-    (_input, key) => {
-      if (key.upArrow) setSection(NAV[wrapStep(idx, -1, NAV.length)]!.key);
-      else if (key.downArrow) setSection(NAV[wrapStep(idx, 1, NAV.length)]!.key);
+    (input, key) => {
+      if (key.upArrow || input === "k") setSection(NAV[wrapStep(idx, -1, NAV.length)]!.key);
+      else if (key.downArrow || input === "j") setSection(NAV[wrapStep(idx, 1, NAV.length)]!.key);
       else if (key.return) setRegion("content");
     },
     { isActive: focused },

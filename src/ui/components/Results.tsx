@@ -156,8 +156,8 @@ export function Results() {
         return;
       }
       if (results.length === 0) return;
-      if (key.upArrow) setCursor(wrapStep(clamped, -1, results.length));
-      else if (key.downArrow) setCursor(wrapStep(clamped, 1, results.length));
+      if (key.upArrow || input === "k") setCursor(wrapStep(clamped, -1, results.length));
+      else if (key.downArrow || input === "j") setCursor(wrapStep(clamped, 1, results.length));
       else if (key.pageUp) setCursor(Math.max(0, clamped - pageJump));
       else if (key.pageDown) setCursor(Math.min(results.length - 1, clamped + pageJump));
       else if (key.return) {

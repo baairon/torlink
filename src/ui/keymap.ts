@@ -14,7 +14,7 @@ export const HELP_GROUPS: HelpGroup[] = [
   {
     title: "Navigate",
     hints: [
-      { keys: "↑ ↓", label: "Move" },
+      { keys: "↑ ↓ / j k", label: "Move" },
       { keys: "↵", label: "Open" },
       { keys: "tab", label: "Switch pane" },
       { keys: "esc", label: "Back" },
@@ -60,7 +60,7 @@ export function footerHints(
 ): Hint[] {
   if (region === "sidebar") {
     return [
-      { keys: "↑↓", label: "Move" },
+      { keys: "↑↓ jk", label: "Move" },
       { keys: "↵", label: "Open" },
       SWITCH,
       ALWAYS,
