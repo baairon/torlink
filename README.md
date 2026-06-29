@@ -47,7 +47,7 @@ A short, hand-picked list of trusted sources:
 
 Games are the only category that can run code, so they come from FitGirl alone, a repacker with a long, trusted track record; everything else is plain video and subtitles. If a source is down, the search carries on without it, and torlink tells you which one is offline.
 
-## Local Development
+## Contributing
 
 To run or work on torlink locally:
 
@@ -65,6 +65,8 @@ To run or work on torlink locally:
    npm run build
    npx torlnk
    ```
+
+Before opening a PR, skim [CONTRIBUTING.md](CONTRIBUTING.md); it lays out the bar with examples from real merged PRs.
 
 ## Privacy
 
