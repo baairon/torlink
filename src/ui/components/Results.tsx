@@ -237,10 +237,6 @@ export function Results() {
   const tabSources = activeCat?.group ? SOURCES.filter((s) => s.group === activeCat.group) : SOURCES;
   const tabErrored =
     tabSources.length > 0 && tabSources.every((s) => search.perSource[s.id]?.error);
-  const showStats = useMemo(
-    () => results.some((r) => r.sizeBytes > 0 || r.seeders > 0),
-    [results],
-  );
   const numW = Math.max(2, String(results.length).length);
 
   const outageCodes = (sources: readonly Source[]): string => {
@@ -340,20 +336,15 @@ export function Results() {
                     <Box flexGrow={1} minWidth={0} marginLeft={1}>
                       <Text bold dimColor>Name</Text>
                     </Box>
-                    {showStats ? (
-                      <>
-                        <Box width={10} flexShrink={0} marginLeft={1} justifyContent="flex-end">
-                          <Text bold dimColor>{sortMark("size", "Size")}</Text>
-                        </Box>
-                        <Box width={9} flexShrink={0} marginLeft={1} justifyContent="flex-end">
-                          <Text bold dimColor>{sortMark("seeders", "Seed:Lch")}</Text>
-                        </Box>
-                      </>
-                    ) : (
-                      <Box width={12} flexShrink={0} marginLeft={1} justifyContent="flex-end">
-                        <Text bold dimColor>Added</Text>
-                      </Box>
-                    )}
+                    <Box width={10} flexShrink={0} marginLeft={1} justifyContent="flex-end">
+                      <Text bold dimColor>{sortMark("size", "Size")}</Text>
+                    </Box>
+                    <Box width={9} flexShrink={0} marginLeft={1} justifyContent="flex-end">
+                      <Text bold dimColor>{sortMark("seeders", "Seed:Lch")}</Text>
+                    </Box>
+                    <Box width={12} flexShrink={0} marginLeft={1} justifyContent="flex-end">
+                      <Text bold dimColor>Added</Text>
+                    </Box>
                     <Box width={4} flexShrink={0} marginLeft={1} justifyContent="flex-end">
                       <Text bold dimColor>{sortMark("source", "Src")}</Text>
                     </Box>
@@ -381,22 +372,17 @@ export function Results() {
                           {cleanText(r.name)}
                         </Text>
                       </Box>
-                      {showStats ? (
-                        <>
-                          <Box width={10} flexShrink={0} marginLeft={1} justifyContent="flex-end">
-                            <Text dimColor>{r.sizeBytes > 0 ? formatBytes(r.sizeBytes) : "-"}</Text>
-                          </Box>
-                          <Box width={9} flexShrink={0} marginLeft={1} justifyContent="flex-end">
-                            <Text color={r.seeders > 0 ? COLOR.good : undefined} dimColor={r.seeders === 0}>
-                              {r.seeders || r.leechers ? `${r.seeders}:${r.leechers}` : "-"}
-                            </Text>
-                          </Box>
-                        </>
-                      ) : (
-                        <Box width={12} flexShrink={0} marginLeft={1} justifyContent="flex-end">
-                          <Text dimColor>{formatRelative(r.added) || "-"}</Text>
-                        </Box>
-                      )}
+                      <Box width={10} flexShrink={0} marginLeft={1} justifyContent="flex-end">
+                        <Text dimColor>{r.sizeBytes > 0 ? formatBytes(r.sizeBytes) : "-"}</Text>
+                      </Box>
+                      <Box width={9} flexShrink={0} marginLeft={1} justifyContent="flex-end">
+                        <Text color={r.seeders > 0 ? COLOR.good : undefined} dimColor={r.seeders === 0}>
+                          {r.seeders || r.leechers ? `${r.seeders}:${r.leechers}` : "-"}
+                        </Text>
+                      </Box>
+                      <Box width={12} flexShrink={0} marginLeft={1} justifyContent="flex-end">
+                        <Text dimColor>{formatRelative(r.added) || "-"}</Text>
+                      </Box>
                       <Box width={4} flexShrink={0} marginLeft={1} justifyContent="flex-end">
                         <Text color={ss.color} dimColor={!here}>
                           {ss.tag}

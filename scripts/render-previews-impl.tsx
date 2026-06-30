@@ -166,7 +166,6 @@ save(
 );
 
 const browseResults = RESULTS.slice(0, 5);
-const showStats = browseResults.some((r) => r.sizeBytes > 0 || r.seeders > 0);
 const numW = Math.max(2, String(browseResults.length).length);
 
 save(
@@ -191,6 +190,7 @@ save(
                 <Box flexGrow={1} minWidth={0} marginLeft={1}><Text bold dimColor>Name</Text></Box>
                 <Box width={10} flexShrink={0} marginLeft={1} justifyContent="flex-end"><Text bold dimColor>Size</Text></Box>
                 <Box width={9} flexShrink={0} marginLeft={1} justifyContent="flex-end"><Text bold dimColor>Seed:Lch</Text></Box>
+                <Box width={12} flexShrink={0} marginLeft={1} justifyContent="flex-end"><Text bold dimColor>Added</Text></Box>
                 <Box width={4} flexShrink={0} marginLeft={1} justifyContent="flex-end"><Text bold dimColor>Src</Text></Box>
               </Box>
               {browseResults.map((r, i) => {
@@ -209,22 +209,17 @@ save(
                         {cleanText(r.name)}
                       </Text>
                     </Box>
-                    {showStats ? (
-                      <>
-                        <Box width={10} flexShrink={0} marginLeft={1} justifyContent="flex-end">
-                          <Text dimColor>{r.sizeBytes > 0 ? formatBytes(r.sizeBytes) : "-"}</Text>
-                        </Box>
-                        <Box width={9} flexShrink={0} marginLeft={1} justifyContent="flex-end">
-                          <Text color={r.seeders > 0 ? COLOR.good : undefined} dimColor={r.seeders === 0}>
-                            {r.seeders || r.leechers ? `${r.seeders}:${r.leechers}` : "-"}
-                          </Text>
-                        </Box>
-                      </>
-                    ) : (
-                      <Box width={9} flexShrink={0} marginLeft={1} justifyContent="flex-end">
-                        <Text dimColor>{formatRelative(r.added) || "-"}</Text>
-                      </Box>
-                    )}
+                    <Box width={10} flexShrink={0} marginLeft={1} justifyContent="flex-end">
+                      <Text dimColor>{r.sizeBytes > 0 ? formatBytes(r.sizeBytes) : "-"}</Text>
+                    </Box>
+                    <Box width={9} flexShrink={0} marginLeft={1} justifyContent="flex-end">
+                      <Text color={r.seeders > 0 ? COLOR.good : undefined} dimColor={r.seeders === 0}>
+                        {r.seeders || r.leechers ? `${r.seeders}:${r.leechers}` : "-"}
+                      </Text>
+                    </Box>
+                    <Box width={12} flexShrink={0} marginLeft={1} justifyContent="flex-end">
+                      <Text dimColor>{formatRelative(r.added) || "-"}</Text>
+                    </Box>
                     <Box width={4} flexShrink={0} marginLeft={1} justifyContent="flex-end">
                       <Text color={ss.color} dimColor={!here}>
                         {ss.tag}
