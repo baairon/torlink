@@ -250,10 +250,12 @@ export function Results() {
     return codes.length ? ` (${codes.join(", ")})` : "";
   };
 
+  const sortNote = sort === "none" ? "" : `  ${ICON.dot} sort: ${sortLabel(sort)}`;
+
   const status = () => {
     if (search.loading) {
       if (results.length > 0)
-        return <Text dimColor>{`searching… ${search.done}/${search.total} sources`}</Text>;
+        return <Text dimColor>{`searching… ${search.done}/${search.total} sources${sortNote}`}</Text>;
       return (
         <Spinner label={`${browsing ? "Loading" : "Searching"} ${search.done}/${search.total} sources`} />
       );
@@ -288,7 +290,6 @@ export function Results() {
     const head = browsing
       ? "newest across all sources"
       : `${results.length} result${results.length === 1 ? "" : "s"}`;
-    const sortNote = sort === "none" ? "" : `  ${ICON.dot} sort: ${sortLabel(sort)}`;
     return <Text dimColor>{`${head}${note}${sortNote}`}</Text>;
   };
 
