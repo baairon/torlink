@@ -11,6 +11,11 @@ export function openPath(targetPath: string): Promise<boolean> {
       if (process.platform === "darwin") {
         proc = spawn("open", [targetPath], { windowsHide: true });
       } else if (process.platform === "win32") {
+        // Safety check: prevent command injection/shell breakout via double quotes in paths
+        if (targetPath.includes('"')) {
+          resolve(false);
+          return;
+        }
         // cmd.exe /c start "" <path>
         // Note: The empty string "" is required because if the targetPath contains spaces
         // and is quoted, the start command will otherwise treat it as the window title.

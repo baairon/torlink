@@ -65,6 +65,20 @@ describe("openPath", () => {
     }
   });
 
+  it("rejects path with double quotes on win32", async () => {
+    const originalPlatform = process.platform;
+    Object.defineProperty(process, "platform", { value: "win32" });
+    try {
+      const { openPath } = await import("./open");
+      await expect(openPath('C:\\some"path')).resolves.toBe(false);
+      expect(spawn).not.toHaveBeenCalled();
+    } finally {
+      Object.defineProperty(process, "platform", { value: originalPlatform });
+      vi.resetModules();
+      spawn.mockReset();
+    }
+  });
+
   it("returns false if spawn fails or errors", async () => {
     const originalPlatform = process.platform;
     Object.defineProperty(process, "platform", { value: "darwin" });
