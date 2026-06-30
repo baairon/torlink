@@ -46,11 +46,33 @@ async function fetchText(url: string, opts: SearchOptions, retries: number): Pro
   return res.text();
 }
 
-async function detailMagnet(base: string, path: string, opts: SearchOptions): Promise<string | null> {
+const MONTHS: Record<string, number> = {
+  jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5,
+  jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11,
+};
+
+// 1337x detail pages render "Date uploaded" as e.g. "Jun. 26th  '26".
+export function parseUploadDate(html: string): number | undefined {
+  const m = html.match(/Date uploaded<\/strong>\s*<span>\s*([A-Za-z]{3})\.?\s+(\d{1,2})[a-z]{2}\s*'(\d{2})/i);
+  if (!m) return undefined;
+  const month = MONTHS[m[1]!.toLowerCase()];
+  if (month === undefined) return undefined;
+  const day = Number(m[2]);
+  const year = 2000 + Number(m[3]);
+  const secs = Math.floor(Date.UTC(year, month, day) / 1000);
+  return Number.isNaN(secs) ? undefined : secs;
+}
+
+async function detailInfo(
+  base: string,
+  path: string,
+  opts: SearchOptions,
+): Promise<{ magnet: string; added?: number } | null> {
   try {
     const html = await fetchText(`${base}${path}`, opts, 1);
     const raw = html.match(/magnet:\?xt=urn:btih:[^"'<>\s]+/i)?.[0];
-    return raw ? unescapeEntities(raw) : null;
+    if (!raw) return null;
+    return { magnet: unescapeEntities(raw), added: parseUploadDate(html) };
   } catch {
     return null;
   }
@@ -97,9 +119,9 @@ async function search(
   const rows = matched.slice(0, MAX_DETAILS);
   const settled = await Promise.all(
     rows.map(async (row): Promise<TorrentResult | null> => {
-      const magnet = await detailMagnet(base, row.path, opts);
-      const infoHash = magnet?.match(/urn:btih:([a-zA-Z0-9]+)/i)?.[1]?.toLowerCase();
-      if (!magnet || !infoHash) return null;
+      const detail = await detailInfo(base, row.path, opts);
+      const infoHash = detail?.magnet?.match(/urn:btih:([a-zA-Z0-9]+)/i)?.[1]?.toLowerCase();
+      if (!detail || !infoHash) return null;
       return {
         infoHash,
         name: row.name,
@@ -107,7 +129,8 @@ async function search(
         seeders: row.seeders,
         leechers: row.leechers,
         source,
-        magnet,
+        magnet: detail.magnet,
+        added: detail.added,
       };
     }),
   );
