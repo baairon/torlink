@@ -38,6 +38,7 @@ export const HELP_GROUPS: HelpGroup[] = [
       { keys: "p", label: "Pause/resume" },
       { keys: "c", label: "Cancel or remove from list" },
       { keys: "f", label: "Retry failed" },
+      { keys: "↵", label: "Open file/folder" },
       { keys: "d", label: "Download again" },
       { keys: "x", label: "Clear recent" },
     ],
@@ -89,6 +90,7 @@ export function footerHints(
     if (downloadFocus === "recent") {
       return [
         NAVIGATE,
+        { keys: "↵", label: "Open" },
         { keys: "d", label: "Download again" },
         { keys: "c", label: "Remove" },
         { keys: "x", label: "Clear" },

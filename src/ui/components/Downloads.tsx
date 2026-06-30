@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { Box, Text, useInput } from "ink";
+import path from "node:path";
+import { openPath } from "../../util/open";
 import { useStore, useQueueItems, useQueueHistory, type DownloadFocus } from "../store";
 import { Panel } from "./Panel";
 import { ProgressBar } from "./ProgressBar";
@@ -44,7 +46,7 @@ function rightStats(it: QueueItem): string {
 }
 
 export function Downloads() {
-  const { queue, region, contentWidth, listRows, startDownload, setDownloadFocus } = useStore();
+  const { queue, region, contentWidth, listRows, startDownload, setDownloadFocus, setNotice } = useStore();
   const active = useQueueItems(queue);
   const recent = useQueueHistory(queue);
   const focused = region === "content";
@@ -69,7 +71,15 @@ export function Downloads() {
       } else {
         const h = recent[recentCursor];
         if (!h) return;
-        if (key.return || input === "d")
+        if (key.return) {
+          const filePath = path.join(h.dir, h.name);
+          setNotice(`Opening: ${truncate(cleanText(h.name), 30)}`);
+          void openPath(filePath).then((ok) => {
+            if (!ok) {
+              setNotice(`Could not open: ${truncate(cleanText(h.name), 30)}`);
+            }
+          });
+        } else if (input === "d") {
           startDownload({
             id: h.id,
             name: h.name,
@@ -77,7 +87,9 @@ export function Downloads() {
             source: h.source,
             sizeBytes: h.sizeBytes,
           });
-        else if (input === "c") queue.removeHistory(h.id);
+        } else if (input === "c") {
+          queue.removeHistory(h.id);
+        }
       }
     },
     { isActive: focused && total > 0 },
