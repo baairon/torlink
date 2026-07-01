@@ -214,6 +214,7 @@ export function App({
       magnet: string;
       source?: SourceId;
       sizeBytes?: number;
+      selectedIndices?: number[];
     }) => {
       if (!config || !queue) return;
       void fs.mkdir(config.downloadDir, { recursive: true }).catch(() => {});

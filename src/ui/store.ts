@@ -55,6 +55,7 @@ export interface Store {
     magnet: string;
     source?: SourceId;
     sizeBytes?: number;
+    selectedIndices?: number[];
   }) => void;
   copyMagnet: (input: { name: string; magnet: string }) => void;
 

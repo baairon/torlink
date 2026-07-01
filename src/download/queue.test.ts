@@ -61,3 +61,44 @@ describe("strayDownload (missing-file safety-net)", () => {
     expect(strayDownload({ total: 0, progress: 0, speed: 0 })).toBe(false);
   });
 });
+
+describe("DownloadQueue selective download", () => {
+  it("add with selectedIndices stores indices and processes selective stats on metadata", () => {
+    const q = new DownloadQueue();
+    q.add(
+      {
+        id: "sel1",
+        name: "Selective Item",
+        magnet: "magnet:?xt=urn:btih:1111111111111111111111111111111111111111",
+        selectedIndices: [0],
+      },
+      "/downloads",
+    );
+    const items = q.getItems();
+    const item = items.find((i) => i.id === "sel1");
+    expect(item).toBeDefined();
+    expect(item?.status).toBe("downloading");
+    expect(item?.selectedIndices).toEqual([0]);
+    expect(q.activeCount).toBe(1);
+
+    // Trigger metadata handler mock call
+    const handlers = q["engineHandlers"]("sel1");
+    handlers.onMetadata?.({
+      name: "Selective Item",
+      total: 300,
+      files: 2,
+      fileList: [
+        { path: "f1.txt", length: 100 },
+        { path: "f2.txt", length: 200 },
+      ],
+      torrentFile: new Uint8Array(),
+    });
+
+    const updated = q.getItems().find((i) => i.id === "sel1");
+    expect(updated?.totalBytes).toBe(100);
+    expect(updated?.fileList?.[0]?.selected).toBe(true);
+    expect(updated?.fileList?.[1]?.selected).toBe(false);
+
+    q.suspend();
+  });
+});
