@@ -1,5 +1,23 @@
 (function () {
-  const { SOURCES, runSearch, parseMagnet, createDownloader, isStreamingSupported, canFallbackStream, streamViaMediaSource, getProxyList, setProxyList, resetProxyList, DEFAULT_PROXIES, checkPeers } = window.Torlink;
+  const {
+    SOURCES,
+    runSearch,
+    parseMagnet,
+    createDownloader,
+    isStreamingSupported,
+    canFallbackStream,
+    streamViaMediaSource,
+    getProxyList,
+    setProxyList,
+    resetProxyList,
+    DEFAULT_PROXIES,
+    checkPeers,
+    getCustomTrackers,
+    setCustomTrackers,
+    resetCustomTrackers,
+    parseTrackers,
+    formatTrackers,
+  } = window.Torlink;
 
   const el = (id) => document.getElementById(id);
 
@@ -17,6 +35,7 @@
   const toast = el("toast");
   const settingsDialog = el("settings-dialog");
   const proxyInput = el("proxy-input");
+  const trackersInput = el("trackers-input");
   const playerDialog = el("player-dialog");
   const playerTitle = el("player-title");
   const playerVideo = el("player-video");
@@ -298,16 +317,23 @@
 
   el("settings-btn").addEventListener("click", () => {
     proxyInput.value = getProxyList().join("\n");
+    trackersInput.value = formatTrackers(getCustomTrackers());
     settingsDialog.showModal();
   });
 
   settingsDialog.querySelector("form").addEventListener("submit", () => {
     setProxyList(proxyInput.value.split("\n"));
+    setCustomTrackers(parseTrackers(trackersInput.value));
   });
 
   el("proxy-reset").addEventListener("click", () => {
     resetProxyList();
     proxyInput.value = DEFAULT_PROXIES.join("\n");
+  });
+
+  el("trackers-reset").addEventListener("click", () => {
+    resetCustomTrackers();
+    trackersInput.value = "";
   });
 
   document.addEventListener("dragover", (e) => e.preventDefault());

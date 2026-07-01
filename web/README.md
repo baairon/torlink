@@ -31,6 +31,12 @@ Each search result has a "👀 Check peers" button that answers the question abo
 
 This reuses the tracker-client code already bundled inside `webtorrent.min.js` (no extra library, no build step) via a torrent's `discovery.tracker`, which only exists on a real `Torrent` instance — so the probe briefly calls `client.add()` on its own dedicated, throwaway `WebTorrent` client, kept fully separate from the main downloader so probes never leak into the Downloads panel, and destroys the torrent once it resolves or after the timeout.
 
+## Adding your own trackers
+
+Settings (⚙) has an "Extra trackers" field, mirroring the CLI's own `t`-key tracker feature (`src/config/trackers.ts`) — same parsing/validation ported directly (comma/whitespace-split, deduped, scheme-restricted to `udp`/`http(s)`/`ws(s)`) so the two stay behaviorally consistent. Whatever you add is merged into every download's announce list alongside the three built-in `wss://` discovery trackers (additive, not a replacement — same as the CLI's own behavior).
+
+The practical use case here is different from the CLI's, though: in a browser, only `wss://` entries do anything (see the UDP-wall discussion above) — `udp://`/`http(s)://`/`ws://` are accepted for parity but won't find you any peers. Point this at your own bridge (e.g. a `webtorrent-cli`/qBittorrent instance you're running locally with `-a wss://...`, see above) to make it directly discoverable to this page specifically, on top of the shared public trackers everyone else also uses.
+
 ## Source coverage (verified)
 
 | Source | Group | Access |
@@ -101,6 +107,21 @@ Then open `http://localhost:4173`.
 
 This is a self-contained static directory (the WebTorrent library is vendored in `vendor/`, the streaming service worker in `sw.min.js` at the root — nothing is fetched at build time) — copy `web/` to any static host (a VPS, object storage with static hosting, etc.) and it works as-is. No environment variables, no server process, no database. Keep `sw.min.js` at the site root when deploying — it has to be served from there for its scope to cover the whole app.
 
+## Staying in sync with the CLI
+
+This directory is a separate implementation, not a codegen output of the CLI — there's no automated way to pull in upstream changes, so it drifts unless someone deliberately checks. A lightweight process that's worked so far: periodically diff against whatever commit this was last synced at —
+
+```sh
+git log <last-synced-sha>..origin/main --oneline
+```
+
+— and sort what comes back into two buckets:
+
+- **TUI-only** (Ink component changes, keybinding/footer/layout tweaks, terminal rendering fixes) — doesn't apply here at all, the two UIs don't share presentation code or interaction models.
+- **Behavioral/protocol/config changes** (new sources, tracker/announce logic, download semantics, anything under `src/config/`, `src/download/`, `src/sources/`) — worth porting. These are the ones actually worth checking for, since they represent a capability gap between the two versions rather than a cosmetic one.
+
+Concretely, that's meant checking `src/download/`, `src/config/`, and `src/sources/` diffs closely and skimming past pure `src/ui/` diffs unless they touch something the web app also has a UI for (e.g. a new keybinding for a feature the web app already exposes via a button is worth noting even if the keybinding itself isn't). The most recent sync (four commits: three TUI-only, one real — the CLI's new user-supplied-tracker feature) is ported above as "Adding your own trackers." Last synced through commit `f3880f1`.
+
 ## What's explicitly out of scope
 
-No routing, no multi-tab sync, no batch actions, no light theme, no settings beyond the proxy URL. Matches the CLI's own "lightweight and clean" philosophy — see the root [README](../README.md) for the project this is built on top of.
+No routing, no multi-tab sync, no batch actions, no light theme. Matches the CLI's own "lightweight and clean" philosophy — see the root [README](../README.md) for the project this is built on top of.

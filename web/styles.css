@@ -196,6 +196,7 @@ dialog::backdrop { background: rgba(0,0,0,0.5); }
   resize: vertical;
 }
 .hint { font-size: 11px; color: var(--rule); }
+.hint code { background: var(--bg-row); padding: 1px 4px; border-radius: 3px; color: var(--alt); }
 .settings-actions { display: flex; gap: 8px; justify-content: flex-end; }
 
 #player-dialog { width: min(720px, 90vw); padding: 14px; }

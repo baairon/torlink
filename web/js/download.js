@@ -41,8 +41,19 @@
   }
 
   const IS_FILE_PROTOCOL = location.protocol === "file:";
-  const ADD_OPTS = { announce: TRACKERS, ...(IS_FILE_PROTOCOL ? { store: MemoryChunkStore } : {}) };
   const STALL_TIMEOUT_MS = 25_000;
+
+  // Recomputed per-add (not a static const) since the user's custom tracker list
+  // (Settings) can change between downloads. Only wss:// custom entries actually do
+  // anything in a browser — udp/http(s)/ws are accepted for parity with the CLI's
+  // validation but silently useless here, same as any non-wss tracker already is.
+  function buildAddOpts() {
+    const custom = Torlink.getCustomTrackers();
+    return {
+      announce: [...TRACKERS, ...custom],
+      ...(IS_FILE_PROTOCOL ? { store: MemoryChunkStore } : {}),
+    };
+  }
 
   const VIDEO_EXTENSIONS = [".mp4", ".mkv", ".webm", ".mov", ".m4v", ".avi"];
 
@@ -193,11 +204,11 @@
       if (!parsed) throw new Error("Not a valid magnet link");
       if (items.has(parsed.infoHash)) throw new Error("Already in your downloads");
       pendingNames.set(parsed.infoHash, parsed.name);
-      client.add(parsed.magnet, ADD_OPTS, (torrent) => attach(torrent, parsed.name));
+      client.add(parsed.magnet, buildAddOpts(), (torrent) => attach(torrent, parsed.name));
     }
 
     function addTorrentFile(file) {
-      client.add(file, ADD_OPTS, (torrent) => attach(torrent, file.name));
+      client.add(file, buildAddOpts(), (torrent) => attach(torrent, file.name));
     }
 
     function remove(id) {

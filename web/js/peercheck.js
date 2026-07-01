@@ -86,7 +86,7 @@
         }
       }, 200);
 
-      const opts = { announce: TRACKERS };
+      const opts = { announce: [...TRACKERS, ...Torlink.getCustomTrackers()] };
       if (Torlink.IS_FILE_PROTOCOL) opts.store = Torlink.MemoryChunkStore;
       client.add(parsed.magnet, opts);
     });

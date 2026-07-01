@@ -52,9 +52,17 @@
       <textarea id="proxy-input" rows="3" placeholder="https://api.allorigins.win/raw?url="></textarea>
     </label>
     <p class="hint">Used for sources without native CORS support (Nyaa, SubsPlease, FitGirl, PirateBay). Each is tried in order until one works. Free public proxies have no uptime guarantee — add your own as a fallback if search stops working.</p>
+
+    <label>
+      Extra trackers (comma or space separated)
+      <input id="trackers-input" type="text" placeholder="wss://tracker.example/announce">
+    </label>
+    <p class="hint">Appended to every download alongside the built-in WebSocket trackers. Only <code>wss://</code> ones actually do anything in a browser — <code>udp://</code>/<code>http(s)://</code>/<code>ws://</code> are accepted for parity with the CLI's own tracker list but won't find you any peers here.</p>
+
     <div class="settings-actions">
       <button type="submit" value="save">Save</button>
-      <button type="button" id="proxy-reset">Reset to default</button>
+      <button type="button" id="proxy-reset">Reset proxies</button>
+      <button type="button" id="trackers-reset">Clear trackers</button>
     </div>
   </form>
 </dialog>
@@ -70,6 +78,7 @@
 
 <script src="vendor/webtorrent.min.js"></script>
 <script src="js/magnet.js"></script>
+<script src="js/customTrackers.js"></script>
 <script src="js/fetch.js"></script>
 <script src="js/util.js"></script>
 <script src="js/proxy.js"></script>
