@@ -13,6 +13,7 @@
 }
 
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 
 body {
   margin: 0;
@@ -21,6 +22,55 @@ body {
   font-family: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
   font-size: 14px;
 }
+
+.splash {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 24px;
+  text-align: center;
+}
+
+.splash-logo {
+  margin: 0;
+  font: inherit;
+  font-weight: 700;
+  line-height: 1.15;
+  white-space: pre;
+  background: linear-gradient(135deg, #ffffff 0%, var(--bright) 30%, var(--accent) 60%, #7c5cd6 85%, #4c3a8a 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.splash-sprout { color: var(--good); -webkit-text-fill-color: var(--good); }
+
+.splash-tagline { margin: 20px 0 0; color: var(--text); }
+.splash-categories { margin: 4px 0 0; color: var(--rule); }
+
+form.splash-search {
+  flex: none;
+  margin-top: 12px;
+  width: min(62ch, calc(100vw - 48px));
+  justify-content: flex-start;
+  padding: 6px 12px;
+}
+.splash-search input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: var(--text);
+  padding: 6px 4px;
+  font: inherit;
+}
+.splash-search input:focus { outline: none; }
+.splash-search input::placeholder { color: var(--rule); }
+
+.splash-footer { margin: 10px 0 0; color: var(--rule); }
+.splash-key { color: var(--alt); }
+.splash-dot { margin: 0 6px; }
 
 .bar {
   display: flex;

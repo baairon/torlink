@@ -3,7 +3,10 @@
   const fetchTimeout = Torlink.fetchTimeout;
 
   const STORAGE_KEY = "torlink.corsProxies";
-  const DEFAULT_PROXIES = ["https://api.allorigins.win/raw?url="];
+  // Ordered fallback chain — corsproxy.io is fast and reliable for most sources
+  // but blocklists a few domains (nyaa.si among them); allorigins.win covers
+  // those but is noticeably slower and occasionally times out on its own.
+  const DEFAULT_PROXIES = ["https://corsproxy.io/?url=", "https://api.allorigins.win/raw?url="];
 
   function getProxyList() {
     try {

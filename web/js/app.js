@@ -333,14 +333,10 @@
     }
   }
 
-  searchForm.addEventListener("submit", (e) => {
-    e.preventDefault();
-    const value = searchInput.value.trim();
-
+  function submitSearch(value) {
     const magnet = value ? parseMagnet(value) : null;
     if (magnet) {
       startDownload(magnet.magnet);
-      searchInput.value = "";
       return;
     }
 
@@ -365,6 +361,36 @@
       },
       onDone: () => {},
     });
+  }
+
+  searchForm.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const value = searchInput.value.trim();
+    submitSearch(value);
+    if (parseMagnet(value)) searchInput.value = "";
+  });
+
+  // Pre-search, the app shows a dedicated splash screen mirroring the CLI's own
+  // (src/ui/views/Splash.tsx) — big block logo, dynamic category list, centered
+  // search bar. Submitting it (with or without a query) reveals the normal
+  // header/rail/results layout, matching the CLI's splash → browser transition.
+  const splashScreen = el("splash-screen");
+  const appShell = el("app-shell");
+  const splashForm = el("splash-search-form");
+  const splashInput = el("splash-search-input");
+  const splashCategories = el("splash-categories");
+
+  splashCategories.textContent = Torlink.sourcesByGroup()
+    .map((g) => g.group.toLowerCase())
+    .join("  ·  ");
+
+  splashForm.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const value = splashInput.value.trim();
+    splashScreen.hidden = true;
+    appShell.hidden = false;
+    searchInput.value = parseMagnet(value) ? "" : value;
+    submitSearch(value);
   });
 
   el("settings-btn").addEventListener("click", () => {

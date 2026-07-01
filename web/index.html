@@ -7,6 +7,29 @@
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+<section id="splash-screen" class="splash">
+  <pre class="splash-logo" aria-hidden="true">      <span class="splash-sprout">𐓏</span>
+ ▀█▀ █▀█ █▀█ █   █ █▄ █ █▄▀
+  █  █▄█ █▀▄ █▄▄ █ █ ▀█ █ █</pre>
+  <p class="splash-tagline">A curated, terminal-native torrent downloader.</p>
+  <p class="splash-categories" id="splash-categories"></p>
+
+  <form id="splash-search-form" class="search tui-panel splash-search">
+    <span class="tui-panel-title">Search</span>
+    <span class="prompt">❯</span>
+    <input id="splash-search-input" type="text" placeholder="Search or paste a magnet link…" autocomplete="off">
+  </form>
+
+  <p class="splash-footer">
+    <span class="splash-key">↵</span> search
+    <span class="splash-dot">·</span>
+    empty <span class="splash-key">↵</span> browse
+    <span class="splash-dot">·</span>
+    <span class="splash-key">^c</span> quit
+  </p>
+</section>
+
+<div id="app-shell" hidden>
 <header class="bar">
   <div class="brand"><span class="brand-bolt">⚡</span><span class="brand-tor">TOR</span><span class="brand-link">LINK</span><span class="brand-dim">.web</span></div>
   <form id="search-form" class="search tui-panel">
@@ -54,6 +77,7 @@
     </section>
   </main>
 </div>
+</div>
 
 <div id="toast" class="toast"></div>
 
@@ -62,7 +86,7 @@
     <h2>Settings</h2>
     <label>
       CORS proxy URL prefixes (one per line, tried in order)
-      <textarea id="proxy-input" rows="3" placeholder="https://api.allorigins.win/raw?url="></textarea>
+      <textarea id="proxy-input" rows="3" placeholder="https://corsproxy.io/?url=&#10;https://api.allorigins.win/raw?url="></textarea>
     </label>
     <p class="hint">Used for sources without native CORS support (Nyaa, SubsPlease, FitGirl, PirateBay). Each is tried in order until one works. Free public proxies have no uptime guarantee — add your own as a fallback if search stops working.</p>
 
