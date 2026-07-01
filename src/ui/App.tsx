@@ -351,11 +351,11 @@ export function App({
         setRegion(region === "sidebar" ? "content" : "sidebar");
         return;
       }
-      if (key.rightArrow) {
+      if (key.rightArrow || input === "l") {
         if (region === "sidebar") setRegion("content");
         return;
       }
-      if (key.leftArrow) {
+      if (key.leftArrow || input === "h") {
         if (region === "content") setRegion("sidebar");
         return;
       }

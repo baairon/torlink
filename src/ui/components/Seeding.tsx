@@ -48,8 +48,8 @@ export function Seeding() {
 
   useInput(
     (input, key) => {
-      if (key.upArrow) setCursor(wrapStep(clamped, -1, total));
-      else if (key.downArrow) setCursor(wrapStep(clamped, 1, total));
+      if (key.upArrow || input === "k") setCursor(wrapStep(clamped, -1, total));
+      else if (key.downArrow || input === "j") setCursor(wrapStep(clamped, 1, total));
       else if (input === "p") {
         const h = history[clamped];
         if (!h) return;

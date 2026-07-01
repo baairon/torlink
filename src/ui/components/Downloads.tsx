@@ -57,8 +57,8 @@ export function Downloads() {
 
   useInput(
     (input, key) => {
-      if (key.upArrow) setCursor(wrapStep(clamped, -1, total));
-      else if (key.downArrow) setCursor(wrapStep(clamped, 1, total));
+      if (key.upArrow || input === "k") setCursor(wrapStep(clamped, -1, total));
+      else if (key.downArrow || input === "j") setCursor(wrapStep(clamped, 1, total));
       else if (input === "f") queue.retryFailed();
       else if (input === "x") queue.clearHistory();
       else if (inActive) {
