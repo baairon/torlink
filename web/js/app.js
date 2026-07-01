@@ -45,6 +45,41 @@
 
   let lastResults = [];
   let lastIsBrowse = false;
+  let selectedCategory = "all";
+
+  // Mirrors src/ui/store.ts's CATEGORIES: each non-"all" category maps to a
+  // SourceGroup ("Games"/"Movies"/"TV"/"Anime") used to filter results by source.
+  const CATEGORIES = {
+    all: null,
+    games: "Games",
+    movies: "Movies",
+    tv: "TV",
+    anime: "Anime",
+  };
+
+  function getSource(id) {
+    return SOURCES.find((s) => s.id === id);
+  }
+
+  // Ported from src/ui/hooks/useConcurrentSearch.ts's dedupe(): cross-source
+  // dedup by infoHash, keeping whichever copy has more seeders.
+  function dedupe(list) {
+    const byHash = new Map();
+    for (const r of list) {
+      const existing = byHash.get(r.infoHash);
+      if (!existing || r.seeders > existing.seeders) byHash.set(r.infoHash, r);
+    }
+    return [...byHash.values()];
+  }
+
+  // Ported from src/ui/hooks/useConcurrentSearch.ts's defaultOrder(): healthiest
+  // first, applied identically whether browsing or searching.
+  function defaultOrder(list) {
+    return [...list].sort((a, b) => {
+      if (b.seeders !== a.seeders) return b.seeders - a.seeders;
+      return (b.added ?? 0) - (a.added ?? 0);
+    });
+  }
 
   function fmtBytes(n) {
     if (!n) return "0 B";
@@ -76,6 +111,10 @@
       document.querySelectorAll(".section").forEach((s) => s.classList.remove("active"));
       btn.classList.add("active");
       el(`section-${btn.dataset.section}`).classList.add("active");
+      if (btn.dataset.category) {
+        selectedCategory = btn.dataset.category;
+        renderResults(lastResults, lastIsBrowse);
+      }
     });
   });
 
@@ -94,13 +133,14 @@
 
   function renderResults(results, isBrowse) {
     resultsList.innerHTML = "";
-    resultsEmpty.style.display = results.length ? "none" : "block";
+    const group = CATEGORIES[selectedCategory];
+    const filtered = group ? results.filter((r) => getSource(r.source)?.group === group) : results;
+    const sorted = defaultOrder(dedupe(filtered));
+
+    resultsEmpty.style.display = sorted.length ? "none" : "block";
     const label = isBrowse ? "Latest" : "Results";
-    resultsTitle.textContent = results.length ? `${label} (${results.length})` : label;
-    resultsSubtitle.textContent = isBrowse && results.length ? "newest across all sources" : "";
-    const sorted = isBrowse
-      ? [...results].sort((a, b) => (b.added || 0) - (a.added || 0))
-      : [...results].sort((a, b) => b.seeders - a.seeders);
+    resultsTitle.textContent = sorted.length ? `${label} (${sorted.length})` : label;
+    resultsSubtitle.textContent = isBrowse && sorted.length ? "newest across all sources" : "";
     for (const r of sorted) {
       const row = document.createElement("div");
       row.className = "row";

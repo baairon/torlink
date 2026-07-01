@@ -119,6 +119,8 @@ header.bar .tui-panel-title,
 .rail-item:hover { background: var(--bg-row); color: var(--text); }
 .rail-item.active { color: var(--bright); border-left: 2px solid var(--accent); background: var(--bg-row); }
 
+.rail-sep { height: 1px; background: var(--rule); opacity: 0.5; margin: 8px 16px; }
+
 .badge {
   background: var(--rule);
   color: var(--text);
