@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>torlink — web</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header class="bar">
+  <div class="brand">torlink<span class="brand-dim">.web</span></div>
+  <form id="search-form" class="search">
+    <input id="search-input" type="text" placeholder="Search, or paste a magnet link…" autocomplete="off">
+    <button type="submit">Search</button>
+  </form>
+  <button id="settings-btn" class="icon-btn" title="Settings" type="button">⚙</button>
+</header>
+
+<div class="layout">
+  <nav class="rail">
+    <button class="rail-item active" data-section="results">Results</button>
+    <button class="rail-item" data-section="downloads">Downloads <span class="badge" id="downloads-badge"></span></button>
+    <button class="rail-item" data-section="seeds">Seeding <span class="badge" id="seeds-badge"></span></button>
+  </nav>
+
+  <main class="panel">
+    <section id="section-results" class="section active">
+      <div id="source-status" class="source-status"></div>
+      <div id="results-list" class="list"></div>
+      <p id="results-empty" class="empty">Search above, or paste a magnet link to add it directly.</p>
+    </section>
+
+    <section id="section-downloads" class="section">
+      <div id="downloads-list" class="list"></div>
+      <p id="downloads-empty" class="empty">No downloads yet.</p>
+    </section>
+
+    <section id="section-seeds" class="section">
+      <div id="seeds-list" class="list"></div>
+      <p id="seeds-empty" class="empty">Nothing seeding yet.</p>
+    </section>
+  </main>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<dialog id="settings-dialog">
+  <form method="dialog" class="settings-form">
+    <h2>Settings</h2>
+    <label>
+      CORS proxy URL prefixes (one per line, tried in order)
+      <textarea id="proxy-input" rows="3" placeholder="https://api.allorigins.win/raw?url="></textarea>
+    </label>
+    <p class="hint">Used for sources without native CORS support (Nyaa, SubsPlease, FitGirl, PirateBay). Each is tried in order until one works. Free public proxies have no uptime guarantee — add your own as a fallback if search stops working.</p>
+    <div class="settings-actions">
+      <button type="submit" value="save">Save</button>
+      <button type="button" id="proxy-reset">Reset to default</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="player-dialog">
+  <div class="player-head">
+    <span id="player-title"></span>
+    <button type="button" id="player-close" class="icon-btn">✕</button>
+  </div>
+  <video id="player-video" controls autoplay></video>
+  <p id="player-status" class="hint"></p>
+</dialog>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
