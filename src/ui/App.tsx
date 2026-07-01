@@ -33,6 +33,7 @@ import { Spinner } from "./components/Spinner";
 import { TabTitle } from "./components/TabTitle";
 import { Splash } from "./views/Splash";
 import { FolderPrompt } from "./components/FolderPrompt";
+import { TrackersPrompt } from "./components/TrackersPrompt";
 import { footerHints } from "./keymap";
 import { COLOR, ICON } from "./theme";
 import { useMouseWheel } from "./hooks/useMouseWheel";
@@ -83,6 +84,7 @@ export function App({
   const [seedFocus, setSeedFocus] = useState<SeedFocus | null>(null);
   const [showHelp, setShowHelp] = useState(false);
   const [editingFolder, setEditingFolder] = useState(false);
+  const [editingTrackers, setEditingTrackers] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const booting = useRef(false);
 
@@ -93,6 +95,7 @@ export function App({
     void (async () => {
       const cfg = await loadConfig();
       const q = new DownloadQueue();
+      q.setTrackers(cfg.trackers);
       q.restore(reconcileQueue(await loadQueue()));
       q.restoreHistory(await loadHistory());
       q.restoreSeeds(await loadSeeds());
@@ -148,14 +151,39 @@ export function App({
     else exit();
   }, [queue, onQuit, exit]);
 
-  const setConfig = useCallback((c: Config) => {
-    setConfigState(c);
-    void saveConfig(c);
-  }, []);
+  const setConfig = useCallback(
+    (c: Config) => {
+      setConfigState(c);
+      queue?.setTrackers(c.trackers);
+      void saveConfig(c);
+    },
+    [queue],
+  );
 
   const closeFolderPrompt = useCallback(() => {
     setEditingFolder(false);
   }, []);
+
+  const closeTrackersPrompt = useCallback(() => {
+    setEditingTrackers(false);
+  }, []);
+
+  const setTrackers = useCallback(
+    (list: string[]) => {
+      closeTrackersPrompt();
+      if (!config) return;
+      const same =
+        list.length === config.trackers.length &&
+        list.every((t, i) => t === config.trackers[i]);
+      if (same) {
+        setNotice("Trackers unchanged.");
+        return;
+      }
+      setConfig({ ...config, trackers: list });
+      setNotice(list.length === 0 ? "Cleared extra trackers." : `Saved ${list.length} tracker${list.length === 1 ? "" : "s"}.`);
+    },
+    [config, setConfig, closeTrackersPrompt],
+  );
 
   const setDownloadDir = useCallback(
     (raw: string) => {
@@ -278,7 +306,7 @@ export function App({
       submitQuery,
       section,
       setSection,
-      region: showHelp || editingFolder ? "help" : region,
+      region: showHelp || editingFolder || editingTrackers ? "help" : region,
       setRegion,
       captureMode,
       setCaptureMode,
@@ -307,6 +335,7 @@ export function App({
     region,
     showHelp,
     editingFolder,
+    editingTrackers,
     captureMode,
     downloadFocus,
     seedFocus,
@@ -328,7 +357,7 @@ export function App({
         quitAll();
         return;
       }
-      if (editingFolder) return; // the folder prompt owns input (its own esc + enter)
+      if (editingFolder || editingTrackers) return; // the prompt owns input (its own esc + enter)
       if (captureMode === "text") return;
       if (showHelp) {
         setShowHelp(false);
@@ -341,6 +370,11 @@ export function App({
       if (input === "o") {
         setShowHelp(false);
         setEditingFolder(true);
+        return;
+      }
+      if (input === "t") {
+        setShowHelp(false);
+        setEditingTrackers(true);
         return;
       }
       if (input === "m") {
@@ -420,10 +454,21 @@ export function App({
           </Box>
         ) : null}
 
+        {editingTrackers ? (
+          <Box marginTop={1}>
+            <TrackersPrompt
+              width={Math.max(24, Math.min(cols - 4, 78))}
+              value={store.config.trackers}
+              onSubmit={setTrackers}
+              onCancel={closeTrackersPrompt}
+            />
+          </Box>
+        ) : null}
+
         <Box
           height={bodyH}
           marginTop={compact ? 0 : 1}
-          display={showHelp || editingFolder ? "none" : "flex"}
+          display={showHelp || editingFolder || editingTrackers ? "none" : "flex"}
           overflow="hidden"
         >
           <Sidebar />
@@ -439,7 +484,7 @@ export function App({
         </Box>
 
         {showFooter ? (
-          <Box display={showHelp || editingFolder ? "none" : "flex"}>
+          <Box display={showHelp || editingFolder || editingTrackers ? "none" : "flex"}>
             <Footer hints={footerHints(region, section, downloadFocus, seedFocus)} />
           </Box>
         ) : null}

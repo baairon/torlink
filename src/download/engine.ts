@@ -47,7 +47,15 @@ export class TorrentEngine {
   // `source` is a magnet URI, an infoHash, or a path to a .torrent file. Seeding
   // an existing file passes the stored .torrent path so webtorrent can verify it
   // locally instead of re-fetching metadata from the swarm.
-  add(id: string, source: string, dir: string, handlers: AddHandlers): void {
+  // `announce` supplements whatever trackers are already in the source URI;
+  // webtorrent dedupes internally.
+  add(
+    id: string,
+    source: string,
+    dir: string,
+    handlers: AddHandlers,
+    announce?: string[],
+  ): void {
     const client = this.ensureClient();
     const existing = this.torrents.get(id);
     if (existing) {
@@ -57,9 +65,10 @@ export class TorrentEngine {
       } catch {}
     }
 
+    const opts = announce && announce.length > 0 ? { path: dir, announce } : { path: dir };
     let torrent: Torrent;
     try {
-      torrent = client.add(source, { path: dir });
+      torrent = client.add(source, opts);
     } catch (e) {
       handlers.onError?.(message(e));
       return;

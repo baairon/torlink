@@ -19,6 +19,7 @@ export const HELP_GROUPS: HelpGroup[] = [
       { keys: "tab", label: "Switch pane" },
       { keys: "esc", label: "Back" },
       { keys: "o", label: "Download folder" },
+      { keys: "t", label: "Extra trackers" },
       { keys: "q", label: "Quit" },
     ],
   },

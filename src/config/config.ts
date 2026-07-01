@@ -4,10 +4,12 @@ import { serializeWrites, writeJsonAtomic } from "../util/atomic";
 
 export interface Config {
   downloadDir: string;
+  trackers: string[];
 }
 
 export const defaultConfig: Config = {
   downloadDir: defaultDownloadDir,
+  trackers: [],
 };
 
 export async function loadConfig(): Promise<Config> {
@@ -15,17 +17,22 @@ export async function loadConfig(): Promise<Config> {
   try {
     raw = await fs.readFile(configFile, "utf8");
   } catch {
-    return { ...defaultConfig };
+    return { ...defaultConfig, trackers: [] };
   }
   try {
     const parsed = JSON.parse(raw) as Partial<Config>;
-    const cfg = { ...defaultConfig, ...parsed };
-    if (!cfg.downloadDir || typeof cfg.downloadDir !== "string") {
-      cfg.downloadDir = defaultDownloadDir;
-    }
+    const cfg: Config = {
+      downloadDir:
+        typeof parsed.downloadDir === "string" && parsed.downloadDir
+          ? parsed.downloadDir
+          : defaultDownloadDir,
+      trackers: Array.isArray(parsed.trackers)
+        ? parsed.trackers.filter((t): t is string => typeof t === "string" && t.length > 0)
+        : [],
+    };
     return cfg;
   } catch {
-    return { ...defaultConfig };
+    return { ...defaultConfig, trackers: [] };
   }
 }
 
