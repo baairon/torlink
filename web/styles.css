@@ -134,6 +134,9 @@ header.bar .tui-panel-title,
 .section.active { display: block; }
 .section.tui-panel .tui-panel-title { background: var(--bg); }
 
+.results-subtitle { margin: 0 0 10px; color: var(--rule); font-size: 12px; }
+.results-subtitle:empty { display: none; }
+
 .source-status { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; font-size: 12px; }
 .source-status .tag { padding: 2px 8px; border-radius: 4px; background: var(--bg-row); color: var(--alt); }
 .source-status .tag.ok { color: var(--good); }

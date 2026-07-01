@@ -27,6 +27,7 @@
   const resultsList = el("results-list");
   const resultsEmpty = el("results-empty");
   const resultsTitle = el("results-title");
+  const resultsSubtitle = el("results-subtitle");
   const downloadsList = el("downloads-list");
   const downloadsEmpty = el("downloads-empty");
   const seedsList = el("seeds-list");
@@ -43,6 +44,7 @@
   const playerStatus = el("player-status");
 
   let lastResults = [];
+  let lastIsBrowse = false;
 
   function fmtBytes(n) {
     if (!n) return "0 B";
@@ -90,11 +92,15 @@
     }
   }
 
-  function renderResults(results) {
+  function renderResults(results, isBrowse) {
     resultsList.innerHTML = "";
     resultsEmpty.style.display = results.length ? "none" : "block";
-    resultsTitle.textContent = results.length ? `Results (${results.length})` : "Results";
-    const sorted = [...results].sort((a, b) => b.seeders - a.seeders);
+    const label = isBrowse ? "Latest" : "Results";
+    resultsTitle.textContent = results.length ? `${label} (${results.length})` : label;
+    resultsSubtitle.textContent = isBrowse && results.length ? "newest across all sources" : "";
+    const sorted = isBrowse
+      ? [...results].sort((a, b) => (b.added || 0) - (a.added || 0))
+      : [...results].sort((a, b) => b.seeders - a.seeders);
     for (const r of sorted) {
       const row = document.createElement("div");
       row.className = "row";
@@ -290,18 +296,22 @@
   searchForm.addEventListener("submit", (e) => {
     e.preventDefault();
     const value = searchInput.value.trim();
-    if (!value) return;
 
-    const magnet = parseMagnet(value);
+    const magnet = value ? parseMagnet(value) : null;
     if (magnet) {
       startDownload(magnet.magnet);
       searchInput.value = "";
       return;
     }
 
+    // An empty box browses the latest across every source, mirroring the CLI's own
+    // "empty ↵ browse" — most source adapters already return their own "latest" feed
+    // when given an empty query (ported from the CLI), this just needed to stop being
+    // blocked before it ever reached them.
     const statusMap = new Map();
     lastResults = [];
-    renderResults(lastResults);
+    lastIsBrowse = !value;
+    renderResults(lastResults, lastIsBrowse);
     renderSourceStatus(statusMap);
 
     runSearch(value, {
@@ -311,7 +321,7 @@
       },
       onResult: (source, results) => {
         lastResults = lastResults.concat(results);
-        renderResults(lastResults);
+        renderResults(lastResults, lastIsBrowse);
       },
       onDone: () => {},
     });
