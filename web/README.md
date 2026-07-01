@@ -1,6 +1,6 @@
 # torlink web
 
-A pure client-side, no-backend torrent finder. Everything — search, the BitTorrent client, file saving — runs in your browser. There is no server: this directory is a static bundle you can host anywhere that serves static files. Opening `index.html` directly via `file://` works for search, download, and even in-browser playback of `.mp4`/`.webm` files — see Streaming below for what's different in that mode.
+A pure client-side, no-backend torrent finder. Everything — search, the BitTorrent client, file saving — runs in your browser. There is no server: this directory is a static bundle you can host anywhere that serves static files, including opening `index.html` directly via `file://` — see [Opening via `file://`](#opening-via-file) for exactly what that mode does and doesn't support, verified with real testing rather than assumed.
 
 ## Why it's different from the CLI
 
@@ -66,6 +66,21 @@ Either way:
 
 - Closing the player stops playback but **not** the underlying download — the torrent keeps fetching/seeding in the Downloads panel regardless.
 - This inherits the same WebRTC peer-availability limits as downloading (see above): playback only starts if the torrent actually has browser-reachable peers.
+
+## Opening via `file://`
+
+This used to be broken, silently. All the app's JS was written as ES modules (`<script type="module">`), and Chrome flatly refuses to load ES modules — static `import`, `<script type="module">`, and even dynamic `import()` — under the `file://` protocol at all, treating every local file as a distinct `null` origin and rejecting the request outright. Confirmed directly with real headless Chrome testing (not assumed): `app.js` never executed, meaning *nothing* worked — not "streaming doesn't work," the entire app silently failed to load.
+
+Fixed by converting every file in `web/js/` off `import`/`export` to plain classic `<script>` tags, each wrapped in an IIFE and attaching only its intended exports to a shared `window.Torlink` namespace (classic scripts share one global scope, so without the IIFE wrapper, files that happen to reuse names like `search` or `API` internally would collide). The vendored `webtorrent.min.js` had exactly one ES-module construct in the whole 218KB bundle (`export{Kt as default}` at the very end) — patched to `window.WebTorrent=Kt` so it loads as a classic script too, since it ships with no alternative non-ESM build.
+
+With that fixed, tested what actually works via `file://` using a self-driving headless-Chrome harness (fills the search box, submits, waits, inspects the real rendered DOM) rather than just checking for console errors:
+
+- **Search works** for the direct-CORS sources (YTS, SolidTorrents, EZTV) — real results render.
+- **CORS-proxied sources (Nyaa, SubsPlease, FitGirl, PirateBay) do not work via `file://`** — `api.allorigins.win` doesn't grant `Origin: null` (what `file://` sends) the same access it grants a real origin like `http://localhost`. This is the proxy's own policy, not something fixable in this app's code.
+- **Magnet-paste and download-adding work** — a torrent gets added and tracked correctly.
+- **IndexedDB doesn't work under `file://`** — a request via `indexedDB.open()` just hangs forever (fires neither `onsuccess` nor `onerror`), confirmed directly. WebTorrent's default browser chunk store is IndexedDB-backed, which would have made real download data silently stall. Fixed with a small in-memory chunk store (`web/js/download.js`'s `MemoryChunkStore`, matching the standard `abstract-chunk-store` interface) swapped in automatically only when `location.protocol === "file:"` — real `http(s)://` deployments keep the better persistent default.
+- **An intermittent, unexplained `SecurityError`** ("certain files are unsafe for access...") shows up in some `file://` test runs. Investigated significantly — ruled out fetch concurrency, chunk storage, and `localStorage`/`sessionStorage` as the cause via isolated tests — without finding a definitive root cause. Documented here rather than silently dropped: in every test where it appeared, it did **not** block observable functionality (search still rendered real results, downloads still started correctly). Treat it as a known, apparently-benign console warning until someone traces it further.
+- Streaming's Service-Worker path still requires `https://`/`localhost` (Service Workers are unavailable under `file://` by spec, unrelated to any of the above) — the `MediaSource` fallback path is what actually plays video under `file://`, per the Streaming section above.
 
 ## Saving files
 
