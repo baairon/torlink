@@ -25,33 +25,38 @@ body {
 .bar {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 10px 16px;
-  border-bottom: 1px solid var(--rule);
+  gap: 16px;
+  padding: 12px 16px;
   background: var(--bg-raised);
 }
 
-.brand { font-weight: 700; color: var(--bright); white-space: nowrap; }
-.brand-dim { color: var(--alt); font-weight: 400; }
+.rule { height: 1px; background: var(--rule); opacity: 0.5; }
 
-.search { flex: 1; display: flex; gap: 8px; }
+.brand { font-weight: 700; white-space: nowrap; letter-spacing: 0.5px; font-size: 15px; }
+.brand-bolt { color: var(--good); margin-right: 2px; }
+.brand-tor { color: var(--text); }
+.brand-link { color: var(--accent); background: linear-gradient(90deg, var(--accent), var(--bright)); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+.brand-dim { color: var(--rule); font-weight: 400; margin-left: 2px; }
+
+.search { flex: 1; display: flex; align-items: center; gap: 8px; padding-left: 12px; }
+.prompt { color: var(--accent); font-weight: 700; }
 .search input {
   flex: 1;
-  background: var(--bg);
-  border: 1px solid var(--rule);
+  background: transparent;
+  border: none;
   color: var(--text);
-  padding: 8px 10px;
-  border-radius: 6px;
+  padding: 6px 4px;
   font: inherit;
 }
-.search input:focus { outline: 1px solid var(--accent); }
+.search input:focus { outline: none; }
+.search input::placeholder { color: var(--rule); }
 
 button {
   background: var(--accent);
   color: #15121d;
   border: none;
   padding: 8px 14px;
-  border-radius: 6px;
+  border-radius: 3px;
   font: inherit;
   font-weight: 600;
   cursor: pointer;
@@ -63,10 +68,33 @@ button:hover { background: var(--bright); }
   color: var(--alt);
   border: 1px solid var(--rule);
   padding: 6px 10px;
+  border-radius: 3px;
 }
 .icon-btn:hover { color: var(--text); background: var(--bg-row); }
 
-.layout { display: flex; min-height: calc(100vh - 49px); }
+.layout { display: flex; min-height: calc(100vh - 50px); }
+
+/* TUI-style bordered panel with the title cut into the top border line,
+   mirroring the terminal app's box-drawing "── Search ──" panels. The title's
+   background must match whatever sits behind the panel (set per-context) so
+   it visually breaks the border rather than just overlapping it. */
+.tui-panel {
+  position: relative;
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+}
+.tui-panel-title {
+  position: absolute;
+  top: -9px;
+  left: 12px;
+  padding: 0 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent);
+  letter-spacing: 0.3px;
+}
+header.bar .tui-panel-title,
+.search .tui-panel-title { background: var(--bg-raised); }
 
 .rail {
   width: 180px;
@@ -100,10 +128,11 @@ button:hover { background: var(--bright); }
 }
 .badge:empty { display: none; }
 
-.panel { flex: 1; padding: 16px; overflow-y: auto; }
+.panel { flex: 1; padding: 20px; overflow-y: auto; }
 
-.section { display: none; }
+.section { display: none; padding: 18px 16px 16px; min-height: 200px; }
 .section.active { display: block; }
+.section.tui-panel .tui-panel-title { background: var(--bg); }
 
 .source-status { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; font-size: 12px; }
 .source-status .tag { padding: 2px 8px; border-radius: 4px; background: var(--bg-row); color: var(--alt); }

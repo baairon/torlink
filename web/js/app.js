@@ -26,6 +26,7 @@
   const sourceStatusEl = el("source-status");
   const resultsList = el("results-list");
   const resultsEmpty = el("results-empty");
+  const resultsTitle = el("results-title");
   const downloadsList = el("downloads-list");
   const downloadsEmpty = el("downloads-empty");
   const seedsList = el("seeds-list");
@@ -92,6 +93,7 @@
   function renderResults(results) {
     resultsList.innerHTML = "";
     resultsEmpty.style.display = results.length ? "none" : "block";
+    resultsTitle.textContent = results.length ? `Results (${results.length})` : "Results";
     const sorted = [...results].sort((a, b) => b.seeders - a.seeders);
     for (const r of sorted) {
       const row = document.createElement("div");

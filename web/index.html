@@ -8,13 +8,17 @@
 </head>
 <body>
 <header class="bar">
-  <div class="brand">torlink<span class="brand-dim">.web</span></div>
-  <form id="search-form" class="search">
+  <div class="brand"><span class="brand-bolt">⚡</span><span class="brand-tor">TOR</span><span class="brand-link">LINK</span><span class="brand-dim">.web</span></div>
+  <form id="search-form" class="search tui-panel">
+    <span class="tui-panel-title">Search</span>
+    <span class="prompt">❯</span>
     <input id="search-input" type="text" placeholder="Search, or paste a magnet link…" autocomplete="off">
     <button type="submit">Search</button>
   </form>
   <button id="settings-btn" class="icon-btn" title="Settings" type="button">⚙</button>
 </header>
+
+<div class="rule"></div>
 
 <div class="layout">
   <nav class="rail">
@@ -24,18 +28,21 @@
   </nav>
 
   <main class="panel">
-    <section id="section-results" class="section active">
+    <section id="section-results" class="section active tui-panel">
+      <span class="tui-panel-title" id="results-title">Results</span>
       <div id="source-status" class="source-status"></div>
       <div id="results-list" class="list"></div>
       <p id="results-empty" class="empty">Search above, or paste a magnet link to add it directly.</p>
     </section>
 
-    <section id="section-downloads" class="section">
+    <section id="section-downloads" class="section tui-panel">
+      <span class="tui-panel-title">Downloads</span>
       <div id="downloads-list" class="list"></div>
       <p id="downloads-empty" class="empty">No downloads yet.</p>
     </section>
 
-    <section id="section-seeds" class="section">
+    <section id="section-seeds" class="section tui-panel">
+      <span class="tui-panel-title">Seeding</span>
       <div id="seeds-list" class="list"></div>
       <p id="seeds-empty" class="empty">Nothing seeding yet.</p>
     </section>
