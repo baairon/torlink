@@ -7,7 +7,7 @@ import { Panel } from "./Panel";
 import { Rule } from "./Rule";
 import { useConcurrentSearch } from "../hooks/useConcurrentSearch";
 import { getSource, SOURCES } from "../../sources/registry";
-import { wrapStep, windowStart } from "../move";
+import { wrapStep, windowStart, resultsPanelOuter } from "../move";
 import { sortResults, nextSort, sortLabel, sortArrow, type Sort, type SortField } from "../sort";
 import { COLOR, GUTTER, ICON, SOURCE_STYLE } from "../theme";
 import { cleanText, formatBytes, formatRelative, truncate } from "../../util/format";
@@ -155,7 +155,7 @@ export function Results() {
   const clamped = Math.min(cursor, Math.max(0, results.length - 1));
 
   const searchH = 3;
-  const panelOuter = Math.max(5, listRows - searchH - 1);
+  const panelOuter = resultsPanelOuter(listRows, searchH);
   const listHeight = Math.max(3, panelOuter - 4);
   const pageJump = Math.max(1, listHeight - 1);
 
