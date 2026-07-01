@@ -5,6 +5,10 @@ declare module "webtorrent" {
     name: string;
     path: string;
     length: number;
+    offset: number;
+    progress: number;
+    select(priority?: number): void;
+    deselect(): void;
   }
 
   interface Torrent extends EventEmitter {

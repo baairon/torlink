@@ -1,4 +1,6 @@
 import { EventEmitter } from "node:events";
+import { promises as fs, existsSync } from "node:fs";
+import path from "node:path";
 import { TorrentEngine, type AddHandlers } from "./engine";
 import {
   saveQueue,
@@ -47,7 +49,7 @@ export interface AddInput {
 
 export class DownloadQueue extends EventEmitter {
   private items = new Map<string, QueueItem>();
-  private engine = new TorrentEngine();
+  public readonly engine = new TorrentEngine();
   private poll: ReturnType<typeof setInterval> | null = null;
   private history: HistoryItem[] = [];
   private seeds = new Map<string, SeedItem>();
@@ -76,7 +78,7 @@ export class DownloadQueue extends EventEmitter {
     return this.items.has(id);
   }
 
-  add(input: AddInput, dir: string): void {
+  add(input: AddInput & { selectedIndices?: number[] }, dir: string): void {
     if (this.seeds.has(input.id)) {
       this.engine.remove(input.id);
       this.seeds.delete(input.id);
@@ -87,7 +89,7 @@ export class DownloadQueue extends EventEmitter {
     const existing = this.items.get(input.id);
     if (existing && existing.status !== "failed") return;
     const item: QueueItem = existing
-      ? { ...existing, status: "downloading", error: undefined, speed: 0 }
+      ? { ...existing, status: "downloading", error: undefined, speed: 0, selectedIndices: input.selectedIndices }
       : {
           id: input.id,
           name: input.name,
@@ -100,6 +102,7 @@ export class DownloadQueue extends EventEmitter {
           downloadedBytes: 0,
           speed: 0,
           peers: 0,
+          selectedIndices: input.selectedIndices,
           addedAt: Date.now(),
         };
     this.items.set(item.id, item);
@@ -127,8 +130,24 @@ export class DownloadQueue extends EventEmitter {
         const it = this.items.get(id);
         if (!it) return; // the rest only matters while still downloading
         if (meta.name) it.name = meta.name;
-        if (meta.total) it.totalBytes = meta.total;
         it.files = meta.files;
+        if (meta.fileList) {
+          it.fileList = meta.fileList.map((f, i) => ({
+            path: f.path,
+            length: f.length,
+            progress: 0,
+            selected: it.selectedIndices ? it.selectedIndices.includes(i) : true,
+          }));
+        }
+        if (it.selectedIndices) {
+          this.engine.applyFileSelection(id, new Set<number>(it.selectedIndices));
+          it.totalBytes = it.selectedIndices.reduce(
+            (sum, i) => sum + (meta.fileList?.[i]?.length ?? 0),
+            0
+          );
+        } else {
+          if (meta.total) it.totalBytes = meta.total;
+        }
         this.changed();
         void this.persist();
       },
@@ -173,9 +192,28 @@ export class DownloadQueue extends EventEmitter {
     };
   }
 
+  private async cleanUnwanted(it: QueueItem): Promise<void> {
+    if (!it.fileList || !it.selectedIndices) return;
+    const selected = new Set(it.selectedIndices);
+    for (let i = 0; i < it.fileList.length; i++) {
+      if (selected.has(i)) continue;
+      const file = it.fileList[i];
+      if (!file) continue;
+      const src = path.join(it.dir, file.path);
+      if (!existsSync(src)) continue;
+      const unwantedDir = path.join(it.dir, path.dirname(file.path), ".unwanted");
+      try {
+        await fs.mkdir(unwantedDir, { recursive: true });
+        const dest = path.join(unwantedDir, path.basename(file.path));
+        await fs.rename(src, dest);
+      } catch {}
+    }
+  }
+
   private complete(it: QueueItem): void {
     this.recordHistory(it);
     this.items.delete(it.id);
+    void this.cleanUnwanted(it);
     // Opt-out seeding: a finished download is already a complete, verified
     // torrent, so keep it alive and seeding instead of tearing it down.
     this.beginSeed(it);
@@ -210,9 +248,10 @@ export class DownloadQueue extends EventEmitter {
 
   private tick(): void {
     let any = false;
-    for (const it of this.items.values()) {
+    for (const it of Array.from(this.items.values())) {
       if (it.status !== "downloading") continue;
-      const s = this.engine.stats(it.id);
+      const sel = it.selectedIndices ? new Set(it.selectedIndices) : undefined;
+      const s = this.engine.stats(it.id, sel);
       if (!s) continue;
       it.progress = Math.min(100, Math.round(s.progress * 100));
       it.downloadedBytes = s.downloaded;
@@ -224,6 +263,23 @@ export class DownloadQueue extends EventEmitter {
           ? s.timeRemaining / 1000
           : undefined;
       if (s.name) it.name = s.name;
+
+      const fs = this.engine.fileStats(it.id);
+      if (fs && it.fileList) {
+        for (let i = 0; i < it.fileList.length; i++) {
+          const file = it.fileList[i];
+          const fileStat = fs[i];
+          if (file && fileStat) {
+            file.progress = fileStat.progress;
+          }
+        }
+      }
+
+      if (sel && it.progress >= 100) {
+        if (it.totalBytes) it.downloadedBytes = it.totalBytes;
+        this.complete(it);
+      }
+
       any = true;
     }
     const now = Date.now();
@@ -455,7 +511,9 @@ export class DownloadQueue extends EventEmitter {
   restore(items: QueueItem[]): void {
     for (const raw of items) {
       this.items.set(raw.id, raw);
-      if (raw.status === "downloading") this.startEngine(raw);
+      if (raw.status === "downloading") {
+        this.startEngine(raw);
+      }
     }
     if (this.activeCount > 0) this.ensurePoll();
     this.changed();
