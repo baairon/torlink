@@ -30,22 +30,59 @@ function parseRssItems(xml: string, source: SourceId): TorrentResult[] {
   return out;
 }
 
+const WP_FEED_PAGE_SIZE = 10;
+const FEED_DEPTH = 3;
+const DEEP_PAGE_RETRIES = 2;
+
+function feedUrl(base: string, query: string, page: number): string {
+  const q = query.trim();
+  const url = q
+    ? `${base}/?s=${encodeURIComponent(q)}&feed=rss2`
+    : `${base}/feed/`;
+  if (page <= 1) return url;
+  return `${url}${q ? "&" : "?"}paged=${page}`;
+}
+
+async function fetchFeedPage(
+  url: string,
+  source: SourceId,
+  opts: SearchOptions,
+  retries?: number,
+): Promise<string> {
+  const res = await fetchResilient(url, {
+    headers: { "User-Agent": USER_AGENT },
+    signal: opts.signal,
+    ...(retries !== undefined ? { retries } : {}),
+  });
+  if (!res.ok) throw new HttpError(res.status, `${source} feed returned ${res.status}`);
+  return res.text();
+}
+
 export async function fetchWordpressRss(
   base: string,
   source: SourceId,
   query: string,
   opts: SearchOptions = {},
 ): Promise<TorrentResult[]> {
-  const q = query.trim();
-  const url = q
-    ? `${base}/?s=${encodeURIComponent(q)}&feed=rss2`
-    : `${base}/feed/`;
+  const first = await fetchFeedPage(feedUrl(base, query, 1), source, opts);
+  const results = parseRssItems(first, source);
 
-  const res = await fetchResilient(url, {
-    headers: { "User-Agent": USER_AGENT },
-    signal: opts.signal,
-  });
-  if (!res.ok) throw new HttpError(res.status, `${source} feed returned ${res.status}`);
+  const rawCount = first.split("<item>").length - 1;
+  if (rawCount < WP_FEED_PAGE_SIZE) return results;
 
-  return parseRssItems(await res.text(), source);
+  const deeper = await Promise.all(
+    Array.from({ length: FEED_DEPTH - 1 }, (_, i) =>
+      fetchFeedPage(feedUrl(base, query, i + 2), source, opts, DEEP_PAGE_RETRIES)
+        .then((xml) => parseRssItems(xml, source))
+        .catch(() => [] as TorrentResult[]),
+    ),
+  );
+
+  const seen = new Set(results.map((r) => r.infoHash));
+  for (const r of deeper.flat()) {
+    if (seen.has(r.infoHash)) continue;
+    seen.add(r.infoHash);
+    results.push(r);
+  }
+  return results;
 }
