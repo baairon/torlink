@@ -11,20 +11,21 @@
 
 buildNpmPackage (finalAttrs: {
   pname = "torlink";
-  version = "1.1.1-unstable";
-  __structedAttrs = true;
+  version = "1.2.0";
+  __structuredAttrs = true;
   strictDeps = true;
 
   src = fetchFromGitHub {
     owner = "baairon";
     repo = "torlink";
-    rev = "3c5b5597d9ad212b6dab50af5a6e614cdfb82743";
-    hash = "sha256-f4olyyE2QqvVyakV5LvQq2Rm01fNeVox1Mk0VOat/nk=";
+    tag = "v${finalAttrs.version}";
+    hash = "sha256-nspTUJE9hPxHHt3SuYzZlsvPaUKq/UEwvdKb+/dn3lY=";
   };
 
   nodejs = nodejs_22;
   npmDepsHash = "sha256-7CCecywWleUE7wobdzwWb4Rff0LmrlHcON1iPeiiFnw=";
-  npmFlags = [ "--ignore-scripts" ]; # ignore scripts for ip-set broken pre-install
+  # ignore-scripts for ip-set broken preinstall
+  npmFlags = [ "--ignore-scripts" ];
 
   # node-datachannel binary tarball
   nodeDatachannelPrebuilt = fetchurl {
@@ -34,15 +35,14 @@ buildNpmPackage (finalAttrs: {
 
   # replicate postbuild from package.json
   postBuild = ''
-    cp scripts/cli-entry.cjs dist/cli.cjs
-    chmod +x dist/cli.cjs
+    node scripts/postbuild.cjs
   '';
 
   # extract node-datachannel tarball
+  # add wl-copy and xclip to nix readeable path
   postInstall = ''
     tar -xzf ${finalAttrs.nodeDatachannelPrebuilt} \
       -C $out/lib/node_modules/torlnk/node_modules/node-datachannel
-      # add wl-copy and xclip to nix readeable path
       wrapProgram $out/bin/torlnk \
         --prefix PATH : ${
           lib.makeBinPath [
@@ -55,6 +55,7 @@ buildNpmPackage (finalAttrs: {
   meta = {
     description = "Torlink is a torrent finder that lives in your terminal, with zero setup and nothing to configure.";
     homepage = "https://github.com/baairon/torlink";
+    changelog = "https://github.com/baairon/torlink/releases/tag/v${finalAttrs.src.tag}";
     license = lib.licenses.mit;
     maintainers = with lib.maintainers; [ ghastrum ];
     mainProgram = "torlnk";
