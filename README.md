@@ -83,3 +83,13 @@ Your files stay on your disk, and nothing routes through a central server; torli
    <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=baairon/torlink&type=date&legend=top-left" />
  </picture>
 </a>
+
+## Available Commands
+
+Here is a list of commands you can use while navigating through torlink:
+
+- **`d`**: Download the selected torrent.
+- **`p`**: Pause or stop seeding.
+- **`?`**: Open the help menu to see all available commands.
+
+These commands help streamline your experience and make it easier to interact with the application.
