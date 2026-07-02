@@ -70,7 +70,7 @@ export class TorrentEngine {
     try {
       torrent = client.add(source, opts);
     } catch (e) {
-      handlers.onError?.(message(e));
+      handlers.onError?.(message(e) + ' - Failed to add the torrent source. Please check the source URL or format.');
       return;
     }
     this.torrents.set(id, torrent);
