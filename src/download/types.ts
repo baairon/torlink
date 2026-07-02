@@ -4,6 +4,13 @@ export type DownloadStatus = "downloading" | "paused" | "completed" | "failed";
 
 export type SeedStatus = "seeding" | "paused" | "missing";
 
+export interface TorrentFileInfo {
+  path: string;
+  length: number;
+  progress: number;
+  selected: boolean;
+}
+
 export interface SeedItem {
   id: string;
   name: string;
@@ -31,6 +38,8 @@ export interface QueueItem {
   peers: number;
   eta?: number;
   files?: number;
+  fileList?: TorrentFileInfo[];
+  selectedIndices?: number[];
   error?: string;
   addedAt: number;
 }

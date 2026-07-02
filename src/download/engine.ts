@@ -12,10 +12,16 @@ export interface TorrentProgress {
   name: string;
 }
 
+export interface TorrentFileMeta {
+  path: string;
+  length: number;
+}
+
 export interface TorrentMeta {
   name: string;
   total: number;
   files: number;
+  fileList: TorrentFileMeta[];
   // The .torrent metadata (piece hashes), available once metadata arrives. We
   // persist it so a later re-seed can verify the on-disk file without having to
   // re-fetch metadata from the swarm (which a bare magnet would require).
@@ -80,6 +86,7 @@ export class TorrentEngine {
         name: torrent.name,
         total: torrent.length,
         files: torrent.files?.length ?? 0,
+        fileList: (torrent.files ?? []).map((f) => ({ path: f.path, length: f.length })),
         torrentFile: torrent.torrentFile,
       });
     });
@@ -102,13 +109,58 @@ export class TorrentEngine {
     return this.client?.torrentPort ?? null;
   }
 
-  stats(id: string): TorrentProgress | null {
+  getTorrent(id: string): Torrent | undefined {
+    return this.torrents.get(id);
+  }
+
+  fileStats(id: string): { path: string; length: number; progress: number }[] | null {
+    const t = this.torrents.get(id);
+    if (!t?.files) return null;
+    return t.files.map((f) => ({ path: f.path, length: f.length, progress: f.progress }));
+  }
+
+  applyFileSelection(id: string, selectedIndices: Set<number>): void {
+    const t = this.torrents.get(id);
+    if (!t?.files) return;
+    for (let i = 0; i < t.files.length; i++) {
+      const file = t.files[i];
+      if (file) {
+        if (selectedIndices.has(i)) {
+          file.select();
+        } else {
+          file.deselect();
+        }
+      }
+    }
+  }
+
+  stats(id: string, selectedIndices?: Set<number>): TorrentProgress | null {
     const t = this.torrents.get(id);
     if (!t) return null;
+
+    let total = t.length;
+    let downloaded = t.downloaded;
+    let progress = t.progress;
+
+    if (selectedIndices && t.files) {
+      total = 0;
+      downloaded = 0;
+      for (let i = 0; i < t.files.length; i++) {
+        if (selectedIndices.has(i)) {
+          const f = t.files[i];
+          if (f) {
+            total += f.length;
+            downloaded += Math.round(f.progress * f.length);
+          }
+        }
+      }
+      progress = total > 0 ? downloaded / total : 0;
+    }
+
     return {
-      progress: t.progress,
-      downloaded: t.downloaded,
-      total: t.length,
+      progress,
+      downloaded,
+      total,
       speed: t.downloadSpeed,
       uploadSpeed: t.uploadSpeed,
       uploaded: t.uploaded,

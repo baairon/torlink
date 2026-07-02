@@ -28,9 +28,121 @@ function DetailRow({ label, value }: { label: string; value: ReactNode }) {
   );
 }
 
-function Detail({ r, width }: { r: TorrentResult; width: number }) {
+interface DetailProps {
+  r: TorrentResult;
+  width: number;
+  listHeight: number;
+  focused: boolean;
+  onClose: () => void;
+}
+
+function Detail({ r, width, listHeight, focused, onClose }: DetailProps) {
+  const { queue, config, startDownload, copyMagnet } = useStore();
   const ss = SOURCE_STYLE[r.source];
   const date = formatRelative(r.added);
+
+  const [fileList, setFileList] = useState<{ path: string; length: number }[] | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [cursor, setCursor] = useState(0);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    // If already in queue, check if it has fileList
+    const qItem = queue.getItems().find((it) => it.id === r.infoHash);
+    if (qItem && qItem.fileList) {
+      setFileList(qItem.fileList.map((f) => ({ path: f.path, length: f.length })));
+      setSelected(new Set(qItem.selectedIndices ?? qItem.fileList.map((_, i) => i)));
+      return;
+    }
+
+    if (r.numFiles && r.numFiles <= 1) {
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    let active = true;
+    const tempId = `temp-${r.infoHash}`;
+
+    try {
+      queue.engine.add(
+        tempId,
+        r.magnet,
+        config.downloadDir,
+        {
+          onMetadata: (meta) => {
+            if (!active) return;
+            if (meta.fileList) {
+              setFileList(meta.fileList);
+              setSelected(new Set(meta.fileList.map((_, i) => i)));
+            }
+            setLoading(false);
+            queue.engine.applyFileSelection(tempId, new Set());
+          },
+          onError: (msg) => {
+            if (!active) return;
+            setError(msg);
+            setLoading(false);
+          },
+        },
+        config.trackers,
+      );
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+      setLoading(false);
+    }
+
+    return () => {
+      active = false;
+      queue.engine.remove(tempId);
+    };
+  }, [r.infoHash, queue, config, r.magnet, r.numFiles]);
+
+  const showFileList = fileList && fileList.length > 1;
+
+  useInput(
+    (input, key) => {
+      if (key.escape) {
+        onClose();
+      } else if (input === "y") {
+        copyMagnet({ name: r.name, magnet: r.magnet });
+      } else if (input === "d") {
+        startDownload({
+          id: r.infoHash,
+          name: r.name,
+          magnet: r.magnet,
+          source: r.source,
+          sizeBytes: r.sizeBytes,
+          selectedIndices: showFileList ? Array.from(selected) : undefined,
+        });
+        onClose();
+      } else if (showFileList && fileList) {
+        if (key.upArrow || input === "k") {
+          setCursor((c) => Math.max(0, c - 1));
+        } else if (key.downArrow || input === "j") {
+          setCursor((c) => Math.min(fileList.length - 1, c + 1));
+        } else if (input === " ") {
+          setSelected((prev) => {
+            const next = new Set(prev);
+            if (next.has(cursor)) next.delete(cursor);
+            else next.add(cursor);
+            return next;
+          });
+        } else if (input === "a") {
+          setSelected((prev) => {
+            if (prev.size === fileList.length) return new Set();
+            return new Set(fileList.map((_, i) => i));
+          });
+        } else if (input === "n") {
+          setSelected(new Set());
+        }
+      }
+    },
+    { isActive: focused },
+  );
+
   const health =
     r.seeders || r.leechers ? (
       <Text>
@@ -42,6 +154,11 @@ function Detail({ r, width }: { r: TorrentResult; width: number }) {
     ) : (
       <Text dimColor>unknown</Text>
     );
+
+  const fileBoxHeight = Math.max(3, listHeight - 11);
+  const fileStart = windowStart(cursor, fileList?.length ?? 0, fileBoxHeight);
+  const visibleFiles = fileList ? fileList.slice(fileStart, fileStart + fileBoxHeight) : [];
+
   return (
     <Box flexDirection="column">
       <Box>
@@ -90,6 +207,73 @@ function Detail({ r, width }: { r: TorrentResult; width: number }) {
           }
         />
       </Box>
+
+      {loading && (
+        <Box marginTop={1}>
+          <Spinner label="Loading file list…" />
+        </Box>
+      )}
+
+      {error && (
+        <Box marginTop={1}>
+          <Text color={COLOR.bad}>Failed to load files: {error}</Text>
+        </Box>
+      )}
+
+      {showFileList && fileList && (
+        <Box flexDirection="column" marginTop={1}>
+          <Box>
+            <Text bold dimColor>Files selection checklist:</Text>
+          </Box>
+          <Box
+            flexDirection="column"
+            borderStyle="round"
+            borderColor={COLOR.accent}
+            paddingX={1}
+            height={fileBoxHeight + 2}
+          >
+            {visibleFiles.map((file, i) => {
+              const globalIdx = fileStart + i;
+              const isFocused = globalIdx === cursor;
+              const isChecked = selected.has(globalIdx);
+
+              const displayPath = file.path.includes("/")
+                ? file.path.substring(file.path.indexOf("/") + 1)
+                : file.path;
+
+              return (
+                <Box key={file.path}>
+                  <Box width={2} flexShrink={0}>
+                    <Text color={COLOR.accent}>{isFocused ? ICON.pointer : ""}</Text>
+                  </Box>
+                  <Box width={4} flexShrink={0}>
+                    <Text color={isChecked ? COLOR.accent : COLOR.alt}>
+                      {isChecked ? "[x]" : "[ ]"}
+                    </Text>
+                  </Box>
+                  <Box flexGrow={1} minWidth={0}>
+                    <Text wrap="truncate-end" color={isFocused ? COLOR.accent : COLOR.text} dimColor={!isFocused && !isChecked}>
+                      {truncate(cleanText(displayPath), width - 30)}
+                    </Text>
+                  </Box>
+                  <Box width={10} flexShrink={0} justifyContent="flex-end">
+                    <Text dimColor>{formatBytes(file.length)}</Text>
+                  </Box>
+                </Box>
+              );
+            })}
+          </Box>
+          <Box justifyContent="space-between" width={width}>
+            <Text dimColor>
+              [space] toggle  .  [a] all  .  [n] none
+            </Text>
+            <Text color={COLOR.good}>
+              Selected: {selected.size} / {fileList.length} files ({formatBytes(Array.from(selected).reduce((sum, idx) => sum + (fileList[idx]?.length ?? 0), 0))})
+            </Text>
+          </Box>
+        </Box>
+      )}
+
       <Box marginTop={1}>
         <Text color={COLOR.accent} bold>
           d
@@ -205,16 +389,7 @@ export function Results() {
     { isActive: focused && mode === "list" },
   );
 
-  useInput(
-    (input, key) => {
-      if (key.escape) {
-        setMode("list");
-        setDetail(null);
-      } else if (input === "d" && detail) openDownload(detail);
-      else if (input === "y" && detail) copyResultMagnet(detail);
-    },
-    { isActive: focused && mode === "detail" },
-  );
+
 
   useInput(
     (_input, key) => {
@@ -327,7 +502,16 @@ export function Results() {
           height={panelOuter}
         >
           {mode === "detail" && detail ? (
-            <Detail r={detail} width={Math.max(10, contentWidth - 4)} />
+            <Detail
+              r={detail}
+              width={Math.max(10, contentWidth - 4)}
+              listHeight={listHeight}
+              focused={focused}
+              onClose={() => {
+                setMode("list");
+                setDetail(null);
+              }}
+            />
           ) : (
             <>
               <Box>{status()}</Box>

@@ -31,6 +31,9 @@ export const HELP_GROUPS: HelpGroup[] = [
       { keys: "s", label: "Sort results" },
       { keys: "y", label: "Copy magnet" },
       { keys: "m", label: "Paste magnet" },
+      { keys: "space", label: "Toggle file selection" },
+      { keys: "a", label: "Select all files" },
+      { keys: "n", label: "Deselect all files" },
     ],
   },
   {
