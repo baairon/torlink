@@ -107,6 +107,28 @@ export function cleanText(s: string): string {
   return out.replace(/\s+/g, " ").trim() || "Untitled";
 }
 
+// True for a code point a terminal interprets as part of a control or escape
+// sequence: C0 controls (including ESC 0x1b and BEL 0x07), DEL 0x7f, and the C1
+// controls 0x80-0x9f (which encode the 8-bit forms of CSI/OSC/ST).
+function isControlCodePoint(cp: number): boolean {
+  return cp <= 0x1f || cp === 0x7f || (cp >= 0x80 && cp <= 0x9f);
+}
+
+// Strip control/escape-capable characters from a string that will be printed
+// verbatim. Use this on attacker-influenced fields that bypass cleanText() —
+// info hashes and magnet links — so a malicious or hijacked source can't smuggle
+// e.g. an OSC-52 clipboard-write sequence to the terminal through them. Unlike
+// cleanText(), it preserves the exact remaining characters (no whitespace
+// collapsing, NFC folding, or "Untitled" fallback), which matters for
+// identifiers and URLs.
+export function stripControl(s: string): string {
+  let out = "";
+  for (const ch of s) {
+    if (!isControlCodePoint(ch.codePointAt(0)!)) out += ch;
+  }
+  return out;
+}
+
 export function truncate(s: string, max: number): string {
   if (max <= 1) return s.slice(0, Math.max(0, max));
   return s.length <= max ? s : s.slice(0, max - 1) + "…";

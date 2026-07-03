@@ -7,6 +7,7 @@ import {
   formatRelative,
   formatEtaShort,
   cleanText,
+  stripControl,
   truncate,
 } from "./format";
 
@@ -89,5 +90,31 @@ describe("truncate", () => {
   it("truncates with an ellipsis", () => {
     expect(truncate("hello world", 5)).toBe("hell…");
     expect(truncate("hi", 5)).toBe("hi");
+  });
+});
+
+describe("stripControl", () => {
+  const ESC = String.fromCharCode(0x1b);
+  const BEL = String.fromCharCode(0x07);
+  const hash = "0123456789abcdef0123456789abcdef01234567";
+
+  it("removes an OSC-52 clipboard-write smuggled into a magnet", () => {
+    const magnet = `magnet:?xt=urn:btih:${hash}${ESC}]52;c;ZXZpbA==${BEL}`;
+    expect(stripControl(magnet)).toBe(`magnet:?xt=urn:btih:${hash}]52;c;ZXZpbA==`);
+  });
+
+  it("removes CSI colour/cursor escapes", () => {
+    expect(stripControl(`${ESC}[31mred${ESC}[0m`)).toBe("[31mred[0m");
+  });
+
+  it("removes DEL and C1 controls (8-bit CSI/OSC/ST forms)", () => {
+    const c1 = `x${String.fromCharCode(0x9b)}y${String.fromCharCode(0x9c)}z${String.fromCharCode(0x7f)}`;
+    expect(stripControl(c1)).toBe("xyz");
+  });
+
+  it("preserves ordinary characters exactly, without cleanText's folding", () => {
+    expect(stripControl(hash)).toBe(hash);
+    expect(stripControl("a  b")).toBe("a  b");
+    expect(stripControl("")).toBe("");
   });
 });

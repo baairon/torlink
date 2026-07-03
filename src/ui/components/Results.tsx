@@ -10,7 +10,7 @@ import { getSource, SOURCES } from "../../sources/registry";
 import { wrapStep, windowStart, resultsPanelOuter } from "../move";
 import { sortResults, nextSort, sortLabel, sortArrow, type Sort, type SortField } from "../sort";
 import { COLOR, GUTTER, ICON, sourceStyle } from "../theme";
-import { cleanText, formatBytes, formatCount, formatRelative, truncate } from "../../util/format";
+import { cleanText, formatBytes, formatCount, formatRelative, stripControl, truncate } from "../../util/format";
 import type { Source, TorrentResult } from "../../sources/types";
 
 type Mode = "list" | "search" | "detail";
@@ -77,7 +77,7 @@ function Detail({ r, width }: { r: TorrentResult; width: number }) {
           label="Hash"
           value={
             <Text color={COLOR.alt} dimColor wrap="truncate-end">
-              {r.infoHash}
+              {stripControl(r.infoHash)}
             </Text>
           }
         />
@@ -85,7 +85,7 @@ function Detail({ r, width }: { r: TorrentResult; width: number }) {
           label="Magnet"
           value={
             <Text color={COLOR.alt} dimColor wrap="truncate-end">
-              {r.magnet}
+              {stripControl(r.magnet)}
             </Text>
           }
         />
