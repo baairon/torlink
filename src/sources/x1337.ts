@@ -80,14 +80,16 @@ async function detailInfo(
 
 async function search(
   query: string,
-  cat: "Movies" | "TV",
+  cat: "Movies" | "TV" | "Music",
   source: SourceId,
   opts: SearchOptions = {},
 ): Promise<TorrentResult[]> {
   const q = query.trim();
+  const catSlug =
+    cat === "Movies" ? "movies" : cat === "TV" ? "tv" : "music";
   const path = q
     ? `/category-search/${encodeURIComponent(q).replace(/%20/g, "+")}/${cat}/1/`
-    : `/popular-${cat === "Movies" ? "movies" : "tv"}`;
+    : `/popular-${catSlug}`;
 
   let base = "";
   let html = "";
@@ -151,4 +153,12 @@ export const x1337Tv: Source = {
   group: "TV",
   homepage: "https://1337x.to",
   search: (query, opts = {}) => search(query, "TV", "x1337-tv", opts),
+};
+
+export const x1337Music: Source = {
+  id: "x1337-music",
+  label: "1337x",
+  group: "Music",
+  homepage: "https://1337x.to",
+  search: (query, opts = {}) => search(query, "Music", "x1337-music", opts),
 };
