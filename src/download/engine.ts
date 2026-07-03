@@ -38,7 +38,15 @@ export class TorrentEngine {
 
   private ensureClient(): WebTorrent {
     if (!this.client) {
-      this.client = new WebTorrent();
+      // On macOS, mDNSResponder occupies UDP port 5350 — the NAT-PMP
+      // client port. Binding it fails asynchronously with EADDRINUSE,
+      // and since the PMP client is a raw EventEmitter with no error
+      // listener, the error surfaces as an uncaughtException that kills
+      // the app the moment a download starts. NAT-PMP can never succeed
+      // on macOS because the port is permanently taken, so disable it
+      // and let UPnP handle NAT traversal instead.
+      const opts = process.platform === "darwin" ? { natPmp: false } : {};
+      this.client = new WebTorrent(opts);
       this.client.on("error", () => {});
     }
     return this.client;
