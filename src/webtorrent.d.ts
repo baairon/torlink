@@ -5,6 +5,9 @@ declare module "webtorrent" {
     name: string;
     path: string;
     length: number;
+    downloaded: number;
+    select(): void;
+    deselect(): void;
   }
 
   interface Torrent extends EventEmitter {
@@ -25,15 +28,19 @@ declare module "webtorrent" {
     paused: boolean;
     path: string;
     files: TorrentFile[];
+    pieces: unknown[];
     pause(): void;
     resume(): void;
     addPeer(peer: string): boolean;
     destroy(cb?: (err?: Error) => void): void;
+    select(start: number, end: number, priority: number | false): void;
+    deselect(start: number, end: number, priority: number | false): void;
   }
 
   interface TorrentOptions {
     path?: string;
     announce?: string[];
+    deselect?: boolean;
   }
 
   interface WebTorrentOptions {

@@ -40,6 +40,7 @@ export const HELP_GROUPS: HelpGroup[] = [
       { keys: "c", label: "Cancel or remove from list" },
       { keys: "f", label: "Retry failed" },
       { keys: "d", label: "Download again" },
+      { keys: "v", label: "Select files" },
       { keys: "x", label: "Clear recent" },
     ],
   },
@@ -48,6 +49,16 @@ export const HELP_GROUPS: HelpGroup[] = [
     hints: [
       { keys: "p", label: "Pause/resume" },
       { keys: "c", label: "Remove from list" },
+    ],
+  },
+  {
+    title: "Add / files",
+    hints: [
+      { keys: "tab", label: "Switch path/files" },
+      { keys: "↑ ↓", label: "Move" },
+      { keys: "space", label: "Toggle file" },
+      { keys: "↵", label: "Start/confirm" },
+      { keys: "esc", label: "Cancel" },
     ],
   },
 ];
@@ -82,7 +93,13 @@ export function footerHints(
   }
   if (section === "downloads") {
     if (downloadFocus === "paused") {
-      return [{ keys: "p", label: "Resume" }, { keys: "c", label: "Cancel" }, SWITCH, ALWAYS];
+      return [
+        { keys: "p", label: "Resume" },
+        { keys: "c", label: "Cancel" },
+        { keys: "v", label: "Files" },
+        SWITCH,
+        ALWAYS,
+      ];
     }
     if (downloadFocus === "failed") {
       return [{ keys: "f", label: "Retry" }, { keys: "c", label: "Remove" }, SWITCH, ALWAYS];
@@ -97,7 +114,13 @@ export function footerHints(
         ALWAYS,
       ];
     }
-    return [{ keys: "p", label: "Pause" }, { keys: "c", label: "Cancel" }, SWITCH, ALWAYS];
+    return [
+      { keys: "p", label: "Pause" },
+      { keys: "c", label: "Cancel" },
+      { keys: "v", label: "Files" },
+      SWITCH,
+      ALWAYS,
+    ];
   }
   return [
     NAVIGATE,

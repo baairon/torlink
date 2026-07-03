@@ -14,6 +14,8 @@ export interface HistoryItem {
   magnet: string;
   dir: string;
   completedAt: number;
+  /** Indices of files the user turned off; empty/undefined means all files download. */
+  deselected?: number[];
 }
 
 const write = serializeWrites();

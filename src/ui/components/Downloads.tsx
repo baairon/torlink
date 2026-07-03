@@ -44,7 +44,8 @@ function rightStats(it: QueueItem): string {
 }
 
 export function Downloads() {
-  const { queue, region, contentWidth, listRows, startDownload, setDownloadFocus } = useStore();
+  const { queue, region, contentWidth, listRows, startDownload, openFilesModal, setDownloadFocus } =
+    useStore();
   const active = useQueueItems(queue);
   const recent = useQueueHistory(queue);
   const focused = region === "content";
@@ -66,6 +67,7 @@ export function Downloads() {
         if (!it) return;
         if (input === "c") queue.cancel(it.id);
         else if (input === "p") queue.togglePause(it.id);
+        else if (input === "v" && it.status !== "failed") openFilesModal(it.id);
       } else {
         const h = recent[recentCursor];
         if (!h) return;

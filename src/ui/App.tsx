@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Box, Text, useApp, useInput, useStdout, useStdin } from "ink";
 import { promises as fs } from "node:fs";
-import { loadConfig, saveConfig, type Config } from "../config/config";
+import { loadConfig, saveConfig, pushRecentDir, type Config } from "../config/config";
 import { normalizeDownloadDir } from "../config/folder";
 import { DownloadQueue } from "../download/queue";
 import { loadQueue, loadSeeds } from "../download/persist";
@@ -34,10 +34,12 @@ import { TabTitle } from "./components/TabTitle";
 import { Splash } from "./views/Splash";
 import { FolderPrompt } from "./components/FolderPrompt";
 import { TrackersPrompt } from "./components/TrackersPrompt";
+import { AddModal } from "./components/AddModal";
+import { DownloadFilesModal } from "./components/DownloadFilesModal";
 import { footerHints } from "./keymap";
 import { COLOR, ICON } from "./theme";
 import { useMouseWheel } from "./hooks/useMouseWheel";
-import type { SourceId } from "../sources/types";
+import type { SourceId, TorrentResult } from "../sources/types";
 
 export function App({
   initialMagnet,
@@ -85,6 +87,8 @@ export function App({
   const [showHelp, setShowHelp] = useState(false);
   const [editingFolder, setEditingFolder] = useState(false);
   const [editingTrackers, setEditingTrackers] = useState(false);
+  const [addTarget, setAddTarget] = useState<TorrentResult | null>(null);
+  const [filesTarget, setFilesTarget] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const booting = useRef(false);
 
@@ -225,6 +229,38 @@ export function App({
     [config, queue],
   );
 
+  const openAddModal = useCallback((result: TorrentResult) => {
+    setAddTarget(result);
+  }, []);
+
+  const openFilesModal = useCallback((id: string) => {
+    setFilesTarget(id);
+  }, []);
+
+  const commitAdd = useCallback(
+    (dir: string, deselected: number[]) => {
+      if (!config || !queue || !addTarget) return;
+      void fs.mkdir(dir, { recursive: true }).catch(() => {});
+      setConfig({ ...config, recentDirs: pushRecentDir(config.recentDirs, dir) });
+      queue.commitPrepare(
+        {
+          id: addTarget.infoHash,
+          name: addTarget.name,
+          magnet: addTarget.magnet,
+          source: addTarget.source,
+          sizeBytes: addTarget.sizeBytes,
+        },
+        dir,
+        deselected,
+      );
+      setNotice(`Added: ${truncate(cleanText(addTarget.name), 40)}`);
+      setSection("downloads");
+      setRegion("content");
+      setAddTarget(null);
+    },
+    [config, queue, addTarget, setConfig],
+  );
+
   const copyMagnet = useCallback((input: { name: string; magnet: string }) => {
     void (async () => {
       const ok = await writeClipboard(input.magnet);
@@ -306,7 +342,7 @@ export function App({
       submitQuery,
       section,
       setSection,
-      region: showHelp || editingFolder || editingTrackers ? "help" : region,
+      region: showHelp || editingFolder || editingTrackers || !!addTarget || !!filesTarget ? "help" : region,
       setRegion,
       captureMode,
       setCaptureMode,
@@ -316,6 +352,8 @@ export function App({
       setSeedFocus,
       startDownload,
       copyMagnet,
+      openAddModal,
+      openFilesModal,
       notice,
       setNotice,
       quitAll,
@@ -336,11 +374,15 @@ export function App({
     showHelp,
     editingFolder,
     editingTrackers,
+    addTarget,
+    filesTarget,
     captureMode,
     downloadFocus,
     seedFocus,
     startDownload,
     copyMagnet,
+    openAddModal,
+    openFilesModal,
     notice,
     listRows,
     compact,
@@ -357,7 +399,7 @@ export function App({
         quitAll();
         return;
       }
-      if (editingFolder || editingTrackers) return; // the prompt owns input (its own esc + enter)
+      if (editingFolder || editingTrackers || addTarget || filesTarget) return; // the prompt owns input (its own esc + enter)
       if (captureMode === "text") return;
       if (showHelp) {
         setShowHelp(false);
@@ -465,10 +507,36 @@ export function App({
           </Box>
         ) : null}
 
+        {addTarget ? (
+          <Box marginTop={1}>
+            <AddModal
+              result={addTarget}
+              defaultDir={store.config.downloadDir}
+              recents={store.config.recentDirs}
+              queue={store.queue}
+              onCommit={commitAdd}
+              onCancel={() => setAddTarget(null)}
+              width={Math.max(28, Math.min(cols - 4, 72))}
+            />
+          </Box>
+        ) : null}
+
+        {filesTarget ? (
+          <Box marginTop={1}>
+            <DownloadFilesModal
+              id={filesTarget}
+              queue={store.queue}
+              onClose={() => setFilesTarget(null)}
+              width={Math.max(28, Math.min(cols - 4, 72))}
+              height={bodyH}
+            />
+          </Box>
+        ) : null}
+
         <Box
           height={bodyH}
           marginTop={compact ? 0 : 1}
-          display={showHelp || editingFolder || editingTrackers ? "none" : "flex"}
+          display={showHelp || editingFolder || editingTrackers || addTarget || filesTarget ? "none" : "flex"}
           overflow="hidden"
         >
           <Sidebar />
@@ -484,7 +552,7 @@ export function App({
         </Box>
 
         {showFooter ? (
-          <Box display={showHelp || editingFolder || editingTrackers ? "none" : "flex"}>
+          <Box display={showHelp || editingFolder || editingTrackers || addTarget || filesTarget ? "none" : "flex"}>
             <Footer hints={footerHints(region, section, downloadFocus, seedFocus)} />
           </Box>
         ) : null}

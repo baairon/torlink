@@ -1,5 +1,5 @@
 import { EventEmitter } from "node:events";
-import { TorrentEngine, type AddHandlers } from "./engine";
+import { TorrentEngine, type AddHandlers, type FileInfo } from "./engine";
 import {
   saveQueue,
   saveQueueSync,
@@ -54,6 +54,10 @@ export class DownloadQueue extends EventEmitter {
   private strayHits = new Map<string, number>();
   private seedStartedAt = new Map<string, number>();
   private trackers: string[] = [];
+  // In-flight "prepare" probes: metadata-only adds used to show a torrent's
+  // file list before the user commits to a download. Deliberately not in
+  // `items` so they never show up in Downloads / count toward activeCount.
+  private preparing = new Map<string, { dir: string }>();
 
   // Extra announce URLs appended to every torrent added from now on.
   // Existing running torrents aren't retro-updated — the change takes effect
@@ -76,7 +80,7 @@ export class DownloadQueue extends EventEmitter {
     return this.items.has(id);
   }
 
-  add(input: AddInput, dir: string): void {
+  add(input: AddInput, dir: string, deselected?: number[]): void {
     if (this.seeds.has(input.id)) {
       this.engine.remove(input.id);
       this.seeds.delete(input.id);
@@ -87,7 +91,7 @@ export class DownloadQueue extends EventEmitter {
     const existing = this.items.get(input.id);
     if (existing && existing.status !== "failed") return;
     const item: QueueItem = existing
-      ? { ...existing, status: "downloading", error: undefined, speed: 0 }
+      ? { ...existing, status: "downloading", error: undefined, speed: 0, deselected }
       : {
           id: input.id,
           name: input.name,
@@ -101,6 +105,7 @@ export class DownloadQueue extends EventEmitter {
           speed: 0,
           peers: 0,
           addedAt: Date.now(),
+          deselected,
         };
     this.items.set(item.id, item);
     this.startEngine(item);
@@ -110,7 +115,59 @@ export class DownloadQueue extends EventEmitter {
   }
 
   private startEngine(item: QueueItem): void {
-    this.engine.add(item.id, item.magnet, item.dir, this.engineHandlers(item.id), this.trackers);
+    // Prefer the stored .torrent when we have one (e.g. from a prior prepare
+    // probe or a previous run of this item): webtorrent verifies it locally
+    // instead of re-fetching metadata from the swarm, so the selection below
+    // applies instantly.
+    const source = torrentMetaExists(item.id) ? torrentMetaPath(item.id) : item.magnet;
+    this.engine.add(item.id, source, item.dir, this.engineHandlers(item.id), this.trackers, {
+      deselected: item.deselected,
+    });
+  }
+
+  // Probe a magnet's file list without downloading anything or touching the
+  // Downloads list: adds it metadata-only (see engine's SelectionOptions) and
+  // saves the .torrent as soon as it arrives, so a later commitPrepare can
+  // re-add from that stored file for instant metadata.
+  prepare(
+    input: { id: string; magnet: string },
+    dir: string,
+    handlers: { onFiles: (files: FileInfo[]) => void; onError?: (msg: string) => void },
+  ): void {
+    this.preparing.set(input.id, { dir });
+    this.engine.add(
+      input.id,
+      input.magnet,
+      dir,
+      {
+        onMetadata: (meta) => {
+          if (meta.torrentFile) void saveTorrentMeta(input.id, meta.torrentFile);
+          handlers.onFiles(meta.fileList);
+        },
+        onError: (msg) => handlers.onError?.(msg),
+      },
+      this.trackers,
+      { metaOnly: true },
+    );
+  }
+
+  // Promote a prepared probe into a real download: `add` already destroys the
+  // metaOnly torrent and re-adds under the same id (preferring the saved
+  // .torrent), this time with the real selection.
+  commitPrepare(input: AddInput, dir: string, deselected: number[]): void {
+    this.preparing.delete(input.id);
+    this.add(input, dir, deselected);
+  }
+
+  cancelPrepare(id: string): void {
+    if (!this.preparing.has(id)) return;
+    this.engine.remove(id);
+    this.preparing.delete(id);
+    // Only clean up the probed .torrent if nothing else references this id;
+    // an item/seed/history entry may depend on it for instant metadata.
+    if (!this.items.has(id) && !this.seeds.has(id) && !this.history.find((h) => h.id === id)) {
+      deleteTorrentMeta(id);
+    }
   }
 
   // One torrent serves an item across its whole life (download -> seed ->
@@ -129,6 +186,7 @@ export class DownloadQueue extends EventEmitter {
         if (meta.name) it.name = meta.name;
         if (meta.total) it.totalBytes = meta.total;
         it.files = meta.files;
+        it.fileList = meta.fileList;
         this.changed();
         void this.persist();
       },
@@ -306,6 +364,29 @@ export class DownloadQueue extends EventEmitter {
     else if (it.status === "paused") this.resume(id);
   }
 
+  // Toggle a single file's selection for an in-progress or paused download. A
+  // live download gets an immediate select/deselect on the engine; a paused
+  // one just updates the persisted list, which re-applies on resume.
+  setFileSelected(id: string, index: number, selected: boolean): void {
+    const it = this.items.get(id);
+    if (!it) return;
+    const off = new Set(it.deselected ?? []);
+    if (selected) off.delete(index);
+    else off.add(index);
+    it.deselected = [...off].sort((a, b) => a - b);
+    if (it.status === "downloading") {
+      if (selected) this.engine.selectFile(id, index);
+      else this.engine.deselectFile(id, index);
+    }
+    this.changed();
+    void this.persist();
+  }
+
+  // Live file list for a during-download editing UI.
+  files(id: string): FileInfo[] | null {
+    return this.engine.files(id);
+  }
+
   cancel(id: string): void {
     if (!this.items.has(id)) return;
     this.engine.remove(id);
@@ -380,7 +461,9 @@ export class DownloadQueue extends EventEmitter {
     // Seed from the stored .torrent metadata when we have it (verifies the local
     // file immediately, no swarm needed); fall back to the magnet otherwise.
     const source = torrentMetaExists(h.id) ? torrentMetaPath(h.id) : h.magnet;
-    this.engine.add(h.id, source, h.dir, this.engineHandlers(h.id), this.trackers);
+    this.engine.add(h.id, source, h.dir, this.engineHandlers(h.id), this.trackers, {
+      deselected: h.deselected,
+    });
     this.ensurePoll();
     this.changed();
     void this.persistSeeds();
@@ -478,6 +561,7 @@ export class DownloadQueue extends EventEmitter {
       magnet: it.magnet,
       dir: it.dir,
       completedAt: Date.now(),
+      deselected: it.deselected,
     };
     this.history = [rec, ...this.history.filter((h) => h.id !== it.id)].slice(0, HISTORY_MAX);
     void saveHistory(this.history).catch(() => {});

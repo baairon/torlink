@@ -98,6 +98,8 @@ function makeStore(
     setSeedFocus: noop,
     startDownload: noop,
     copyMagnet: noop,
+    openAddModal: noop,
+    openFilesModal: noop,
     notice: null,
     setNotice: noop,
     quitAll: noop,

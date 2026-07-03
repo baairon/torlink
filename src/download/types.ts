@@ -1,4 +1,5 @@
 import type { SourceId } from "../sources/types";
+import type { FileInfo } from "./engine";
 
 export type DownloadStatus = "downloading" | "paused" | "completed" | "failed";
 
@@ -33,4 +34,9 @@ export interface QueueItem {
   files?: number;
   error?: string;
   addedAt: number;
+  /** Indices of files the user turned off; empty/undefined means all files download. */
+  deselected?: number[];
+  /** Cached file list so paused/restored items can still show/edit selection
+   * once the live torrent (and its engine-side file list) is gone. */
+  fileList?: FileInfo[];
 }

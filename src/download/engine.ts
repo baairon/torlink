@@ -12,14 +12,30 @@ export interface TorrentProgress {
   name: string;
 }
 
+export interface FileInfo {
+  name: string;
+  path: string;
+  length: number;
+}
+
 export interface TorrentMeta {
   name: string;
   total: number;
   files: number;
+  fileList: FileInfo[];
   // The .torrent metadata (piece hashes), available once metadata arrives. We
   // persist it so a later re-seed can verify the on-disk file without having to
   // re-fetch metadata from the swarm (which a bare magnet would require).
   torrentFile?: Uint8Array;
+}
+
+// Which files an `add` should fetch. `metaOnly` selects nothing (used by
+// queue.prepare to probe metadata without downloading); `deselected` selects
+// every file *except* the given indices. Neither present means "everything"
+// (the default, unthrottled path).
+export interface SelectionOptions {
+  deselected?: number[];
+  metaOnly?: boolean;
 }
 
 export interface AddHandlers {
@@ -55,6 +71,7 @@ export class TorrentEngine {
     dir: string,
     handlers: AddHandlers,
     announce?: string[],
+    selection?: SelectionOptions,
   ): void {
     const client = this.ensureClient();
     const existing = this.torrents.get(id);
@@ -65,7 +82,15 @@ export class TorrentEngine {
       } catch {}
     }
 
-    const opts = announce && announce.length > 0 ? { path: dir, announce } : { path: dir };
+    const opts: { path?: string; announce?: string[]; deselect?: boolean } = { path: dir };
+    if (announce && announce.length > 0) opts.announce = announce;
+    // A partial selection (or a metadata-only probe) needs webtorrent's
+    // deselect opt *and* an explicit deselect-all once metadata arrives below
+    // -- `deselect: true` alone doesn't reliably stop the whole-torrent
+    // auto-select webtorrent does on add.
+    const selective = Boolean(selection?.metaOnly || selection?.deselected);
+    if (selective) opts.deselect = true;
+
     let torrent: Torrent;
     try {
       torrent = client.add(source, opts);
@@ -76,10 +101,29 @@ export class TorrentEngine {
     this.torrents.set(id, torrent);
 
     torrent.on("metadata", () => {
+      const fileList: FileInfo[] = (torrent.files ?? []).map((f) => ({
+        name: f.name,
+        path: f.path,
+        length: f.length,
+      }));
+
+      if (selective && torrent.pieces?.length) {
+        torrent.deselect(0, torrent.pieces.length - 1, false);
+      }
+      if (selection?.metaOnly) {
+        // Select nothing: this add exists only to fetch metadata.
+      } else if (selection?.deselected) {
+        const off = new Set(selection.deselected);
+        torrent.files.forEach((f, i) => {
+          if (!off.has(i)) f.select();
+        });
+      }
+
       handlers.onMetadata?.({
         name: torrent.name,
         total: torrent.length,
         files: torrent.files?.length ?? 0,
+        fileList,
         torrentFile: torrent.torrentFile,
       });
     });
@@ -116,6 +160,26 @@ export class TorrentEngine {
       timeRemaining: t.timeRemaining,
       name: t.name,
     };
+  }
+
+  // Live selection edits for a torrent already in progress (during-download
+  // file toggling). No-ops before metadata / out of range.
+  selectFile(id: string, index: number): void {
+    const t = this.torrents.get(id);
+    if (!t?.files || index < 0 || index >= t.files.length) return;
+    t.files[index]?.select();
+  }
+
+  deselectFile(id: string, index: number): void {
+    const t = this.torrents.get(id);
+    if (!t?.files || index < 0 || index >= t.files.length) return;
+    t.files[index]?.deselect();
+  }
+
+  files(id: string): FileInfo[] | null {
+    const t = this.torrents.get(id);
+    if (!t?.files) return null;
+    return t.files.map((f) => ({ name: f.name, path: f.path, length: f.length }));
   }
 
   remove(id: string): void {
