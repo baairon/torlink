@@ -97,6 +97,7 @@ function makeStore(
     seedFocus: null,
     setSeedFocus: noop,
     startDownload: noop,
+    openDownloadFolder: noop,
     copyMagnet: noop,
     notice: null,
     setNotice: noop,

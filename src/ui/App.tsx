@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Box, Text, useApp, useInput, useStdout, useStdin } from "ink";
 import { promises as fs } from "node:fs";
-import { loadConfig, saveConfig, type Config } from "../config/config";
+import { loadConfig, pushRecentDir, saveConfig, type Config } from "../config/config";
 import { normalizeDownloadDir } from "../config/folder";
 import { DownloadQueue } from "../download/queue";
 import { loadQueue, loadSeeds } from "../download/persist";
@@ -34,10 +34,11 @@ import { TabTitle } from "./components/TabTitle";
 import { Splash } from "./views/Splash";
 import { FolderPrompt } from "./components/FolderPrompt";
 import { TrackersPrompt } from "./components/TrackersPrompt";
+import { DownloadFolderPrompt } from "./components/DownloadFolderPrompt";
 import { footerHints } from "./keymap";
 import { COLOR, ICON } from "./theme";
 import { useMouseWheel } from "./hooks/useMouseWheel";
-import type { SourceId } from "../sources/types";
+import type { SourceId, TorrentResult } from "../sources/types";
 
 export function App({
   initialMagnet,
@@ -85,6 +86,10 @@ export function App({
   const [showHelp, setShowHelp] = useState(false);
   const [editingFolder, setEditingFolder] = useState(false);
   const [editingTrackers, setEditingTrackers] = useState(false);
+  const [pendingDownload, setPendingDownload] = useState<{
+    result: TorrentResult;
+    selectedIndices?: number[];
+  } | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const booting = useRef(false);
 
@@ -215,15 +220,27 @@ export function App({
       source?: SourceId;
       sizeBytes?: number;
       selectedIndices?: number[];
+      dir?: string;
     }) => {
       if (!config || !queue) return;
-      void fs.mkdir(config.downloadDir, { recursive: true }).catch(() => {});
-      queue.add(input, config.downloadDir);
+      const dir = input.dir ?? config.downloadDir;
+      void fs.mkdir(dir, { recursive: true }).catch(() => {});
+      queue.add(input, dir);
+      if (input.dir) {
+        setConfig({ ...config, recentDirs: pushRecentDir(config.recentDirs, input.dir) });
+      }
       setNotice(`Added: ${truncate(cleanText(input.name), 40)}`);
       setSection("downloads");
       setRegion("content");
     },
-    [config, queue],
+    [config, queue, setConfig],
+  );
+
+  const openDownloadFolder = useCallback(
+    (result: TorrentResult, selectedIndices?: number[]) => {
+      setPendingDownload({ result, selectedIndices });
+    },
+    [],
   );
 
   const copyMagnet = useCallback((input: { name: string; magnet: string }) => {
@@ -307,7 +324,7 @@ export function App({
       submitQuery,
       section,
       setSection,
-      region: showHelp || editingFolder || editingTrackers ? "help" : region,
+      region: showHelp || editingFolder || editingTrackers || !!pendingDownload ? "help" : region,
       setRegion,
       captureMode,
       setCaptureMode,
@@ -316,6 +333,7 @@ export function App({
       seedFocus,
       setSeedFocus,
       startDownload,
+      openDownloadFolder,
       copyMagnet,
       notice,
       setNotice,
@@ -337,10 +355,12 @@ export function App({
     showHelp,
     editingFolder,
     editingTrackers,
+    pendingDownload,
     captureMode,
     downloadFocus,
     seedFocus,
     startDownload,
+    openDownloadFolder,
     copyMagnet,
     notice,
     listRows,
@@ -358,7 +378,7 @@ export function App({
         quitAll();
         return;
       }
-      if (editingFolder || editingTrackers) return; // the prompt owns input (its own esc + enter)
+      if (editingFolder || editingTrackers || pendingDownload) return; // the prompt owns input (its own esc + enter)
       if (captureMode === "text") return;
       if (showHelp) {
         setShowHelp(false);
@@ -466,10 +486,33 @@ export function App({
           </Box>
         ) : null}
 
+        {pendingDownload ? (
+          <Box marginTop={1}>
+            <DownloadFolderPrompt
+              width={Math.max(24, Math.min(cols - 4, 62))}
+              defaultDir={store.config.downloadDir}
+              recents={store.config.recentDirs}
+              onSubmit={(dir) => {
+                startDownload({
+                  id: pendingDownload.result.infoHash,
+                  name: pendingDownload.result.name,
+                  magnet: pendingDownload.result.magnet,
+                  source: pendingDownload.result.source,
+                  sizeBytes: pendingDownload.result.sizeBytes,
+                  selectedIndices: pendingDownload.selectedIndices,
+                  dir,
+                });
+                setPendingDownload(null);
+              }}
+              onCancel={() => setPendingDownload(null)}
+            />
+          </Box>
+        ) : null}
+
         <Box
           height={bodyH}
           marginTop={compact ? 0 : 1}
-          display={showHelp || editingFolder || editingTrackers ? "none" : "flex"}
+          display={showHelp || editingFolder || editingTrackers || pendingDownload ? "none" : "flex"}
           overflow="hidden"
         >
           <Sidebar />
@@ -485,7 +528,7 @@ export function App({
         </Box>
 
         {showFooter ? (
-          <Box display={showHelp || editingFolder || editingTrackers ? "none" : "flex"}>
+          <Box display={showHelp || editingFolder || editingTrackers || pendingDownload ? "none" : "flex"}>
             <Footer hints={footerHints(region, section, downloadFocus, seedFocus)} />
           </Box>
         ) : null}

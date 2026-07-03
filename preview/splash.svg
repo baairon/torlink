@@ -4,57 +4,57 @@
   <rect x="0.5" y="0.5" width="831" height="385" rx="14" fill="none" stroke="#2d2b31" stroke-width="1"/>
   <text x="416" y="23" text-anchor="middle" font-family='ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, "DejaVu Sans Mono", monospace' font-size="13" fill="#8a8a8a">torlink</text>
   <g font-family='ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, "DejaVu Sans Mono", monospace' font-size="16" fill="#ddd8ea">
-    <text x="339.2" y="84" textLength="9.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#87ff87" font-weight="600">𐓏</text>
-    <rect x="291.2" y="90" width="9.6" height="11" fill="#ffffff"/>
-    <rect x="300.8" y="90" width="9.6" height="22" fill="#ffffff"/>
-    <rect x="310.4" y="90" width="9.6" height="11" fill="#ffd7ff"/>
-    <rect x="329.6" y="90" width="9.6" height="22" fill="#ffd7ff"/>
-    <rect x="339.2" y="90" width="9.6" height="11" fill="#d7d7ff"/>
-    <rect x="348.8" y="90" width="9.6" height="22" fill="#d7d7ff"/>
-    <rect x="368" y="90" width="9.6" height="22" fill="#d7afff"/>
-    <rect x="377.6" y="90" width="9.6" height="11" fill="#d7afff"/>
-    <rect x="387.2" y="90" width="9.6" height="22" fill="#d7afff"/>
-    <rect x="406.4" y="90" width="9.6" height="22" fill="#d7afff"/>
-    <rect x="444.8" y="90" width="9.6" height="22" fill="#d7afff"/>
-    <rect x="464" y="90" width="9.6" height="22" fill="#afafff"/>
-    <rect x="473.6" y="101" width="9.6" height="11" fill="#afafff"/>
-    <rect x="492.8" y="90" width="9.6" height="22" fill="#afafff"/>
-    <rect x="512" y="90" width="9.6" height="22" fill="#afafff"/>
-    <rect x="521.6" y="101" width="9.6" height="11" fill="#af87ff"/>
-    <rect x="531.2" y="90" width="9.6" height="11" fill="#af87ff"/>
-    <rect x="300.8" y="112" width="9.6" height="22" fill="#af87ff"/>
-    <rect x="329.6" y="112" width="9.6" height="22" fill="#af87d7"/>
-    <rect x="339.2" y="123" width="9.6" height="11" fill="#af87d7"/>
-    <rect x="348.8" y="112" width="9.6" height="22" fill="#af87d7"/>
-    <rect x="368" y="112" width="9.6" height="22" fill="#af87d7"/>
-    <rect x="377.6" y="112" width="9.6" height="11" fill="#8787d7"/>
-    <rect x="387.2" y="123" width="9.6" height="11" fill="#8787d7"/>
-    <rect x="406.4" y="112" width="9.6" height="22" fill="#8787d7"/>
-    <rect x="416" y="123" width="9.6" height="11" fill="#8787d7"/>
-    <rect x="425.6" y="123" width="9.6" height="11" fill="#8787d7"/>
-    <rect x="444.8" y="112" width="9.6" height="22" fill="#8787d7"/>
-    <rect x="464" y="112" width="9.6" height="22" fill="#875faf"/>
-    <rect x="483.2" y="112" width="9.6" height="11" fill="#875faf"/>
-    <rect x="492.8" y="112" width="9.6" height="22" fill="#875faf"/>
-    <rect x="512" y="112" width="9.6" height="22" fill="#875faf"/>
-    <rect x="531.2" y="112" width="9.6" height="22" fill="#5f5faf"/>
-    <text x="195.2" y="194" textLength="441.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#ffd7ff">A curated, terminal-native torrent downloader.</text>
+    <text x="339.2" y="84" textLength="9.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#5ae87a" font-weight="600">𐓏</text>
+    <rect x="291.2" y="90" width="9.6" height="11" fill="#faf5ff"/>
+    <rect x="300.8" y="90" width="9.6" height="22" fill="#f5ecff"/>
+    <rect x="310.4" y="90" width="9.6" height="11" fill="#f0e2ff"/>
+    <rect x="329.6" y="90" width="9.6" height="22" fill="#e6cffe"/>
+    <rect x="339.2" y="90" width="9.6" height="11" fill="#e1c5fe"/>
+    <rect x="348.8" y="90" width="9.6" height="22" fill="#dcbcfe"/>
+    <rect x="368" y="90" width="9.6" height="22" fill="#d3b0fe"/>
+    <rect x="377.6" y="90" width="9.6" height="11" fill="#d0adfd"/>
+    <rect x="387.2" y="90" width="9.6" height="22" fill="#ccaafd"/>
+    <rect x="406.4" y="90" width="9.6" height="22" fill="#c4a4fc"/>
+    <rect x="444.8" y="90" width="9.6" height="22" fill="#b597fb"/>
+    <rect x="464" y="90" width="9.6" height="22" fill="#ae91fb"/>
+    <rect x="473.6" y="101" width="9.6" height="11" fill="#aa8efa"/>
+    <rect x="492.8" y="90" width="9.6" height="22" fill="#a487f7"/>
+    <rect x="512" y="90" width="9.6" height="22" fill="#9e81f3"/>
+    <rect x="521.6" y="101" width="9.6" height="11" fill="#9b7ef0"/>
+    <rect x="531.2" y="90" width="9.6" height="11" fill="#997bee"/>
+    <rect x="300.8" y="112" width="9.6" height="22" fill="#9375e9"/>
+    <rect x="329.6" y="112" width="9.6" height="22" fill="#8b6ce2"/>
+    <rect x="339.2" y="123" width="9.6" height="11" fill="#8869e0"/>
+    <rect x="348.8" y="112" width="9.6" height="22" fill="#8566de"/>
+    <rect x="368" y="112" width="9.6" height="22" fill="#8060d9"/>
+    <rect x="377.6" y="112" width="9.6" height="11" fill="#7d5dd7"/>
+    <rect x="387.2" y="123" width="9.6" height="11" fill="#7a5bd3"/>
+    <rect x="406.4" y="112" width="9.6" height="22" fill="#7456c9"/>
+    <rect x="416" y="123" width="9.6" height="11" fill="#7154c4"/>
+    <rect x="425.6" y="123" width="9.6" height="11" fill="#6e52c0"/>
+    <rect x="444.8" y="112" width="9.6" height="22" fill="#684eb6"/>
+    <rect x="464" y="112" width="9.6" height="22" fill="#6249ac"/>
+    <rect x="483.2" y="112" width="9.6" height="11" fill="#5b45a2"/>
+    <rect x="492.8" y="112" width="9.6" height="22" fill="#58439d"/>
+    <rect x="512" y="112" width="9.6" height="22" fill="#523e94"/>
+    <rect x="531.2" y="112" width="9.6" height="22" fill="#4c3a8a"/>
+    <text x="195.2" y="194" textLength="441.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#e9e4f5">A curated, terminal-native torrent downloader.</text>
     <text x="262.4" y="216" textLength="316.8" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill-opacity="0.55">games  ·  movies  ·  tv  ·  anime</text>
-    <text x="118.4" y="260" textLength="19.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#afafff">╭─</text>
-    <text x="147.2" y="260" textLength="57.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#afafff" font-weight="600">Search</text>
-    <text x="214.4" y="260" textLength="499.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#afafff">───────────────────────────────────────────────────╮</text>
-    <rect x="122.5" y="266" width="1.4" height="22" fill="#afafff"/>
-    <text x="137.6" y="282" textLength="9.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#afafff">❯</text>
+    <text x="118.4" y="260" textLength="19.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#a78bfa">╭─</text>
+    <text x="147.2" y="260" textLength="57.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#a78bfa" font-weight="600">Search</text>
+    <text x="214.4" y="260" textLength="499.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#a78bfa">───────────────────────────────────────────────────╮</text>
+    <rect x="122.5" y="266" width="1.4" height="22" fill="#a78bfa"/>
+    <text x="137.6" y="282" textLength="9.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#a78bfa">❯</text>
     <rect x="156.8" y="266" width="9.6" height="22" fill="#ddd8ea"/>
     <text x="156.8" y="282" textLength="9.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#0a0810">S</text>
     <text x="166.4" y="282" textLength="278.4" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill-opacity="0.55">earch or paste a magnet link…</text>
-    <rect x="708.1" y="266" width="1.4" height="22" fill="#afafff"/>
-    <text x="118.4" y="304" textLength="595.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#afafff">╰────────────────────────────────────────────────────────────╯</text>
-    <text x="233.6" y="348" textLength="9.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#d7afff">↵</text>
+    <rect x="708.1" y="266" width="1.4" height="22" fill="#a78bfa"/>
+    <text x="118.4" y="304" textLength="595.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#a78bfa">╰────────────────────────────────────────────────────────────╯</text>
+    <text x="233.6" y="348" textLength="9.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#b9a7e6">↵</text>
     <text x="252.8" y="348" textLength="153.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill-opacity="0.55">search  ·  empty</text>
-    <text x="416" y="348" textLength="9.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#d7afff">↵</text>
+    <text x="416" y="348" textLength="9.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#b9a7e6">↵</text>
     <text x="435.2" y="348" textLength="86.4" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill-opacity="0.55">browse  ·</text>
-    <text x="540.8" y="348" textLength="19.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#d7afff">^c</text>
+    <text x="540.8" y="348" textLength="19.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#b9a7e6">^c</text>
     <text x="569.6" y="348" textLength="38.4" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill-opacity="0.55">quit</text>
   </g>
 </svg>

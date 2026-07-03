@@ -37,7 +37,7 @@ interface DetailProps {
 }
 
 function Detail({ r, width, listHeight, focused, onClose }: DetailProps) {
-  const { queue, config, startDownload, copyMagnet } = useStore();
+  const { queue, config, openDownloadFolder, copyMagnet } = useStore();
   const ss = sourceStyle(r.source);
   const date = formatRelative(r.added);
 
@@ -109,14 +109,7 @@ function Detail({ r, width, listHeight, focused, onClose }: DetailProps) {
       } else if (input === "y") {
         copyMagnet({ name: r.name, magnet: r.magnet });
       } else if (input === "d") {
-        startDownload({
-          id: r.infoHash,
-          name: r.name,
-          magnet: r.magnet,
-          source: r.source,
-          sizeBytes: r.sizeBytes,
-          selectedIndices: showFileList ? Array.from(selected) : undefined,
-        });
+        openDownloadFolder(r, showFileList ? Array.from(selected) : undefined);
         onClose();
       } else if (showFileList && fileList) {
         if (key.upArrow || input === "k") {
@@ -300,7 +293,7 @@ export function Results() {
     region,
     setRegion,
     setCaptureMode,
-    startDownload,
+    openDownloadFolder,
     copyMagnet,
     contentWidth,
     listRows,
@@ -343,14 +336,7 @@ export function Results() {
   const listHeight = Math.max(3, panelOuter - 4);
   const pageJump = Math.max(1, listHeight - 1);
 
-  const openDownload = (r: TorrentResult): void =>
-    startDownload({
-      id: r.infoHash,
-      name: r.name,
-      magnet: r.magnet,
-      source: r.source,
-      sizeBytes: r.sizeBytes,
-    });
+  const openDownload = (r: TorrentResult): void => openDownloadFolder(r);
 
   const copyResultMagnet = (r: TorrentResult): void =>
     copyMagnet({ name: r.name, magnet: r.magnet });
