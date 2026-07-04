@@ -18,10 +18,10 @@ function r(p: Partial<TorrentResult> & { infoHash: string }): TorrentResult {
 const ids = (list: TorrentResult[]): string[] => list.map((x) => x.infoHash);
 
 describe("nextSort", () => {
-  it("cycles through 7 states: none -> size asc/desc -> seeders asc/desc -> source asc/desc -> none", () => {
+  it("cycles through 9 states: none -> size asc/desc -> seeders asc/desc -> source asc/desc -> added asc/desc -> none", () => {
     const seq: Sort[] = [];
     let s: Sort = "none";
-    for (let i = 0; i < 7; i++) {
+    for (let i = 0; i < 9; i++) {
       s = nextSort(s);
       seq.push(s);
     }
@@ -32,12 +32,14 @@ describe("nextSort", () => {
       { field: "seeders", dir: "desc" },
       { field: "source", dir: "asc" },
       { field: "source", dir: "desc" },
+      { field: "added", dir: "asc" },
+      { field: "added", dir: "desc" },
       "none",
     ]);
   });
 
-  it("SORT_CYCLE has exactly 7 states starting with none", () => {
-    expect(SORT_CYCLE).toHaveLength(7);
+  it("SORT_CYCLE has exactly 9 states starting with none", () => {
+    expect(SORT_CYCLE).toHaveLength(9);
     expect(SORT_CYCLE[0]).toBe("none");
   });
 });
@@ -111,6 +113,33 @@ describe("sortResults", () => {
       r({ infoHash: "c", source: "nyaa" }),
     ];
     expect(ids(sortResults(list, { field: "source", dir: "desc" }))).toEqual(["b", "c", "a"]);
+  });
+
+  it("added asc: oldest first", () => {
+    const list = [
+      r({ infoHash: "a", added: 300 }),
+      r({ infoHash: "b", added: 100 }),
+      r({ infoHash: "c", added: 200 }),
+    ];
+    expect(ids(sortResults(list, { field: "added", dir: "asc" }))).toEqual(["b", "c", "a"]);
+  });
+
+  it("added desc: newest first", () => {
+    const list = [
+      r({ infoHash: "a", added: 300 }),
+      r({ infoHash: "b", added: 100 }),
+      r({ infoHash: "c", added: 200 }),
+    ];
+    expect(ids(sortResults(list, { field: "added", dir: "desc" }))).toEqual(["a", "c", "b"]);
+  });
+
+  it("added treats missing timestamps as zero", () => {
+    const list = [
+      r({ infoHash: "a", added: 500 }),
+      r({ infoHash: "b" }),
+      r({ infoHash: "c", added: 100 }),
+    ];
+    expect(ids(sortResults(list, { field: "added", dir: "asc" }))).toEqual(["b", "c", "a"]);
   });
 
   it("does not mutate the input array", () => {

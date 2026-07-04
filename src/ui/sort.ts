@@ -1,6 +1,6 @@
 import type { TorrentResult } from "../sources/types";
 
-export type SortField = "size" | "seeders" | "source";
+export type SortField = "size" | "seeders" | "source" | "added";
 export type SortDir = "asc" | "desc";
 export interface SortState {
   field: SortField;
@@ -22,6 +22,8 @@ export const SORT_CYCLE: Sort[] = [
   { field: "seeders", dir: "desc" },
   { field: "source", dir: "asc" },
   { field: "source", dir: "desc" },
+  { field: "added", dir: "asc" },
+  { field: "added", dir: "desc" },
 ];
 
 function sameSort(a: Sort, b: Sort): boolean {
@@ -56,6 +58,12 @@ export function sortResults(list: TorrentResult[], sort: Sort): TorrentResult[] 
       break;
     case "source":
       arr.sort((a, b) => mul * a.source.localeCompare(b.source) || b.seeders - a.seeders);
+      break;
+    case "added":
+      arr.sort(
+        (a, b) =>
+          mul * ((a.added ?? 0) - (b.added ?? 0)) || b.seeders - a.seeders,
+      );
       break;
   }
   return arr;
