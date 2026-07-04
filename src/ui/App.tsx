@@ -1,12 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Box, Text, useApp, useInput, useStdout, useStdin } from "ink";
-import { promises as fs } from "node:fs";
-import { loadConfig, saveConfig, type Config } from "../config/config";
-import { normalizeDownloadDir } from "../config/folder";
-import { DownloadQueue } from "../download/queue";
-import { loadQueue, loadSeeds } from "../download/persist";
-import { loadHistory } from "../download/history";
-import { reconcileQueue } from "../download/reconcile";
+import { loadConfig, saveConfig, type Config, type DelugeConfig } from "../config/config";
+import { sendMagnet } from "../deluge/client";
 import { parseInput } from "../sources/magnet";
 import { magnetFromTorrentFile } from "../sources/torrentFile";
 import { readClipboard, writeClipboard } from "../util/clipboard";
@@ -14,10 +9,8 @@ import { cleanText, truncate } from "../util/format";
 import {
   StoreContext,
   type CaptureMode,
-  type DownloadFocus,
   type Region,
   type Section,
-  type SeedFocus,
   type Store,
   type View,
 } from "./store";
@@ -27,13 +20,10 @@ import { Rule } from "./components/Rule";
 import { Footer } from "./components/Footer";
 import { HelpOverlay } from "./components/HelpOverlay";
 import { Results } from "./components/Results";
-import { Downloads } from "./components/Downloads";
-import { Seeding } from "./components/Seeding";
 import { Spinner } from "./components/Spinner";
 import { TabTitle } from "./components/TabTitle";
 import { Splash } from "./views/Splash";
-import { FolderPrompt } from "./components/FolderPrompt";
-import { TrackersPrompt } from "./components/TrackersPrompt";
+import { DelugeSettingsPrompt } from "./components/DelugeSettingsPrompt";
 import { footerHints } from "./keymap";
 import { COLOR, ICON } from "./theme";
 import { useMouseWheel } from "./hooks/useMouseWheel";
@@ -73,20 +63,44 @@ export function App({
   const rows = size.rows;
   const cols = size.cols;
 
-  const [queue, setQueue] = useState<DownloadQueue | null>(null);
   const [config, setConfigState] = useState<Config | null>(null);
   const [view, setView] = useState<View>("splash");
   const [query, setQuery] = useState("");
   const [section, setSection] = useState<Section>("all");
   const [region, setRegion] = useState<Region>("content");
   const [captureMode, setCaptureMode] = useState<CaptureMode>("none");
-  const [downloadFocus, setDownloadFocus] = useState<DownloadFocus | null>(null);
-  const [seedFocus, setSeedFocus] = useState<SeedFocus | null>(null);
   const [showHelp, setShowHelp] = useState(false);
-  const [editingFolder, setEditingFolder] = useState(false);
-  const [editingTrackers, setEditingTrackers] = useState(false);
+  const [editingDeluge, setEditingDeluge] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const booting = useRef(false);
+
+  const setConfig = useCallback((c: Config) => {
+    setConfigState(c);
+    void saveConfig(c);
+  }, []);
+
+  const sendToDeluge = useCallback(
+    (input: { name: string; magnet: string }) => {
+      const deluge = config?.deluge ?? null;
+      if (!deluge) {
+        setNotice("No Deluge connection set – press o to configure it.");
+        return;
+      }
+      setNotice(`Sending to Deluge: ${truncate(cleanText(input.name), 40)}`);
+      void sendMagnet(deluge, input.magnet).then((result) => {
+        if (result.ok) {
+          setNotice(
+            result.status === "already-added"
+              ? `Already in Deluge: ${truncate(cleanText(input.name), 40)}`
+              : `${ICON.done} Sent to Deluge: ${truncate(cleanText(input.name), 40)}`,
+          );
+          return;
+        }
+        setNotice(result.message);
+      });
+    },
+    [config],
+  );
 
   useEffect(() => {
     if (booting.current) return;
@@ -94,31 +108,29 @@ export function App({
     let alive = true;
     void (async () => {
       const cfg = await loadConfig();
-      const q = new DownloadQueue();
-      q.setTrackers(cfg.trackers);
-      q.restore(reconcileQueue(await loadQueue()));
-      q.restoreHistory(await loadHistory());
-      q.restoreSeeds(await loadSeeds());
-      if (!alive) {
-        q.suspend();
-        return;
-      }
+      if (!alive) return;
       setConfigState(cfg);
-      setQueue(q);
       const launch = initialMagnet
         ? parseInput(initialMagnet)
         : initialTorrent
           ? await magnetFromTorrentFile(initialTorrent)
           : null;
       if (launch) {
-        await fs.mkdir(cfg.downloadDir, { recursive: true }).catch(() => {});
-        q.add(
-          { id: launch.infoHash, name: launch.name, magnet: launch.magnet },
-          cfg.downloadDir,
-        );
+        if (cfg.deluge) {
+          void sendMagnet(cfg.deluge, launch.magnet).then((result) => {
+            if (!alive) return;
+            setNotice(
+              result.ok
+                ? result.status === "already-added"
+                  ? `Already in Deluge: ${truncate(cleanText(launch.name), 40)}`
+                  : `${ICON.done} Sent to Deluge: ${truncate(cleanText(launch.name), 40)}`
+                : result.message,
+            );
+          });
+        } else {
+          setNotice("No Deluge connection set – press o to configure it.");
+        }
         setView("browser");
-        setSection("downloads");
-        setRegion("content");
       }
     })();
     return () => {
@@ -126,103 +138,23 @@ export function App({
     };
   }, [initialMagnet, initialTorrent]);
 
-  useEffect(() => {
-    if (!queue) return;
-    const onCompleted = (name: string): void =>
-      setNotice(`${ICON.done} ${truncate(cleanText(name), 40)}`);
-    queue.on("completed", onCompleted);
-    return () => {
-      queue.off("completed", onCompleted);
-    };
-  }, [queue]);
-
-  useEffect(
-    () => () => {
-      queue?.suspend();
-    },
-    [queue],
-  );
-
   const quitAll = useCallback(() => {
-    // Flush all state synchronously up front so nothing is lost to the hard
-    // exit; the unmount effect still runs suspend() for the engine teardown.
-    queue?.persistSync();
     if (onQuit) onQuit();
     else exit();
-  }, [queue, onQuit, exit]);
+  }, [onQuit, exit]);
 
-  const setConfig = useCallback(
-    (c: Config) => {
-      setConfigState(c);
-      queue?.setTrackers(c.trackers);
-      void saveConfig(c);
-    },
-    [queue],
-  );
-
-  const closeFolderPrompt = useCallback(() => {
-    setEditingFolder(false);
+  const closeDelugePrompt = useCallback(() => {
+    setEditingDeluge(false);
   }, []);
 
-  const closeTrackersPrompt = useCallback(() => {
-    setEditingTrackers(false);
-  }, []);
-
-  const setTrackers = useCallback(
-    (list: string[]) => {
-      closeTrackersPrompt();
+  const setDeluge = useCallback(
+    (deluge: DelugeConfig) => {
+      closeDelugePrompt();
       if (!config) return;
-      const same =
-        list.length === config.trackers.length &&
-        list.every((t, i) => t === config.trackers[i]);
-      if (same) {
-        setNotice("Trackers unchanged.");
-        return;
-      }
-      setConfig({ ...config, trackers: list });
-      setNotice(list.length === 0 ? "Cleared extra trackers." : `Saved ${list.length} tracker${list.length === 1 ? "" : "s"}.`);
+      setConfig({ ...config, deluge });
+      setNotice(`Deluge connection saved: ${truncate(deluge.url, 48)}`);
     },
-    [config, setConfig, closeTrackersPrompt],
-  );
-
-  const setDownloadDir = useCallback(
-    (raw: string) => {
-      closeFolderPrompt();
-      const dir = normalizeDownloadDir(raw);
-      if (!config || !dir || dir === config.downloadDir) {
-        if (config && dir && dir === config.downloadDir) setNotice("Download folder unchanged.");
-        return;
-      }
-      void (async () => {
-        try {
-          await fs.mkdir(dir, { recursive: true });
-        } catch {
-          setNotice(`Couldn't use folder: ${truncate(dir, 48)}`);
-          return;
-        }
-        setConfig({ ...config, downloadDir: dir });
-        setNotice(`Download folder: ${truncate(dir, 48)}`);
-      })();
-    },
-    [config, setConfig, closeFolderPrompt],
-  );
-
-  const startDownload = useCallback(
-    (input: {
-      id: string;
-      name: string;
-      magnet: string;
-      source?: SourceId;
-      sizeBytes?: number;
-    }) => {
-      if (!config || !queue) return;
-      void fs.mkdir(config.downloadDir, { recursive: true }).catch(() => {});
-      queue.add(input, config.downloadDir);
-      setNotice(`Added: ${truncate(cleanText(input.name), 40)}`);
-      setSection("downloads");
-      setRegion("content");
-    },
-    [config, queue],
+    [config, setConfig, closeDelugePrompt],
   );
 
   const copyMagnet = useCallback((input: { name: string; magnet: string }) => {
@@ -242,21 +174,16 @@ export function App({
       if (q) {
         const magnet = parseInput(q);
         if (magnet) {
-          startDownload({
-            id: magnet.infoHash,
-            name: magnet.name,
-            magnet: magnet.magnet,
-          });
+          sendToDeluge({ name: magnet.name, magnet: magnet.magnet });
           setView("browser");
           return;
         }
       }
       setQuery(q);
       setView("browser");
-      if (section === "downloads") setSection("all");
       setRegion("content");
     },
-    [section, startDownload],
+    [sendToDeluge],
   );
 
   const pasteFromClipboard = useCallback(async () => {
@@ -268,12 +195,12 @@ export function App({
     const found = text.match(/magnet:\?xt=urn:btih:[^\s"'<>]+/i)?.[0];
     const magnet = parseInput(found ?? text);
     if (magnet) {
-      startDownload({ id: magnet.infoHash, name: magnet.name, magnet: magnet.magnet });
+      sendToDeluge({ name: magnet.name, magnet: magnet.magnet });
       setView("browser");
       return;
     }
     setNotice("No magnet link on the clipboard.");
-  }, [startDownload]);
+  }, [sendToDeluge]);
 
   useEffect(() => {
     if (!notice) return;
@@ -295,26 +222,21 @@ export function App({
   const ruleWidth = Math.max(10, cols - 2);
 
   const store: Store | null = useMemo(() => {
-    if (!queue || !config) return null;
+    if (!config) return null;
     return {
       config,
       setConfig,
-      queue,
       view,
       setView,
       query,
       submitQuery,
       section,
       setSection,
-      region: showHelp || editingFolder || editingTrackers ? "help" : region,
+      region: showHelp || editingDeluge ? "help" : region,
       setRegion,
       captureMode,
       setCaptureMode,
-      downloadFocus,
-      setDownloadFocus,
-      seedFocus,
-      setSeedFocus,
-      startDownload,
+      sendToDeluge,
       copyMagnet,
       notice,
       setNotice,
@@ -326,7 +248,6 @@ export function App({
       rows,
     };
   }, [
-    queue,
     config,
     view,
     query,
@@ -334,12 +255,9 @@ export function App({
     section,
     region,
     showHelp,
-    editingFolder,
-    editingTrackers,
+    editingDeluge,
     captureMode,
-    downloadFocus,
-    seedFocus,
-    startDownload,
+    sendToDeluge,
     copyMagnet,
     notice,
     listRows,
@@ -357,7 +275,7 @@ export function App({
         quitAll();
         return;
       }
-      if (editingFolder || editingTrackers) return; // the prompt owns input (its own esc + enter)
+      if (editingDeluge) return; // the prompt owns input (its own esc + enter)
       if (captureMode === "text") return;
       if (showHelp) {
         setShowHelp(false);
@@ -369,12 +287,7 @@ export function App({
       }
       if (input === "o") {
         setShowHelp(false);
-        setEditingFolder(true);
-        return;
-      }
-      if (input === "t") {
-        setShowHelp(false);
-        setEditingTrackers(true);
+        setEditingDeluge(true);
         return;
       }
       if (input === "m") {
@@ -443,24 +356,13 @@ export function App({
           </Box>
         ) : null}
 
-        {editingFolder ? (
+        {editingDeluge ? (
           <Box marginTop={1}>
-            <FolderPrompt
+            <DelugeSettingsPrompt
               width={Math.max(24, Math.min(cols - 4, 62))}
-              value={store.config.downloadDir}
-              onSubmit={setDownloadDir}
-              onCancel={closeFolderPrompt}
-            />
-          </Box>
-        ) : null}
-
-        {editingTrackers ? (
-          <Box marginTop={1}>
-            <TrackersPrompt
-              width={Math.max(24, Math.min(cols - 4, 78))}
-              value={store.config.trackers}
-              onSubmit={setTrackers}
-              onCancel={closeTrackersPrompt}
+              value={store.config.deluge}
+              onSubmit={setDeluge}
+              onCancel={closeDelugePrompt}
             />
           </Box>
         ) : null}
@@ -468,24 +370,18 @@ export function App({
         <Box
           height={bodyH}
           marginTop={compact ? 0 : 1}
-          display={showHelp || editingFolder || editingTrackers ? "none" : "flex"}
+          display={showHelp || editingDeluge ? "none" : "flex"}
           overflow="hidden"
         >
           <Sidebar />
           <Box flexGrow={1} flexDirection="column">
-            {section === "downloads" ? (
-              <Downloads />
-            ) : section === "seeding" ? (
-              <Seeding />
-            ) : (
-              <Results />
-            )}
+            <Results />
           </Box>
         </Box>
 
         {showFooter ? (
-          <Box display={showHelp || editingFolder || editingTrackers ? "none" : "flex"}>
-            <Footer hints={footerHints(region, section, downloadFocus, seedFocus)} />
+          <Box display={showHelp || editingDeluge ? "none" : "flex"}>
+            <Footer hints={footerHints(region)} />
           </Box>
         ) : null}
       </Box>

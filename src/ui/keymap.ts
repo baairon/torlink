@@ -1,4 +1,4 @@
-import type { DownloadFocus, Region, Section, SeedFocus } from "./store";
+import type { Region } from "./store";
 
 export interface Hint {
   keys: string;
@@ -18,8 +18,7 @@ export const HELP_GROUPS: HelpGroup[] = [
       { keys: "↵", label: "Open" },
       { keys: "tab", label: "Switch pane" },
       { keys: "esc", label: "Back" },
-      { keys: "o", label: "Download folder" },
-      { keys: "t", label: "Extra trackers" },
+      { keys: "o", label: "Deluge connection" },
       { keys: "q", label: "Quit" },
     ],
   },
@@ -29,25 +28,9 @@ export const HELP_GROUPS: HelpGroup[] = [
       { keys: "/", label: "Edit search" },
       { keys: "↵", label: "Run search" },
       { keys: "s", label: "Sort results" },
+      { keys: "d", label: "Send to Deluge" },
       { keys: "y", label: "Copy magnet" },
       { keys: "m", label: "Paste magnet" },
-    ],
-  },
-  {
-    title: "Downloads",
-    hints: [
-      { keys: "p", label: "Pause/resume" },
-      { keys: "c", label: "Cancel or remove from list" },
-      { keys: "f", label: "Retry failed" },
-      { keys: "d", label: "Download again" },
-      { keys: "x", label: "Clear recent" },
-    ],
-  },
-  {
-    title: "Seeding",
-    hints: [
-      { keys: "p", label: "Pause/resume" },
-      { keys: "c", label: "Remove from list" },
     ],
   },
 ];
@@ -60,12 +43,7 @@ const ALWAYS: Hint = { keys: "?", label: "Keys" };
 
 const SWITCH: Hint = { keys: "tab", label: "Switch" };
 
-export function footerHints(
-  region: Region,
-  section: Section,
-  downloadFocus?: DownloadFocus | null,
-  seedFocus?: SeedFocus | null,
-): Hint[] {
+export function footerHints(region: Region): Hint[] {
   if (region === "sidebar") {
     return [
       NAVIGATE,
@@ -75,33 +53,9 @@ export function footerHints(
       { keys: "q", label: "Quit" },
     ];
   }
-  if (section === "seeding") {
-    const label =
-      seedFocus === "seeding" ? "Pause" : seedFocus === "missing" ? "Retry" : "Resume";
-    return [{ keys: "p", label }, { keys: "c", label: "Remove" }, SWITCH, ALWAYS];
-  }
-  if (section === "downloads") {
-    if (downloadFocus === "paused") {
-      return [{ keys: "p", label: "Resume" }, { keys: "c", label: "Cancel" }, SWITCH, ALWAYS];
-    }
-    if (downloadFocus === "failed") {
-      return [{ keys: "f", label: "Retry" }, { keys: "c", label: "Remove" }, SWITCH, ALWAYS];
-    }
-    if (downloadFocus === "recent") {
-      return [
-        NAVIGATE,
-        { keys: "d", label: "Download again" },
-        { keys: "c", label: "Remove" },
-        { keys: "x", label: "Clear" },
-        SWITCH,
-        ALWAYS,
-      ];
-    }
-    return [{ keys: "p", label: "Pause" }, { keys: "c", label: "Cancel" }, SWITCH, ALWAYS];
-  }
   return [
     NAVIGATE,
-    { keys: "d", label: "Download" },
+    { keys: "d", label: "Send to Deluge" },
     { keys: "y", label: "Copy" },
     { keys: "s", label: "Sort" },
     { keys: "/", label: "Search" },

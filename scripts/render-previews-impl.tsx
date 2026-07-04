@@ -12,15 +12,11 @@ import { Footer } from "../src/ui/components/Footer";
 import { Sidebar, RAIL_WIDTH } from "../src/ui/components/Sidebar";
 import { SearchBar } from "../src/ui/components/SearchBar";
 import { Panel } from "../src/ui/components/Panel";
-import { Downloads } from "../src/ui/components/Downloads";
 import { footerHints } from "../src/ui/keymap";
 import { sourcesByGroup } from "../src/sources/registry";
 import { cleanText, formatBytes, formatRelative } from "../src/util/format";
 import { ansiToSvg, type AnsiToSvgOptions } from "./ansi-to-svg";
 import type { Config } from "../src/config/config";
-import type { DownloadQueue } from "../src/download/queue";
-import type { QueueItem, SeedItem } from "../src/download/types";
-import type { HistoryItem } from "../src/download/history";
 import type { TorrentResult } from "../src/sources/types";
 
 const COLS = 80;
@@ -30,7 +26,6 @@ const OUT_DIR = join(dirname(fileURLToPath(import.meta.url)), "..", "preview");
 mkdirSync(OUT_DIR, { recursive: true });
 
 const NOW = Math.floor(Date.now() / 1000);
-const NOW_MS = Date.now();
 
 const RESULTS: TorrentResult[] = [
   { infoHash: "b2", name: "Oppenheimer (2023) [1080p WEB]", source: "yts", sizeBytes: 2.1e9, seeders: 1240, leechers: 88, magnet: "", added: NOW - 7200 },
@@ -41,47 +36,11 @@ const RESULTS: TorrentResult[] = [
   { infoHash: "a1", name: "Elden Ring: Shadow of the Erdtree Edition", source: "fitgirl", sizeBytes: 0, seeders: 0, leechers: 0, magnet: "", added: NOW - 3600 },
 ];
 
-const DOWNLOADS: QueueItem[] = [
-  { id: "x1", name: "Dune: Part Two (2024) [2160p BluRay]", source: "yts", magnet: "", dir: "", status: "downloading", progress: 64, totalBytes: 8.4e9, downloadedBytes: 5.4e9, speed: 8.1e6, peers: 41, eta: 360, addedAt: NOW_MS },
-];
-
-const HISTORY: HistoryItem[] = [
-  { id: "h1", name: "Elden Ring: Shadow of the Erdtree Edition", source: "fitgirl", sizeBytes: 54e9, magnet: "", dir: "", completedAt: NOW_MS - 3_600_000 },
-  { id: "h2", name: "Breaking Bad S05E14 1080p WEB-DL", source: "eztv", sizeBytes: 1.6e9, magnet: "", dir: "", completedAt: NOW_MS - 90_000_000 },
-];
-
-function fakeQueue(
-  items: QueueItem[],
-  history: HistoryItem[],
-  seeds: SeedItem[] = [],
-): DownloadQueue {
-  const active = items.filter((i) => i.status === "downloading").length;
-  const seedingCount = seeds.filter((s) => s.status === "seeding").length;
-  const seedMap = new Map(seeds.map((s) => [s.id, s]));
-  const stub = {
-    getItems: () => items,
-    getHistory: () => history,
-    getSeeds: () => seeds,
-    getSeed: (id: string) => seedMap.get(id),
-    activeCount: active,
-    seedingCount,
-    on: () => stub,
-    off: () => stub,
-  };
-  return stub as unknown as DownloadQueue;
-}
-
-function makeStore(
-  overrides: Partial<Store> = {},
-  items: QueueItem[] = [],
-  history: HistoryItem[] = [],
-  seeds: SeedItem[] = [],
-): Store {
+function makeStore(overrides: Partial<Store> = {}): Store {
   const noop = (): void => {};
   return {
-    config: { downloadDir: "~/Downloads/torlink" } as Config,
+    config: { deluge: { url: "http://localhost:8112", password: "" } } as Config,
     setConfig: noop,
-    queue: fakeQueue(items, history, seeds),
     view: "browser",
     setView: noop,
     query: "",
@@ -92,11 +51,7 @@ function makeStore(
     setRegion: noop,
     captureMode: "none",
     setCaptureMode: noop,
-    downloadFocus: null,
-    setDownloadFocus: noop,
-    seedFocus: null,
-    setSeedFocus: noop,
-    startDownload: noop,
+    sendToDeluge: noop,
     copyMagnet: noop,
     notice: null,
     setNotice: noop,
@@ -141,7 +96,7 @@ save(
   <Box height={18} flexDirection="column" justifyContent="center" alignItems="center" width={COLS}>
     <Logo />
     <Box marginTop={2}>
-      <Text color={COLOR.text}>A curated, terminal-native torrent downloader.</Text>
+      <Text color={COLOR.text}>A curated, terminal-native torrent search for Deluge.</Text>
     </Box>
     <Box>
       <Text dimColor>{CATEGORIES}</Text>
@@ -238,25 +193,6 @@ save(
         </Box>
       </Box>
     </Box>
-    <Footer hints={footerHints("content", "all")} />
+    <Footer hints={footerHints("content")} />
   </Box>,
-);
-
-save(
-  "downloads",
-  makeStore({ section: "downloads", contentWidth: CONTENT_WIDTH, listRows: 10, cols: COLS, rows: 24 }, DOWNLOADS, HISTORY),
-  <Box flexDirection="column" width={COLS} paddingX={1}>
-    <Box justifyContent="space-between">
-      <Logo />
-    </Box>
-    <Rule width={RULE_WIDTH} />
-    <Box height={10} marginTop={1}>
-      <Sidebar />
-      <Box flexGrow={1} flexDirection="column">
-        <Downloads />
-      </Box>
-    </Box>
-    <Footer hints={footerHints("content", "downloads")} />
-  </Box>,
-  { shimmer: true },
 );

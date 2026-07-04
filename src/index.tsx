@@ -42,10 +42,8 @@ function forceExit(code = 0): void {
     process.exit(code);
   }
   exiting = true;
-  // Exit synchronously and unconditionally. State is already flushed
-  // (quitAll -> persistSync, and the unmount effect runs suspend()), so we never
-  // wait on webtorrent releasing its sockets; the OS reclaims them. Unmount
-  // first to restore raw mode, then our own terminal sequences, then go.
+  // Exit synchronously and unconditionally: there's no in-flight state to flush.
+  // Unmount first to restore raw mode, then our own terminal sequences, then go.
   try {
     app?.unmount();
   } catch {}

@@ -1,7 +1,7 @@
 {
   "name": "torlnk",
   "version": "1.2.0",
-  "description": "A sleek, zero-setup torrent finder and downloader that lives right in your terminal.",
+  "description": "A sleek torrent finder that lives right in your terminal and sends picks straight to Deluge.",
   "type": "module",
   "bin": {
     "torlnk": "./dist/cli.cjs"
@@ -20,26 +20,19 @@
     "start": "node dist/index.js",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "verify:seeding": "tsx scripts/verify-seeding.ts",
     "previews": "tsx scripts/render-previews.tsx",
     "prepublishOnly": "npm run build"
   },
   "keywords": [
     "torrent",
-    "torrent-client",
     "torrent-search",
-    "downloader",
     "magnet",
     "magnet-links",
-    "p2p",
-    "webtorrent",
-    "seeding",
+    "deluge",
     "tui",
     "terminal",
     "cli",
     "ink",
-    "zero-configuration",
-    "zero-setup",
     "fitgirl"
   ],
   "author": "bairon",
@@ -59,8 +52,7 @@
     "env-paths": "^4.0.0",
     "ink": "^7.0.5",
     "parse-torrent": "^11.0.21",
-    "react": "^19.2.7",
-    "webtorrent": "^2.4.1"
+    "react": "^19.2.7"
   },
   "devDependencies": {
     "@types/node": "^25.9.2",

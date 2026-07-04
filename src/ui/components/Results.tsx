@@ -94,7 +94,7 @@ function Detail({ r, width }: { r: TorrentResult; width: number }) {
         <Text color={COLOR.accent} bold>
           d
         </Text>
-        <Text color={COLOR.text}> Download</Text>
+        <Text color={COLOR.text}> Send to Deluge</Text>
         <Text dimColor>{`     ${ICON.dot}     `}</Text>
         <Text color={COLOR.accent} bold>
           y
@@ -116,7 +116,7 @@ export function Results() {
     region,
     setRegion,
     setCaptureMode,
-    startDownload,
+    sendToDeluge,
     copyMagnet,
     contentWidth,
     listRows,
@@ -159,8 +159,8 @@ export function Results() {
   const listHeight = Math.max(3, panelOuter - 4);
   const pageJump = Math.max(1, listHeight - 1);
 
-  const openDownload = (r: TorrentResult): void =>
-    startDownload({
+  const sendResult = (r: TorrentResult): void =>
+    sendToDeluge({
       id: r.infoHash,
       name: r.name,
       magnet: r.magnet,
@@ -194,7 +194,7 @@ export function Results() {
         }
       } else if (input === "d") {
         const r = results[clamped];
-        if (r) openDownload(r);
+        if (r) sendResult(r);
       } else if (input === "y") {
         const r = results[clamped];
         if (r) copyResultMagnet(r);
@@ -210,7 +210,7 @@ export function Results() {
       if (key.escape) {
         setMode("list");
         setDetail(null);
-      } else if (input === "d" && detail) openDownload(detail);
+      } else if (input === "d" && detail) sendResult(detail);
       else if (input === "y" && detail) copyResultMagnet(detail);
     },
     { isActive: focused && mode === "detail" },

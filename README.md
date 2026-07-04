@@ -4,11 +4,11 @@
 
 Finding a torrent these days sucks. One site is a minefield of fake download buttons. Another hides the real link under a popup that spawns two more tabs. And after all that, half the results are dead, zero seeders.
 
-torlink is a torrent finder that lives in your terminal, with zero setup and nothing to configure. One search checks a short, curated list of reputable sources at once, and whatever you pick downloads straight to your computer. The files are yours, saved to your downloads folder.
+torlink is a torrent finder that lives in your terminal. One search checks a short, curated list of reputable sources at once, and whatever you pick gets sent straight to your own [Deluge](https://deluge-torrent.org) instance over its Web UI — torlink itself never downloads anything.
 
 ## Get started
 
-1. **Install Node** (from [nodejs.org](https://nodejs.org)), it's all torlink needs.
+1. **Install Node** (from [nodejs.org](https://nodejs.org)) and have a Deluge Web UI reachable (local or remote).
 2. **Open your terminal.**
 3. **Start it:**
 
@@ -16,24 +16,14 @@ torlink is a torrent finder that lives in your terminal, with zero setup and not
    npx torlnk
    ```
 
-That's the only thing you'll type. torlink opens straight to a search bar: search for what you want, paste in a magnet link or a bare infohash, or just press Enter on an empty box to browse the curated library. From there it's all keypresses, nothing to memorize, and `?` brings up the full list anytime.
+torlink opens straight to a search bar: search for what you want, paste in a magnet link or a bare infohash, or just press Enter on an empty box to browse the curated library. Press `o` once to point it at your Deluge Web UI (address + password); it's saved locally after that. From there it's all keypresses, nothing to memorize, and `?` brings up the full list anytime.
 
 ## Finding something
 
-Type what you're looking for and press Enter. Results stream in from every source as they answer, tagged with size and how many people are sharing each one, so you can see what'll come down fast. Arrow to what you want and press `d` to save it.
+Type what you're looking for and press Enter. Results stream in from every source as they answer, tagged with size and how many people are sharing each one, so you can see what'll come down fast. Arrow to what you want and press `d` to send it to Deluge, or `y` to just copy the magnet link instead.
 
 <p align="center">
   <img src="preview/browse.svg" alt="torlink's browse view: the sidebar, the search bar, and merged results from every source" style="max-width: 832px; width: 100%; height: auto;">
-</p>
-
-## Your downloads
-
-Active downloads sit up top with their progress, speed, and time left; when one finishes it drops into Recently downloaded just below, so the list stays tidy. Everything's still there when you come back, and anything interrupted picks up where it left off.
-
-Downloads run in the background while you keep searching, so you can queue up as many as you want. They save to your downloads folder, and the Downloads pane keeps tabs on each one. When something finishes it keeps seeding automatically so the next person can find it too, and the Seeding tab lets you pause or stop that anytime.
-
-<p align="center">
-  <img src="preview/downloads.svg" alt="torlink's Downloads pane: live progress on top, recently downloaded below" style="max-width: 832px; width: 100%; height: auto;">
 </p>
 
 ## What it searches
@@ -72,7 +62,7 @@ Before opening a PR, skim [CONTRIBUTING.md](CONTRIBUTING.md); it lays out the ba
 
 ## Privacy
 
-Your files stay on your disk, and nothing routes through a central server; torlink only talks to the torrent network directly. Once a download finishes it keeps seeding by default, sharing it back so the next person can find it just as easily. The network only works because people pass things along, and even a few minutes makes a real difference. If you'd rather not, opt out anytime: open the Seeding tab, press `p` to pause or stop any item, and press it again to pick it back up. Always your call.
+torlink itself never opens a connection to the torrent network — it only searches, then hands the chosen magnet link to your own Deluge instance over its Web UI. Everything after that (downloading, seeding, where files land) is Deluge's territory, configured however you already run it.
 
 ## Star History
 
