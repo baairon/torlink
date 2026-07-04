@@ -236,6 +236,17 @@ export function App({
     })();
   }, []);
 
+  const copyInfoHash = useCallback((input: { name: string; infoHash: string }) => {
+    void (async () => {
+      const ok = await writeClipboard(input.infoHash);
+      if (ok) {
+        setNotice(`Copied hash: ${input.infoHash}`);
+        return;
+      }
+      setNotice(`Couldn't copy hash for ${truncate(cleanText(input.name), 32)}.`);
+    })();
+  }, []);
+
   const submitQuery = useCallback(
     (raw: string) => {
       const q = raw.trim();
@@ -316,6 +327,7 @@ export function App({
       setSeedFocus,
       startDownload,
       copyMagnet,
+      copyInfoHash,
       notice,
       setNotice,
       quitAll,
@@ -341,6 +353,7 @@ export function App({
     seedFocus,
     startDownload,
     copyMagnet,
+    copyInfoHash,
     notice,
     listRows,
     compact,

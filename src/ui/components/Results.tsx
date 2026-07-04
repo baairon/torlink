@@ -101,6 +101,11 @@ function Detail({ r, width }: { r: TorrentResult; width: number }) {
         </Text>
         <Text color={COLOR.text}> Copy magnet</Text>
         <Text dimColor>{`     ${ICON.dot}     `}</Text>
+        <Text color={COLOR.accent} bold>
+          i
+        </Text>
+        <Text color={COLOR.text}> Copy hash</Text>
+        <Text dimColor>{`     ${ICON.dot}     `}</Text>
         <Text color={COLOR.alt}>esc</Text>
         <Text dimColor> back</Text>
       </Box>
@@ -118,6 +123,7 @@ export function Results() {
     setCaptureMode,
     startDownload,
     copyMagnet,
+    copyInfoHash,
     contentWidth,
     listRows,
   } = useStore();
@@ -171,6 +177,9 @@ export function Results() {
   const copyResultMagnet = (r: TorrentResult): void =>
     copyMagnet({ name: r.name, magnet: r.magnet });
 
+  const copyResultInfoHash = (r: TorrentResult): void =>
+    copyInfoHash({ name: r.name, infoHash: r.infoHash });
+
   useInput(
     (input, key) => {
       if (input === "/") {
@@ -198,6 +207,9 @@ export function Results() {
       } else if (input === "y") {
         const r = results[clamped];
         if (r) copyResultMagnet(r);
+      } else if (input === "i") {
+        const r = results[clamped];
+        if (r) copyResultInfoHash(r);
       } else if (input === "s") {
         setSort((cur) => nextSort(cur));
       }
@@ -212,6 +224,7 @@ export function Results() {
         setDetail(null);
       } else if (input === "d" && detail) openDownload(detail);
       else if (input === "y" && detail) copyResultMagnet(detail);
+      else if (input === "i" && detail) copyResultInfoHash(detail);
     },
     { isActive: focused && mode === "detail" },
   );

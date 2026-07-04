@@ -98,6 +98,7 @@ function makeStore(
     setSeedFocus: noop,
     startDownload: noop,
     copyMagnet: noop,
+    copyInfoHash: noop,
     notice: null,
     setNotice: noop,
     quitAll: noop,
