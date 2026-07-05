@@ -85,6 +85,17 @@ export function App({
   const [showHelp, setShowHelp] = useState(false);
   const [editingFolder, setEditingFolder] = useState(false);
   const [editingTrackers, setEditingTrackers] = useState(false);
+  // A result waiting on the "download to" prompt (D); null when the prompt is
+  // closed. lastDownloadToDir pre-fills the next prompt so queueing a batch
+  // into the same alternate folder only costs one typed path per session.
+  const [pendingDownload, setPendingDownload] = useState<{
+    id: string;
+    name: string;
+    magnet: string;
+    source?: SourceId;
+    sizeBytes?: number;
+  } | null>(null);
+  const [lastDownloadToDir, setLastDownloadToDir] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const booting = useRef(false);
 
@@ -225,6 +236,54 @@ export function App({
     [config, queue],
   );
 
+  const requestDownloadTo = useCallback(
+    (input: {
+      id: string;
+      name: string;
+      magnet: string;
+      source?: SourceId;
+      sizeBytes?: number;
+    }) => {
+      setPendingDownload(input);
+    },
+    [],
+  );
+
+  const closeDownloadToPrompt = useCallback(() => {
+    setPendingDownload(null);
+  }, []);
+
+  const startDownloadTo = useCallback(
+    (raw: string) => {
+      const input = pendingDownload;
+      setPendingDownload(null);
+      const dir = normalizeDownloadDir(raw);
+      if (!queue || !input || !dir) return;
+      // add() ignores the dir for anything already active, so don't claim a
+      // folder that won't be used. Failed items fall through: a re-add with a
+      // fresh dir is exactly how a bad-disk download gets redirected.
+      const existing = queue.getItems().find((it) => it.id === input.id);
+      if (existing && existing.status !== "failed") {
+        setNotice(`Already in queue: ${truncate(cleanText(input.name), 40)}`);
+        return;
+      }
+      void (async () => {
+        try {
+          await fs.mkdir(dir, { recursive: true });
+        } catch {
+          setNotice(`Couldn't use folder: ${truncate(dir, 48)}`);
+          return;
+        }
+        setLastDownloadToDir(dir);
+        queue.add(input, dir);
+        setNotice(`Added: ${truncate(cleanText(input.name), 28)} → ${truncate(dir, 36)}`);
+        setSection("downloads");
+        setRegion("content");
+      })();
+    },
+    [queue, pendingDownload],
+  );
+
   const copyMagnet = useCallback((input: { name: string; magnet: string }) => {
     void (async () => {
       const ok = await writeClipboard(input.magnet);
@@ -306,7 +365,7 @@ export function App({
       submitQuery,
       section,
       setSection,
-      region: showHelp || editingFolder || editingTrackers ? "help" : region,
+      region: showHelp || editingFolder || editingTrackers || pendingDownload ? "help" : region,
       setRegion,
       captureMode,
       setCaptureMode,
@@ -315,6 +374,7 @@ export function App({
       seedFocus,
       setSeedFocus,
       startDownload,
+      requestDownloadTo,
       copyMagnet,
       notice,
       setNotice,
@@ -336,10 +396,12 @@ export function App({
     showHelp,
     editingFolder,
     editingTrackers,
+    pendingDownload,
     captureMode,
     downloadFocus,
     seedFocus,
     startDownload,
+    requestDownloadTo,
     copyMagnet,
     notice,
     listRows,
@@ -357,7 +419,7 @@ export function App({
         quitAll();
         return;
       }
-      if (editingFolder || editingTrackers) return; // the prompt owns input (its own esc + enter)
+      if (editingFolder || editingTrackers || pendingDownload) return; // the prompt owns input (its own esc + enter)
       if (captureMode === "text") return;
       if (showHelp) {
         setShowHelp(false);
@@ -465,10 +527,22 @@ export function App({
           </Box>
         ) : null}
 
+        {pendingDownload ? (
+          <Box marginTop={1}>
+            <FolderPrompt
+              title="download to"
+              width={Math.max(24, Math.min(cols - 4, 62))}
+              value={lastDownloadToDir ?? store.config.downloadDir}
+              onSubmit={startDownloadTo}
+              onCancel={closeDownloadToPrompt}
+            />
+          </Box>
+        ) : null}
+
         <Box
           height={bodyH}
           marginTop={compact ? 0 : 1}
-          display={showHelp || editingFolder || editingTrackers ? "none" : "flex"}
+          display={showHelp || editingFolder || editingTrackers || pendingDownload ? "none" : "flex"}
           overflow="hidden"
         >
           <Sidebar />
@@ -484,7 +558,7 @@ export function App({
         </Box>
 
         {showFooter ? (
-          <Box display={showHelp || editingFolder || editingTrackers ? "none" : "flex"}>
+          <Box display={showHelp || editingFolder || editingTrackers || pendingDownload ? "none" : "flex"}>
             <Footer hints={footerHints(region, section, downloadFocus, seedFocus)} />
           </Box>
         ) : null}

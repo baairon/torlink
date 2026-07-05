@@ -87,7 +87,19 @@ export class DownloadQueue extends EventEmitter {
     const existing = this.items.get(input.id);
     if (existing && existing.status !== "failed") return;
     const item: QueueItem = existing
-      ? { ...existing, status: "downloading", error: undefined, speed: 0 }
+      ? {
+          ...existing,
+          // A re-add is a fresh request, so it targets the dir asked for now.
+          // Partial data doesn't follow to a new folder, so resume progress
+          // only survives when the dir is unchanged.
+          dir,
+          status: "downloading",
+          error: undefined,
+          speed: 0,
+          ...(existing.dir === dir
+            ? {}
+            : { progress: 0, downloadedBytes: 0, eta: undefined }),
+        }
       : {
           id: input.id,
           name: input.name,

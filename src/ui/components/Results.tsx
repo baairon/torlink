@@ -92,7 +92,7 @@ function Detail({ r, width }: { r: TorrentResult; width: number }) {
       </Box>
       <Box marginTop={1}>
         <Text color={COLOR.accent} bold>
-          d
+          d/D
         </Text>
         <Text color={COLOR.text}> Download</Text>
         <Text dimColor>{`     ${ICON.dot}     `}</Text>
@@ -117,6 +117,7 @@ export function Results() {
     setRegion,
     setCaptureMode,
     startDownload,
+    requestDownloadTo,
     copyMagnet,
     contentWidth,
     listRows,
@@ -168,6 +169,15 @@ export function Results() {
       sizeBytes: r.sizeBytes,
     });
 
+  const openDownloadTo = (r: TorrentResult): void =>
+    requestDownloadTo({
+      id: r.infoHash,
+      name: r.name,
+      magnet: r.magnet,
+      source: r.source,
+      sizeBytes: r.sizeBytes,
+    });
+
   const copyResultMagnet = (r: TorrentResult): void =>
     copyMagnet({ name: r.name, magnet: r.magnet });
 
@@ -195,6 +205,9 @@ export function Results() {
       } else if (input === "d") {
         const r = results[clamped];
         if (r) openDownload(r);
+      } else if (input === "D") {
+        const r = results[clamped];
+        if (r) openDownloadTo(r);
       } else if (input === "y") {
         const r = results[clamped];
         if (r) copyResultMagnet(r);
@@ -211,6 +224,7 @@ export function Results() {
         setMode("list");
         setDetail(null);
       } else if (input === "d" && detail) openDownload(detail);
+      else if (input === "D" && detail) openDownloadTo(detail);
       else if (input === "y" && detail) copyResultMagnet(detail);
     },
     { isActive: focused && mode === "detail" },

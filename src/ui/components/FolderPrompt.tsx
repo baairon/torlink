@@ -6,18 +6,25 @@ import { COLOR, ICON } from "../theme";
 interface FolderPromptProps {
   width: number;
   value: string;
+  title?: string;
   onSubmit: (value: string) => void;
   onCancel: () => void;
 }
 
-export function FolderPrompt({ width, value, onSubmit, onCancel }: FolderPromptProps) {
+export function FolderPrompt({
+  width,
+  value,
+  title = "download folder",
+  onSubmit,
+  onCancel,
+}: FolderPromptProps) {
   useInput((_input, key) => {
     if (key.escape) onCancel();
   });
 
   return (
     <Box flexDirection="column" width={width}>
-      <Panel title="download folder" width={width} focused height={2}>
+      <Panel title={title} width={width} focused height={2}>
         <Box>
           <Text color={COLOR.accent}>{`${ICON.pointer} `}</Text>
           <Box flexGrow={1} minWidth={0}>

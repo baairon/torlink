@@ -28,6 +28,8 @@ export const HELP_GROUPS: HelpGroup[] = [
     hints: [
       { keys: "/", label: "Edit search" },
       { keys: "↵", label: "Run search" },
+      { keys: "d", label: "Download" },
+      { keys: "D", label: "Download to a folder…" },
       { keys: "s", label: "Sort results" },
       { keys: "y", label: "Copy magnet" },
       { keys: "m", label: "Paste magnet" },
@@ -101,7 +103,9 @@ export function footerHints(
   }
   return [
     NAVIGATE,
-    { keys: "d", label: "Download" },
+    // d downloads to the default folder, D asks where; the `?` sheet spells
+    // out the difference, the footer just shows both keys exist.
+    { keys: "d/D", label: "Download" },
     { keys: "y", label: "Copy" },
     { keys: "s", label: "Sort" },
     { keys: "/", label: "Search" },

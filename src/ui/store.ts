@@ -56,6 +56,15 @@ export interface Store {
     source?: SourceId;
     sizeBytes?: number;
   }) => void;
+  // Opens the "download to" prompt (D) so this one download can land in a
+  // folder other than the configured default.
+  requestDownloadTo: (input: {
+    id: string;
+    name: string;
+    magnet: string;
+    source?: SourceId;
+    sizeBytes?: number;
+  }) => void;
   copyMagnet: (input: { name: string; magnet: string }) => void;
 
   notice: string | null;
