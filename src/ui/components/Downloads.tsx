@@ -44,7 +44,8 @@ function rightStats(it: QueueItem): string {
 }
 
 export function Downloads() {
-  const { queue, region, contentWidth, listRows, startDownload, setDownloadFocus } = useStore();
+  const { queue, region, contentWidth, listRows, startDownload, openDownloadFolder, setDownloadFocus } =
+    useStore();
   const active = useQueueItems(queue);
   const recent = useQueueHistory(queue);
   const focused = region === "content";
@@ -61,7 +62,10 @@ export function Downloads() {
       else if (key.downArrow || input === "j") setCursor(wrapStep(clamped, 1, total));
       else if (input === "f") queue.retryFailed();
       else if (input === "x") queue.clearHistory();
-      else if (inActive) {
+      else if (input === "e") {
+        const dir = inActive ? active[clamped]?.dir : recent[recentCursor]?.dir;
+        if (dir) openDownloadFolder(dir);
+      } else if (inActive) {
         const it = active[clamped];
         if (!it) return;
         if (input === "c") queue.cancel(it.id);

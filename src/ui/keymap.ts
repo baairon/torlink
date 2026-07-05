@@ -40,6 +40,7 @@ export const HELP_GROUPS: HelpGroup[] = [
       { keys: "c", label: "Cancel or remove from list" },
       { keys: "f", label: "Retry failed" },
       { keys: "d", label: "Download again" },
+      { keys: "e", label: "Open folder" },
       { keys: "x", label: "Clear recent" },
     ],
   },
@@ -48,6 +49,7 @@ export const HELP_GROUPS: HelpGroup[] = [
     hints: [
       { keys: "p", label: "Pause/resume" },
       { keys: "c", label: "Remove from list" },
+      { keys: "e", label: "Open folder" },
     ],
   },
 ];
@@ -59,6 +61,8 @@ const NAVIGATE: Hint = { keys: "↑↓←→", label: "Move" };
 const ALWAYS: Hint = { keys: "?", label: "Keys" };
 
 const SWITCH: Hint = { keys: "tab", label: "Switch" };
+
+const FOLDER: Hint = { keys: "e", label: "Folder" };
 
 export function footerHints(
   region: Region,
@@ -78,26 +82,27 @@ export function footerHints(
   if (section === "seeding") {
     const label =
       seedFocus === "seeding" ? "Pause" : seedFocus === "missing" ? "Retry" : "Resume";
-    return [{ keys: "p", label }, { keys: "c", label: "Remove" }, SWITCH, ALWAYS];
+    return [{ keys: "p", label }, { keys: "c", label: "Remove" }, FOLDER, SWITCH, ALWAYS];
   }
   if (section === "downloads") {
     if (downloadFocus === "paused") {
-      return [{ keys: "p", label: "Resume" }, { keys: "c", label: "Cancel" }, SWITCH, ALWAYS];
+      return [{ keys: "p", label: "Resume" }, { keys: "c", label: "Cancel" }, FOLDER, SWITCH, ALWAYS];
     }
     if (downloadFocus === "failed") {
-      return [{ keys: "f", label: "Retry" }, { keys: "c", label: "Remove" }, SWITCH, ALWAYS];
+      return [{ keys: "f", label: "Retry" }, { keys: "c", label: "Remove" }, FOLDER, SWITCH, ALWAYS];
     }
     if (downloadFocus === "recent") {
       return [
         NAVIGATE,
-        { keys: "d", label: "Download again" },
+        { keys: "d", label: "Redownload" },
         { keys: "c", label: "Remove" },
         { keys: "x", label: "Clear" },
+        FOLDER,
         SWITCH,
         ALWAYS,
       ];
     }
-    return [{ keys: "p", label: "Pause" }, { keys: "c", label: "Cancel" }, SWITCH, ALWAYS];
+    return [{ keys: "p", label: "Pause" }, { keys: "c", label: "Cancel" }, FOLDER, SWITCH, ALWAYS];
   }
   return [
     NAVIGATE,

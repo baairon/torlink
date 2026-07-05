@@ -57,6 +57,7 @@ export interface Store {
     sizeBytes?: number;
   }) => void;
   copyMagnet: (input: { name: string; magnet: string }) => void;
+  openDownloadFolder: (dir: string) => void;
 
   notice: string | null;
   setNotice: (s: string | null) => void;
