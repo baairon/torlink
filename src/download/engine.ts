@@ -32,21 +32,32 @@ function message(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
 }
 
+function webTorrentOptions(): { natPmp?: boolean; utp?: boolean } {
+  const opts: { natPmp?: boolean; utp?: boolean } = {};
+
+  // On macOS, mDNSResponder occupies UDP port 5350 — the NAT-PMP
+  // client port. Binding it fails asynchronously with EADDRINUSE,
+  // and since the PMP client is a raw EventEmitter with no error
+  // listener, the error surfaces as an uncaughtException that kills
+  // the app the moment a download starts. NAT-PMP can never succeed
+  // on macOS because the port is permanently taken, so disable it
+  // and let UPnP handle NAT traversal instead.
+  if (process.platform === "darwin") opts.natPmp = false;
+
+  // Some Linux ARM environments report a native segfault while starting the CLI.
+  // Keep WebTorrent on TCP there and avoid loading the optional utp-native path.
+  if (process.platform === "linux" && process.arch.startsWith("arm")) opts.utp = false;
+
+  return opts;
+}
+
 export class TorrentEngine {
   private client: WebTorrent | null = null;
   private torrents = new Map<string, Torrent>();
 
   private ensureClient(): WebTorrent {
     if (!this.client) {
-      // On macOS, mDNSResponder occupies UDP port 5350 — the NAT-PMP
-      // client port. Binding it fails asynchronously with EADDRINUSE,
-      // and since the PMP client is a raw EventEmitter with no error
-      // listener, the error surfaces as an uncaughtException that kills
-      // the app the moment a download starts. NAT-PMP can never succeed
-      // on macOS because the port is permanently taken, so disable it
-      // and let UPnP handle NAT traversal instead.
-      const opts = process.platform === "darwin" ? { natPmp: false } : {};
-      this.client = new WebTorrent(opts);
+      this.client = new WebTorrent(webTorrentOptions());
       this.client.on("error", () => {});
     }
     return this.client;

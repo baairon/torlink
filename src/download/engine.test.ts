@@ -85,3 +85,51 @@ describe("TorrentEngine macOS port-5350 fix (#22)", () => {
     expect(constructorCalls[0]).not.toHaveProperty("natPmp", false);
   });
 });
+
+describe("TorrentEngine Linux ARM startup", () => {
+  it("disables uTP on Linux ARM so startup avoids the native utp module", async () => {
+    const { TorrentEngine } = await import("./engine");
+    const originalPlatform = process.platform;
+    const originalArch = process.arch;
+    Object.defineProperty(process, "platform", { value: "linux" });
+    Object.defineProperty(process, "arch", { value: "arm64" });
+    try {
+      const engine = new TorrentEngine();
+      engine.add(
+        "test-id",
+        "magnet:?xt=urn:btih:0000000000000000000000000000000000000000",
+        "/downloads",
+        {},
+      );
+      engine.destroy();
+    } finally {
+      Object.defineProperty(process, "platform", { value: originalPlatform });
+      Object.defineProperty(process, "arch", { value: originalArch });
+    }
+    expect(constructorCalls).toHaveLength(1);
+    expect(constructorCalls[0]).toMatchObject({ utp: false });
+  });
+
+  it("keeps uTP enabled on non-ARM Linux", async () => {
+    const { TorrentEngine } = await import("./engine");
+    const originalPlatform = process.platform;
+    const originalArch = process.arch;
+    Object.defineProperty(process, "platform", { value: "linux" });
+    Object.defineProperty(process, "arch", { value: "x64" });
+    try {
+      const engine = new TorrentEngine();
+      engine.add(
+        "test-id",
+        "magnet:?xt=urn:btih:0000000000000000000000000000000000000000",
+        "/downloads",
+        {},
+      );
+      engine.destroy();
+    } finally {
+      Object.defineProperty(process, "platform", { value: originalPlatform });
+      Object.defineProperty(process, "arch", { value: originalArch });
+    }
+    expect(constructorCalls).toHaveLength(1);
+    expect(constructorCalls[0]).not.toHaveProperty("utp", false);
+  });
+});
