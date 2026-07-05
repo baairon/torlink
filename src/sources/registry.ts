@@ -5,6 +5,7 @@ import { subsplease } from "./subsplease";
 import { tpbMovies, tpbTv } from "./piratebay";
 import { x1337Movies, x1337Tv } from "./x1337";
 import { yts } from "./yts";
+import { dontorrentMovies, dontorrentTv } from "./dontorrent";
 import type { Source, SourceGroup, SourceId } from "./types";
 
 export const SOURCES: readonly Source[] = [
@@ -12,9 +13,11 @@ export const SOURCES: readonly Source[] = [
   yts,
   tpbMovies,
   x1337Movies,
+  dontorrentMovies,
   eztv,
   tpbTv,
   x1337Tv,
+  dontorrentTv,
   nyaa,
   subsplease,
 ];
