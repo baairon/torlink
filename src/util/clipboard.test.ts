@@ -20,7 +20,7 @@ describe("writeClipboard", () => {
         proc.kill = vi.fn();
         proc.stdin = {
           end: vi.fn(() => {
-            queueMicrotask(() => proc.emit("close", cmd === "wl-copy" ? 0 : 1));
+            queueMicrotask(() => proc.emit("exit", cmd === "wl-copy" ? 0 : 1));
           }),
         };
         return proc;
