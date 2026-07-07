@@ -54,5 +54,6 @@ export const eztv: Source = {
   label: "EZTV",
   group: "TV",
   homepage: "https://eztvx.to",
+  reportsHealth: true,
   search,
 };

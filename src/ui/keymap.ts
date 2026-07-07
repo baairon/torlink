@@ -18,7 +18,7 @@ export const HELP_GROUPS: HelpGroup[] = [
       { keys: "↵", label: "Open" },
       { keys: "tab", label: "Switch pane" },
       { keys: "esc", label: "Back" },
-      { keys: "o", label: "Download folder" },
+      { keys: "o", label: "Default download folder" },
       { keys: "t", label: "Extra trackers" },
       { keys: "q", label: "Quit" },
     ],
@@ -27,9 +27,7 @@ export const HELP_GROUPS: HelpGroup[] = [
     title: "Search",
     hints: [
       { keys: "/", label: "Edit search" },
-      { keys: "↵", label: "Run search" },
-      { keys: "d", label: "Download" },
-      { keys: "D", label: "Download to a folder…" },
+      { keys: "d/D", label: "Download (D picks folder)" },
       { keys: "s", label: "Sort results" },
       { keys: "z", label: "Hide dead torrents" },
       { keys: "y", label: "Copy magnet" },
@@ -44,7 +42,7 @@ export const HELP_GROUPS: HelpGroup[] = [
       { keys: "f", label: "Retry failed" },
       { keys: "d", label: "Download again" },
       { keys: "e", label: "Open folder" },
-      { keys: "T", label: "Export .torrent" },
+      { keys: "s", label: "Export torrent file" },
       { keys: "x", label: "Clear recent" },
     ],
   },
@@ -59,7 +57,8 @@ export const HELP_GROUPS: HelpGroup[] = [
 ];
 
 // Footer labels stay terse so the contextual hint row never wraps; the `?`
-// overlay (HELP_GROUPS) carries the full, descriptive list.
+// overlay (HELP_GROUPS) carries the full, descriptive list. Rare or
+// self-announcing actions (z) stay `?`-only to keep every row inside 80 cols.
 const NAVIGATE: Hint = { keys: "↑↓←→", label: "Move" };
 
 const ALWAYS: Hint = { keys: "?", label: "Keys" };
@@ -68,7 +67,7 @@ const SWITCH: Hint = { keys: "tab", label: "Switch" };
 
 const FOLDER: Hint = { keys: "e", label: "Folder" };
 
-const TORRENT: Hint = { keys: "T", label: "Torrent" };
+const TORRENT: Hint = { keys: "s", label: "Export" };
 
 export function footerHints(
   region: Region,
@@ -92,28 +91,13 @@ export function footerHints(
   }
   if (section === "downloads") {
     if (downloadFocus === "paused") {
-      return [
-        { keys: "p", label: "Resume" },
-        { keys: "c", label: "Cancel" },
-        FOLDER,
-        TORRENT,
-        SWITCH,
-        ALWAYS,
-      ];
+      return [{ keys: "p", label: "Resume" }, { keys: "c", label: "Cancel" }, FOLDER, TORRENT, SWITCH, ALWAYS];
     }
     if (downloadFocus === "failed") {
-      return [
-        { keys: "f", label: "Retry" },
-        { keys: "c", label: "Remove" },
-        FOLDER,
-        TORRENT,
-        SWITCH,
-        ALWAYS,
-      ];
+      return [{ keys: "f", label: "Retry" }, { keys: "c", label: "Remove" }, FOLDER, TORRENT, SWITCH, ALWAYS];
     }
     if (downloadFocus === "recent") {
       return [
-        NAVIGATE,
         { keys: "d", label: "Redownload" },
         { keys: "c", label: "Remove" },
         { keys: "x", label: "Clear" },
@@ -123,23 +107,15 @@ export function footerHints(
         ALWAYS,
       ];
     }
-    return [
-      { keys: "p", label: "Pause" },
-      { keys: "c", label: "Cancel" },
-      FOLDER,
-      TORRENT,
-      SWITCH,
-      ALWAYS,
-    ];
+    return [{ keys: "p", label: "Pause" }, { keys: "c", label: "Cancel" }, FOLDER, TORRENT, SWITCH, ALWAYS];
   }
   return [
     NAVIGATE,
-    // d downloads to the default folder, D asks where; the `?` sheet spells
-    // out the difference, the footer just shows both keys exist.
-    { keys: "d/D", label: "Download" },
+    // The footer advertises only the default download key; D (download to a
+    // chosen folder) stays bound but lives in the `?` sheet alone.
+    { keys: "d", label: "Download" },
     { keys: "y", label: "Copy" },
     { keys: "s", label: "Sort" },
-    { keys: "z", label: "Alive" },
     { keys: "/", label: "Search" },
     SWITCH,
     ALWAYS,

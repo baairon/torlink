@@ -52,7 +52,7 @@ export function Downloads() {
     startDownload,
     openDownloadFolder,
     setDownloadFocus,
-    setNotice,
+    exportTorrent,
   } = useStore();
   const active = useQueueItems(queue);
   const recent = useQueueHistory(queue);
@@ -73,14 +73,9 @@ export function Downloads() {
       else if (input === "e") {
         const dir = inActive ? active[clamped]?.dir : recent[recentCursor]?.dir;
         if (dir) openDownloadFolder(dir);
-      } else if (input === "T") {
+      } else if (input === "s") {
         const item = inActive ? active[clamped] : recent[recentCursor];
-        if (!item) return;
-        void (async () => {
-          const file = await queue.exportTorrentFile(item.id);
-          if (file) setNotice(`Exported .torrent: ${truncate(file, 48)}`);
-          else setNotice(`No .torrent metadata yet for ${truncate(cleanText(item.name), 32)}.`);
-        })();
+        if (item) exportTorrent({ id: item.id, name: item.name });
       } else if (inActive) {
         const it = active[clamped];
         if (!it) return;

@@ -67,6 +67,9 @@ export interface Store {
   }) => void;
   copyMagnet: (input: { name: string; magnet: string }) => void;
   openDownloadFolder: (dir: string) => void;
+  // Copies the cached .torrent metadata into the item's download folder and
+  // reports the outcome through the notice line.
+  exportTorrent: (input: { id: string; name: string }) => void;
 
   notice: string | null;
   setNotice: (s: string | null) => void;

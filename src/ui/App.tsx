@@ -11,7 +11,7 @@ import { parseInput } from "../sources/magnet";
 import { magnetFromTorrentFile } from "../sources/torrentFile";
 import { readClipboard, writeClipboard } from "../util/clipboard";
 import { openFolder } from "../util/openFolder";
-import { cleanText, truncate } from "../util/format";
+import { cleanText, formatBytes, truncate } from "../util/format";
 import {
   StoreContext,
   type CaptureMode,
@@ -307,6 +307,21 @@ export function App({
     })();
   }, []);
 
+  const exportTorrent = useCallback(
+    (input: { id: string; name: string }) => {
+      if (!queue) return;
+      void (async () => {
+        const file = await queue.exportTorrentFile(input.id);
+        if (file) {
+          setNotice(`Exported torrent file: ${truncate(file, 48)}`);
+          return;
+        }
+        setNotice(`No torrent file yet for ${truncate(cleanText(input.name), 32)}.`);
+      })();
+    },
+    [queue],
+  );
+
   const submitQuery = useCallback(
     (raw: string) => {
       const q = raw.trim();
@@ -389,6 +404,7 @@ export function App({
       requestDownloadTo,
       copyMagnet,
       openDownloadFolder,
+      exportTorrent,
       notice,
       setNotice,
       quitAll,
@@ -417,6 +433,7 @@ export function App({
     requestDownloadTo,
     copyMagnet,
     openDownloadFolder,
+    exportTorrent,
     notice,
     listRows,
     compact,
@@ -546,6 +563,12 @@ export function App({
             <FolderPrompt
               title="download to"
               width={Math.max(24, Math.min(cols - 4, 62))}
+              subject={
+                pendingDownload.sizeBytes
+                  ? `${cleanText(pendingDownload.name)}  ${ICON.dot}  ${formatBytes(pendingDownload.sizeBytes)}`
+                  : cleanText(pendingDownload.name)
+              }
+              submitLabel="download"
               value={lastDownloadToDir ?? store.config.downloadDir}
               onSubmit={startDownloadTo}
               onCancel={closeDownloadToPrompt}

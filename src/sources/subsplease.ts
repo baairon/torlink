@@ -71,5 +71,7 @@ export const subsplease: Source = {
   label: "SubsPlease",
   group: "Anime",
   homepage: "https://subsplease.org",
+  // The SubsPlease API has no swarm data; every result reports seeders: 0.
+  reportsHealth: false,
   search,
 };
