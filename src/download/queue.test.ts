@@ -1,6 +1,10 @@
+import { promises as fs } from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { describe, it, expect } from "vitest";
 import { DownloadQueue, strayDownload } from "./queue";
 import type { HistoryItem } from "./history";
+import { deleteTorrentMeta, saveTorrentMeta } from "./persist";
 
 function h(over: Partial<HistoryItem> = {}): HistoryItem {
   return {
@@ -40,6 +44,25 @@ describe("DownloadQueue seeding", () => {
     expect(q.getSeed("h4")?.status).toBe("paused");
     expect(q.seedingCount).toBe(0);
     q.suspend();
+  });
+
+  it("exports cached .torrent metadata for a history item", async () => {
+    const q = new DownloadQueue();
+    const outDir = await fs.mkdtemp(path.join(os.tmpdir(), "torlink-queue-export-"));
+    const item = h({ id: "h5", name: "Some/Torrent", dir: outDir });
+    try {
+      q.restoreHistory([item]);
+      await saveTorrentMeta(item.id, new Uint8Array([5, 6, 7]));
+
+      const file = await q.exportTorrentFile(item.id);
+
+      expect(file).toBe(path.join(outDir, "Some Torrent.torrent"));
+      await expect(fs.readFile(file!)).resolves.toEqual(Buffer.from([5, 6, 7]));
+    } finally {
+      deleteTorrentMeta(item.id);
+      await fs.rm(outDir, { recursive: true, force: true });
+      q.suspend();
+    }
   });
 });
 

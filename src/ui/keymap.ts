@@ -43,6 +43,7 @@ export const HELP_GROUPS: HelpGroup[] = [
       { keys: "f", label: "Retry failed" },
       { keys: "d", label: "Download again" },
       { keys: "e", label: "Open folder" },
+      { keys: "T", label: "Export .torrent" },
       { keys: "x", label: "Clear recent" },
     ],
   },
@@ -66,6 +67,8 @@ const SWITCH: Hint = { keys: "tab", label: "Switch" };
 
 const FOLDER: Hint = { keys: "e", label: "Folder" };
 
+const TORRENT: Hint = { keys: "T", label: "Torrent" };
+
 export function footerHints(
   region: Region,
   section: Section,
@@ -88,10 +91,24 @@ export function footerHints(
   }
   if (section === "downloads") {
     if (downloadFocus === "paused") {
-      return [{ keys: "p", label: "Resume" }, { keys: "c", label: "Cancel" }, FOLDER, SWITCH, ALWAYS];
+      return [
+        { keys: "p", label: "Resume" },
+        { keys: "c", label: "Cancel" },
+        FOLDER,
+        TORRENT,
+        SWITCH,
+        ALWAYS,
+      ];
     }
     if (downloadFocus === "failed") {
-      return [{ keys: "f", label: "Retry" }, { keys: "c", label: "Remove" }, FOLDER, SWITCH, ALWAYS];
+      return [
+        { keys: "f", label: "Retry" },
+        { keys: "c", label: "Remove" },
+        FOLDER,
+        TORRENT,
+        SWITCH,
+        ALWAYS,
+      ];
     }
     if (downloadFocus === "recent") {
       return [
@@ -100,11 +117,19 @@ export function footerHints(
         { keys: "c", label: "Remove" },
         { keys: "x", label: "Clear" },
         FOLDER,
+        TORRENT,
         SWITCH,
         ALWAYS,
       ];
     }
-    return [{ keys: "p", label: "Pause" }, { keys: "c", label: "Cancel" }, FOLDER, SWITCH, ALWAYS];
+    return [
+      { keys: "p", label: "Pause" },
+      { keys: "c", label: "Cancel" },
+      FOLDER,
+      TORRENT,
+      SWITCH,
+      ALWAYS,
+    ];
   }
   return [
     NAVIGATE,
