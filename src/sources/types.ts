@@ -32,5 +32,9 @@ export interface Source {
   label: string;
   group: SourceGroup;
   homepage: string;
+  // True when the source returns real swarm counts. False when its feed has
+  // none, so seeders: 0 means unknown, not dead (the alive-only filter must
+  // never drop those rows).
+  reportsHealth: boolean;
   search(query: string, opts?: SearchOptions): Promise<TorrentResult[]>;
 }

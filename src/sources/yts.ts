@@ -76,5 +76,6 @@ export const yts: Source = {
   label: "YTS",
   group: "Movies",
   homepage: "https://yts.mx",
+  reportsHealth: true,
   search,
 };

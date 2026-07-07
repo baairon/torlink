@@ -1,6 +1,7 @@
 import { Box, Text, useInput } from "ink";
 import { TextField } from "./TextField";
 import { Panel } from "./Panel";
+import { PromptHints } from "./PromptHints";
 import { formatTrackers, parseTrackers } from "../../config/trackers";
 import { COLOR, ICON } from "../theme";
 
@@ -18,7 +19,12 @@ export function TrackersPrompt({ width, value, onSubmit, onCancel }: TrackersPro
 
   return (
     <Box flexDirection="column" width={width}>
-      <Panel title="extra trackers" width={width} focused height={2}>
+      <Panel title="extra trackers" width={width} focused height={3}>
+        <Box>
+          <Text dimColor wrap="truncate-end">
+            Comma or space separated. Empty clears. Applies to new adds.
+          </Text>
+        </Box>
         <Box>
           <Text color={COLOR.accent}>{`${ICON.pointer} `}</Text>
           <Box flexGrow={1} minWidth={0}>
@@ -30,17 +36,8 @@ export function TrackersPrompt({ width, value, onSubmit, onCancel }: TrackersPro
           </Box>
         </Box>
       </Panel>
-      <Box marginTop={1} flexDirection="column">
-        <Box>
-          <Text color={COLOR.alt}>↵</Text>
-          <Text dimColor> save</Text>
-          <Text dimColor>{`     ${ICON.dot}     `}</Text>
-          <Text color={COLOR.alt}>esc</Text>
-          <Text dimColor> cancel</Text>
-        </Box>
-        <Text dimColor>
-          Separate with commas or spaces. Empty saves an empty list. Applies to new adds.
-        </Text>
+      <Box marginTop={1}>
+        <PromptHints submitLabel="save" />
       </Box>
     </Box>
   );

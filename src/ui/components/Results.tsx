@@ -93,15 +93,15 @@ function Detail({ r, width }: { r: TorrentResult; width: number }) {
       </Box>
       <Box marginTop={1}>
         <Text color={COLOR.accent} bold>
-          d/D
+          d
         </Text>
         <Text color={COLOR.text}> Download</Text>
-        <Text dimColor>{`     ${ICON.dot}     `}</Text>
+        <Text dimColor>{`  ${ICON.dot}  `}</Text>
         <Text color={COLOR.accent} bold>
           y
         </Text>
-        <Text color={COLOR.text}> Copy magnet</Text>
-        <Text dimColor>{`     ${ICON.dot}     `}</Text>
+        <Text color={COLOR.text}> Copy</Text>
+        <Text dimColor>{`  ${ICON.dot}  `}</Text>
         <Text color={COLOR.alt}>esc</Text>
         <Text dimColor> back</Text>
       </Box>

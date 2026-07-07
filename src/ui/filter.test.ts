@@ -29,6 +29,16 @@ describe("filterResults", () => {
     expect(filterResults(list, true).map((x) => x.infoHash)).toEqual(["b"]);
   });
 
+  it("keeps zero-seeder rows from sources that report no health data", () => {
+    const list = [
+      r({ infoHash: "a", seeders: 0, source: "fitgirl" }),
+      r({ infoHash: "b", seeders: 0 }),
+      r({ infoHash: "c", seeders: 0, source: "subsplease" }),
+      r({ infoHash: "d", seeders: 3 }),
+    ];
+    expect(filterResults(list, true).map((x) => x.infoHash)).toEqual(["a", "c", "d"]);
+  });
+
   it("does not mutate the input array", () => {
     const list = [r({ infoHash: "a", seeders: 0 }), r({ infoHash: "b", seeders: 2 })];
     const before = list.map((x) => x.infoHash);

@@ -79,6 +79,7 @@ export const tpbMovies: Source = {
   label: "TPB",
   group: "Movies",
   homepage: "https://thepiratebay.org",
+  reportsHealth: true,
   search: (query, opts = {}) => search(query, MOVIE_CATS, TOP_MOVIES, "tpb-movies", opts),
 };
 
@@ -87,5 +88,6 @@ export const tpbTv: Source = {
   label: "TPB",
   group: "TV",
   homepage: "https://thepiratebay.org",
+  reportsHealth: true,
   search: (query, opts = {}) => search(query, TV_CATS, TOP_TV, "tpb-tv", opts),
 };

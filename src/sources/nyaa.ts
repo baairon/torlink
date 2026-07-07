@@ -46,5 +46,6 @@ export const nyaa: Source = {
   label: "Nyaa",
   group: "Anime",
   homepage: "https://nyaa.si",
+  reportsHealth: true,
   search,
 };
