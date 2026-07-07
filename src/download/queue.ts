@@ -8,6 +8,7 @@ import {
   saveTorrentMeta,
   torrentMetaPath,
   torrentMetaExists,
+  exportTorrentMeta,
   deleteTorrentMeta,
   type SeedRecord,
 } from "./persist";
@@ -316,6 +317,12 @@ export class DownloadQueue extends EventEmitter {
     if (!it) return;
     if (it.status === "downloading") this.pause(id);
     else if (it.status === "paused") this.resume(id);
+  }
+
+  exportTorrentFile(id: string): Promise<string | null> {
+    const it = this.items.get(id) ?? this.seeds.get(id) ?? this.history.find((h) => h.id === id);
+    if (!it) return Promise.resolve(null);
+    return exportTorrentMeta(it.id, it.name, it.dir);
   }
 
   cancel(id: string): void {
