@@ -47,7 +47,9 @@ function write(cmd: string, args: string[], text: string): Promise<boolean> {
       }, 4000);
       timer.unref?.();
       proc.on("error", () => done(false));
-      proc.on("close", (code) => done(code === 0));
+      const onFinish = (code: number | null = 0): void => done(code === 0);
+      proc.on("exit", onFinish);
+      proc.on("close", onFinish);
       proc.stdin?.end(text);
     } catch {
       resolve(false);
