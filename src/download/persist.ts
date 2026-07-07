@@ -73,6 +73,15 @@ export function torrentMetaExists(id: string): boolean {
   return existsSync(torrentMetaPath(id));
 }
 
+export function torrentExportName(name: string, id: string): string {
+  const base = name
+    .replace(/[<>:"/\\|?*\x00-\x1f]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/[. ]+$/g, "");
+  return `${(base || id || "torrent").slice(0, 180)}.torrent`;
+}
+
 export async function saveTorrentMeta(id: string, data: Uint8Array): Promise<void> {
   try {
     await fs.mkdir(torrentsDir, { recursive: true });
@@ -81,6 +90,19 @@ export async function saveTorrentMeta(id: string, data: Uint8Array): Promise<voi
     await fs.writeFile(tmp, data);
     await fs.rename(tmp, file);
   } catch {}
+}
+
+export async function exportTorrentMeta(id: string, name: string, dir: string): Promise<string | null> {
+  try {
+    const source = torrentMetaPath(id);
+    if (!existsSync(source)) return null;
+    await fs.mkdir(dir, { recursive: true });
+    const target = path.join(dir, torrentExportName(name, id));
+    await fs.copyFile(source, target);
+    return target;
+  } catch {
+    return null;
+  }
 }
 
 export function deleteTorrentMeta(id: string): void {
