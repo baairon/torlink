@@ -9,6 +9,7 @@ import { useConcurrentSearch } from "../hooks/useConcurrentSearch";
 import { getSource, SOURCES } from "../../sources/registry";
 import { wrapStep, windowStart, resultsPanelOuter } from "../move";
 import { sortResults, nextSort, sortLabel, sortArrow, type Sort, type SortField } from "../sort";
+import { filterResults } from "../filter";
 import { COLOR, GUTTER, ICON, sourceStyle } from "../theme";
 import { cleanText, formatBytes, formatCount, formatRelative, stripControl, truncate } from "../../util/format";
 import type { Source, TorrentResult } from "../../sources/types";
@@ -126,13 +127,14 @@ export function Results() {
   const search = useConcurrentSearch(query);
 
   const [sort, setSort] = useState<Sort>("none");
+  const [hideDead, setHideDead] = useState(false);
   const results = useMemo(() => {
     const cat = CATEGORIES.find((c) => c.key === section);
     const base = cat?.group
       ? search.results.filter((r) => getSource(r.source).group === cat.group)
       : search.results;
-    return sortResults(base, sort);
-  }, [search.results, section, sort]);
+    return sortResults(filterResults(base, hideDead), sort);
+  }, [search.results, section, sort, hideDead]);
 
   const focused = region === "content";
   const [mode, setMode] = useState<Mode>("list");
@@ -213,6 +215,8 @@ export function Results() {
         if (r) copyResultMagnet(r);
       } else if (input === "s") {
         setSort((cur) => nextSort(cur));
+      } else if (input === "z") {
+        setHideDead((on) => !on);
       }
     },
     { isActive: focused && mode === "list" },
@@ -265,11 +269,12 @@ export function Results() {
   };
 
   const sortNote = sort === "none" ? "" : `  ${ICON.dot} sort: ${sortLabel(sort)}`;
+  const filterNote = hideDead ? `  ${ICON.dot} alive only` : "";
 
   const status = () => {
     if (search.loading) {
       if (results.length > 0)
-        return <Text dimColor>{`searching… ${search.done}/${search.total} sources${sortNote}`}</Text>;
+        return <Text dimColor>{`searching… ${search.done}/${search.total} sources${sortNote}${filterNote}`}</Text>;
       return (
         <Spinner label={`${browsing ? "Loading" : "Searching"} ${search.done}/${search.total} sources`} />
       );
@@ -292,6 +297,19 @@ export function Results() {
           </Text>
         );
       }
+      if (hideDead) {
+        const cat = CATEGORIES.find((c) => c.key === section);
+        const base = cat?.group
+          ? search.results.filter((r) => getSource(r.source).group === cat.group)
+          : search.results;
+        if (base.length > 0 && base.every((r) => r.seeders <= 0)) {
+          return (
+            <Text dimColor>
+              All results have zero seeders. Press z to show them.
+            </Text>
+          );
+        }
+      }
       if (search.results.length > 0 && activeCat?.group)
         return <Text dimColor>{`No ${activeCat.label.toLowerCase()} results yet. Try another tab or a search.`}</Text>;
       return (
@@ -304,7 +322,7 @@ export function Results() {
     const head = browsing
       ? "newest across all sources"
       : `${results.length} result${results.length === 1 ? "" : "s"}`;
-    return <Text dimColor>{`${head}${note}${sortNote}`}</Text>;
+    return <Text dimColor>{`${head}${note}${sortNote}${filterNote}`}</Text>;
   };
 
   const sortMark = (field: SortField, label: string): ReactNode => {
