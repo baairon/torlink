@@ -40,6 +40,9 @@ export class TorrentEngine {
   private server: any = null;
   private deselectedFiles = new Map<string, Set<string>>();
   private pendingMetadata = new Map<string, Promise<TorrentFileInfo[]>>();
+  private throttleEnabled = false;
+  private throttleDown = -1;
+  private throttleUp = -1;
 
   private ensureClient(): WebTorrent {
     if (!this.client) {
@@ -53,6 +56,7 @@ export class TorrentEngine {
       const opts = process.platform === "darwin" ? { natPmp: false } : {};
       this.client = new WebTorrent(opts);
       this.client.on("error", () => {});
+      this.applyThrottle();
     }
     return this.client;
   }
@@ -87,6 +91,7 @@ export class TorrentEngine {
       return;
     }
     this.torrents.set(id, torrent);
+    this.applyThrottle();
 
     torrent.on("metadata", () => {
       const deselected = this.deselectedFiles.get(id);
@@ -259,6 +264,21 @@ export class TorrentEngine {
 
     const filePath = targetFile.path.replace(/\\/g, '/');
     return `http://localhost:${port}/webtorrent/${t.infoHash}/${encodeURI(filePath)}`;
+  }
+
+  setThrottle(enabled: boolean, downLimit: number, upLimit: number): void {
+    this.throttleEnabled = enabled;
+    this.throttleDown = downLimit;
+    this.throttleUp = upLimit;
+    this.applyThrottle();
+  }
+
+  private applyThrottle(): void {
+    if (!this.client) return;
+    // @ts-ignore - throttleDownload and throttleUpload are not in the outdated DefinitelyTyped definitions
+    this.client.throttleDownload(this.throttleEnabled ? this.throttleDown : -1);
+    // @ts-ignore
+    this.client.throttleUpload(this.throttleEnabled ? this.throttleUp : -1);
   }
 
   remove(id: string): void {

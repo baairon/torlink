@@ -364,6 +364,10 @@ export class DownloadQueue extends EventEmitter {
     this.emit("update");
   }
 
+  setThrottle(enabled: boolean, downLimit: number, upLimit: number): void {
+    this.engine.setThrottle(enabled, downLimit, upLimit);
+  }
+
   togglePause(id: string): void {
     const it = this.items.get(id);
     if (!it) return;

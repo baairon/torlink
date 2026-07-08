@@ -14,6 +14,8 @@ vi.mock("webtorrent", () => {
       add(): EventEmitter {
         return new EventEmitter();
       }
+      throttleDownload(): void {}
+      throttleUpload(): void {}
       destroy(): void {}
     },
   };

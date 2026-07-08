@@ -183,6 +183,17 @@ export function App({
     [queue],
   );
 
+  const toggleThrottle = useCallback(() => {
+    if (!config) return;
+    setConfig({ ...config, throttleEnabled: !config.throttleEnabled });
+  }, [config, setConfig]);
+
+  useEffect(() => {
+    if (queue && config) {
+      queue.setThrottle(config.throttleEnabled, config.throttleDownloadLimit, config.throttleUploadLimit);
+    }
+  }, [queue, config?.throttleEnabled, config?.throttleDownloadLimit, config?.throttleUploadLimit]);
+
   const closeFolderPrompt = useCallback(() => {
     setEditingFolder(false);
   }, []);
@@ -450,6 +461,7 @@ export function App({
       inspectFocusSelected,
       setInspectFocusSelected,
       toggleFileSelection,
+      toggleThrottle,
       quitAll,
       listRows,
       compact,
@@ -482,6 +494,7 @@ export function App({
     inspectingId,
     inspectingMagnet,
     toggleFileSelection,
+    toggleThrottle,
     listRows,
     compact,
     contentWidth,
@@ -550,6 +563,10 @@ export function App({
         quitAll();
         return;
       }
+      if (input === "T") {
+        store?.toggleThrottle();
+        return;
+      }
     },
     { isActive: isRawModeSupported && view === "browser" && !!store },
   );
@@ -576,7 +593,10 @@ export function App({
       <TabTitle />
       <Box flexDirection="column" paddingX={1}>
         <Box justifyContent="space-between">
-          <Logo />
+          <Box gap={1} alignItems="center">
+            <Logo />
+            {store.config.throttleEnabled ? <Text dimColor>🐢 Throttled</Text> : null}
+          </Box>
           {notice ? <Text color={COLOR.good}>{notice}</Text> : null}
         </Box>
         {showTopRule ? <Rule width={ruleWidth} /> : null}
@@ -649,7 +669,7 @@ export function App({
 
         {showFooter ? (
           <Box display={showHelp || editingFolder || editingTrackers || pendingDownload ? "none" : "flex"}>
-            <Footer hints={footerHints(region, section, downloadFocus, seedFocus, !!inspectingId, inspectFocusSelected)} />
+            <Footer hints={footerHints(region, section, store.config.throttleEnabled, downloadFocus, seedFocus, !!inspectingId, inspectFocusSelected)} />
           </Box>
         ) : null}
       </Box>

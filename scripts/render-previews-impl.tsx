@@ -99,6 +99,7 @@ function makeStore(
     startDownload: noop,
     requestDownloadTo: noop,
     copyMagnet: noop,
+    toggleThrottle: noop,
     openDownloadFolder: noop,
     exportTorrent: noop,
     streamDownload: noop,
@@ -248,7 +249,7 @@ save(
         </Box>
       </Box>
     </Box>
-    <Footer hints={footerHints("content", "all")} />
+    <Footer hints={footerHints("content", "all", false)} />
   </Box>,
 );
 
@@ -266,7 +267,7 @@ save(
         <Downloads />
       </Box>
     </Box>
-    <Footer hints={footerHints("content", "downloads")} />
+    <Footer hints={footerHints("content", "downloads", false)} />
   </Box>,
   { shimmer: true },
 );

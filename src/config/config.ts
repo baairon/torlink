@@ -5,11 +5,17 @@ import { serializeWrites, writeJsonAtomic } from "../util/atomic";
 export interface Config {
   downloadDir: string;
   trackers: string[];
+  throttleEnabled: boolean;
+  throttleDownloadLimit: number;
+  throttleUploadLimit: number;
 }
 
 export const defaultConfig: Config = {
   downloadDir: defaultDownloadDir,
   trackers: [],
+  throttleEnabled: false,
+  throttleDownloadLimit: 1000000,
+  throttleUploadLimit: 500000,
 };
 
 export async function loadConfig(): Promise<Config> {
@@ -29,6 +35,9 @@ export async function loadConfig(): Promise<Config> {
       trackers: Array.isArray(parsed.trackers)
         ? parsed.trackers.filter((t): t is string => typeof t === "string" && t.length > 0)
         : [],
+      throttleEnabled: typeof parsed.throttleEnabled === "boolean" ? parsed.throttleEnabled : false,
+      throttleDownloadLimit: typeof parsed.throttleDownloadLimit === "number" ? parsed.throttleDownloadLimit : 1000000,
+      throttleUploadLimit: typeof parsed.throttleUploadLimit === "number" ? parsed.throttleUploadLimit : 500000,
     };
     return cfg;
   } catch {
