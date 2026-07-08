@@ -56,6 +56,7 @@ export function Downloads() {
     streamDownload,
     inspectingId,
     setInspectingId,
+    setInspectingPeersId,
   } = useStore();
   const active = useQueueItems(queue);
   const recent = useQueueHistory(queue);
@@ -85,6 +86,7 @@ export function Downloads() {
         if (input === "c") queue.cancel(it.id);
         else if (input === "p") queue.togglePause(it.id);
         else if (input === "v") streamDownload(it.id);
+        else if (input === "w") setInspectingPeersId(it.id);
         else if (input === "i" || input === "Enter" || input === " ") setInspectingId(it.id);
       } else {
         const h = recent[recentCursor];

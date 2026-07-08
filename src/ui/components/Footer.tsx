@@ -10,7 +10,11 @@ export function Footer({ hints }: { hints: Hint[] }) {
           <Text key={h.keys + h.label}>
             {i > 0 ? <Text dimColor>{"   "}</Text> : null}
             <Text color={COLOR.alt}>{h.keys}</Text>
-            <Text color={h.color} dimColor={!h.color}>{` ${h.label}`}</Text>
+            {h.color ? (
+              <Text color={h.color}>{` ${h.label}`}</Text>
+            ) : (
+              <Text color={h.color} dimColor={!h.color}>{` ${h.label}`}</Text>
+            )}
           </Text>
         ))}
       </Text>

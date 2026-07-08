@@ -30,8 +30,12 @@ function statusCell(seed: SeedItem | undefined): { text: string; color?: string;
 }
 
 export function Seeding() {
-  const { queue, region, contentWidth, listRows, setNotice, openDownloadFolder, setSeedFocus, setInspectingId } =
-    useStore();
+  const { queue, region, contentWidth,    listRows,
+    openDownloadFolder,
+    setSeedFocus,
+    setInspectingId,
+    setInspectingPeersId,
+  } = useStore();
   const history = useQueueHistory(queue);
   const seeds = useSeeds(queue);
   const focused = region === "content";
@@ -67,6 +71,9 @@ export function Seeding() {
       } else if (input === "i") {
         const h = history[clamped];
         if (h) setInspectingId(h.id);
+      } else if (input === "w") {
+        const h = history[clamped];
+        if (h) setInspectingPeersId(h.id);
       }
     },
     { isActive: focused && total > 0 },

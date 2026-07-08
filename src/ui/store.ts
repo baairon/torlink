@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useState } from "react";
 import type { Config } from "../config/config";
 import type { DownloadQueue } from "../download/queue";
 import type { HistoryItem } from "../download/history";
-import type { QueueItem, SeedItem, TorrentFileInfo } from "../download/types";
+import type { QueueItem, SeedItem, TorrentFileInfo, PeerInfo } from "../download/types";
 import type { SourceGroup, SourceId } from "../sources/types";
 
 export type View = "splash" | "browser";
@@ -67,6 +67,7 @@ export interface Store {
   }) => void;
   copyMagnet: (input: { name: string; magnet: string }) => void;
   openDownloadFolder: (dir: string) => void;
+  toggleThrottle: () => void;
   // Copies the cached .torrent metadata into the item's download folder and
   // reports the outcome through the notice line.
   exportTorrent: (input: { id: string; name: string }) => void;
@@ -76,6 +77,8 @@ export interface Store {
   inspectingId: string | null;
   inspectingMagnet: string | null;
   setInspectingId: (id: string | null, magnet?: string) => void;
+  inspectingPeersId: string | null;
+  setInspectingPeersId: (id: string | null) => void;
   inspectFocusSelected: boolean;
   setInspectFocusSelected: (s: boolean) => void;
   toggleFileSelection: (id: string, path: string, selected: boolean) => void;
@@ -199,4 +202,37 @@ export function useFiles(queue: DownloadQueue, id: string | null, magnet: string
   }, [queue, id, magnet]);
   
   return files;
+}
+
+export function usePeers(queue: DownloadQueue, id: string | null): PeerInfo[] | null {
+  const [peers, setPeers] = useState<PeerInfo[] | null>(
+    () => (id ? queue.getPeers(id) : null)
+  );
+
+  useEffect(() => {
+    if (!id) {
+      setPeers(null);
+      return;
+    }
+    
+    // We bind to the queue's internal 500ms update ticker
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const onUpdate = (): void => {
+      if (timer) return;
+      timer = setTimeout(() => {
+        timer = null;
+        setPeers(queue.getPeers(id));
+      }, 200);
+    };
+    
+    queue.on("update", onUpdate);
+    onUpdate(); // Grab initial instantly
+    
+    return () => {
+      queue.off("update", onUpdate);
+      if (timer) clearTimeout(timer);
+    };
+  }, [queue, id]);
+
+  return peers;
 }

@@ -1,5 +1,17 @@
 import type { SourceId } from "../sources/types";
 
+export type QueueStatus = "downloading" | "paused" | "failed";
+
+export interface PeerInfo {
+  ip: string;
+  client: string;
+  peerId: string;
+  downloaded: number;
+  uploaded: number;
+  downSpeed: number;
+  upSpeed: number;
+}
+
 export type DownloadStatus = "downloading" | "paused" | "completed" | "failed";
 
 export type SeedStatus = "seeding" | "paused" | "missing";

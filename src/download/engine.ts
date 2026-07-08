@@ -1,5 +1,5 @@
 import WebTorrent, { type Torrent } from "webtorrent";
-import type { TorrentFileInfo } from "./types";
+import type { TorrentFileInfo, PeerInfo } from "./types";
 import { saveTorrentMeta } from "./persist";
 
 export interface TorrentProgress {
@@ -40,6 +40,9 @@ export class TorrentEngine {
   private server: any = null;
   private deselectedFiles = new Map<string, Set<string>>();
   private pendingMetadata = new Map<string, Promise<TorrentFileInfo[]>>();
+  private throttleEnabled = false;
+  private throttleDown = -1;
+  private throttleUp = -1;
 
   private ensureClient(): WebTorrent {
     if (!this.client) {
@@ -53,6 +56,7 @@ export class TorrentEngine {
       const opts = process.platform === "darwin" ? { natPmp: false } : {};
       this.client = new WebTorrent(opts);
       this.client.on("error", () => {});
+      this.applyThrottle();
     }
     return this.client;
   }
@@ -87,6 +91,7 @@ export class TorrentEngine {
       return;
     }
     this.torrents.set(id, torrent);
+    this.applyThrottle();
 
     torrent.on("metadata", () => {
       const deselected = this.deselectedFiles.get(id);
@@ -232,6 +237,25 @@ export class TorrentEngine {
     }
   }
 
+  getPeers(id: string): PeerInfo[] | null {
+    const t = this.torrents.get(id);
+    if (!t) return null;
+    
+    // WebTorrent's "wires" represent the active peer connections
+    // @ts-ignore - wires is an internal property not in the DT typings
+    const wires: any[] = t.wires || [];
+    
+    return wires.map((w) => ({
+      ip: w.remoteAddress || "Unknown",
+      client: w.peerExtendedHandshake?.v || "Unknown",
+      peerId: w.peerId || "Unknown",
+      downloaded: w.downloaded || 0,
+      uploaded: w.uploaded || 0,
+      downSpeed: w.downloadSpeed ? w.downloadSpeed() : 0,
+      upSpeed: w.uploadSpeed ? w.uploadSpeed() : 0,
+    }));
+  }
+
   async stream(id: string, targetPath?: string): Promise<string | null> {
     const t = this.torrents.get(id);
     if (!t || !t.files || t.files.length === 0) return null;
@@ -259,6 +283,21 @@ export class TorrentEngine {
 
     const filePath = targetFile.path.replace(/\\/g, '/');
     return `http://localhost:${port}/webtorrent/${t.infoHash}/${encodeURI(filePath)}`;
+  }
+
+  setThrottle(enabled: boolean, downLimit: number, upLimit: number): void {
+    this.throttleEnabled = enabled;
+    this.throttleDown = downLimit;
+    this.throttleUp = upLimit;
+    this.applyThrottle();
+  }
+
+  private applyThrottle(): void {
+    if (!this.client) return;
+    // @ts-ignore - throttleDownload and throttleUpload are not in the outdated DefinitelyTyped definitions
+    this.client.throttleDownload(this.throttleEnabled ? this.throttleDown : -1);
+    // @ts-ignore
+    this.client.throttleUpload(this.throttleEnabled ? this.throttleUp : -1);
   }
 
   remove(id: string): void {
