@@ -9,7 +9,11 @@ export type SourceId =
   | "x1337-movies"
   | "x1337-tv"
   | "dontorrent-movies"
-  | "dontorrent-tv";
+  | "dontorrent-tv"
+  | "solid-movies"
+  | "solid-tv"
+  | "solid-games"
+  | "solid-anime";
 
 export type SourceGroup = "Games" | "Movies" | "TV" | "Anime";
 

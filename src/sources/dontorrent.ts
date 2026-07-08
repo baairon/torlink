@@ -92,7 +92,17 @@ async function fetchMagnet(
     const infoHash = parsed?.infoHash?.toLowerCase();
     if (!infoHash) return null;
     const name = parsed.name || infoHash;
-    return { magnet: buildMagnet(infoHash, name), infoHash, name };
+    let magnet = buildMagnet(infoHash, name);
+    
+    // Preserve custom/private trackers from the original .torrent file
+    const originalTrackers = parsed.announce || [];
+    for (const tr of originalTrackers) {
+      if (typeof tr === "string" && tr.trim() !== "") {
+        magnet += `&tr=${encodeURIComponent(tr.trim())}`;
+      }
+    }
+    
+    return { magnet, infoHash, name };
   } catch (e) {
     return null;
   }
