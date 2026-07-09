@@ -38,7 +38,6 @@ import { TrackersPrompt } from "./components/TrackersPrompt";
 import { footerHints } from "./keymap";
 import { COLOR, ICON } from "./theme";
 import { useMouseWheel } from "./hooks/useMouseWheel";
-import { detachTmux } from "../daemon/attach";
 import type { SourceId } from "../sources/types";
 
 export function App({
@@ -473,12 +472,6 @@ export function App({
       }
       if (input === "m") {
         void pasteFromClipboard();
-        return;
-      }
-      if (input === "a") {
-        // Detach from tmux (the session keeps downloading/seeding); reattach
-        // later with `torlnk attach`. Outside tmux there's nothing to detach.
-        if (!detachTmux()) setNotice("Detach needs tmux — start with `torlnk attach`.");
         return;
       }
       if (key.tab) {
