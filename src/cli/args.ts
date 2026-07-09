@@ -5,7 +5,14 @@ export type CliCommand =
   | { kind: "version" }
   | { kind: "help" }
   | { kind: "run"; initialMagnet?: string; initialTorrent?: string }
-  | { kind: "watch"; dir: string; downloadDir?: string; seedTimeMs?: number; deleteFiles?: boolean }
+  | {
+      kind: "watch";
+      dir: string;
+      downloadDir?: string;
+      seedTimeMs?: number;
+      deleteFiles?: boolean;
+      daemon?: boolean;
+    }
   | {
       kind: "serve";
       port?: number;
@@ -14,13 +21,15 @@ export type CliCommand =
       downloadDir?: string;
       seedTimeMs?: number;
       deleteFiles?: boolean;
+      daemon?: boolean;
     }
-  | { kind: "files"; port?: number; host?: string; token?: string; dir?: string }
+  | { kind: "files"; port?: number; host?: string; token?: string; dir?: string; daemon?: boolean }
+  | { kind: "attach" }
   | { kind: "invalid"; arg: string };
 
 // Valueless boolean flags for the headless subcommands (everything else is a
 // `--flag value` pair).
-const BOOL_FLAGS = new Set(["delete-files"]);
+const BOOL_FLAGS = new Set(["delete-files", "daemon"]);
 
 function splitBooleans(args: string[]): { bools: Set<string>; rest: string[] } {
   const bools = new Set<string>();
@@ -65,6 +74,7 @@ export function parseCliArgs(argv: string[]): CliCommand {
   const a = args[0]!;
   if (a === "--version" || a === "-v") return { kind: "version" };
   if (a === "--help" || a === "-h") return { kind: "help" };
+  if (a === "attach") return { kind: "attach" };
   if (a === "watch") {
     const { bools, rest: r0 } = splitBooleans(args.slice(1));
     const { flags, rest } = readFlags(r0);
@@ -76,6 +86,7 @@ export function parseCliArgs(argv: string[]): CliCommand {
       downloadDir: flags.to ?? flags.dir,
       seedTimeMs: seedTimeFrom(flags["seed-time"]),
       deleteFiles: bools.has("delete-files"),
+      daemon: bools.has("daemon"),
     };
   }
   if (a === "serve") {
@@ -89,16 +100,19 @@ export function parseCliArgs(argv: string[]): CliCommand {
       downloadDir: flags.to ?? flags.dir,
       seedTimeMs: seedTimeFrom(flags["seed-time"]),
       deleteFiles: bools.has("delete-files"),
+      daemon: bools.has("daemon"),
     };
   }
   if (a === "files") {
-    const { flags } = readFlags(args.slice(1));
+    const { bools, rest: r0 } = splitBooleans(args.slice(1));
+    const { flags } = readFlags(r0);
     return {
       kind: "files",
       port: parsePort(flags.port),
       host: flags.host,
       token: flags.token,
       dir: flags.dir,
+      daemon: bools.has("daemon"),
     };
   }
   if (/^magnet:\?/i.test(a)) return { kind: "run", initialMagnet: a };
@@ -116,6 +130,7 @@ usage
   torlnk watch <dir>          headless: download torrents dropped into <dir>
   torlnk serve                headless: HTTP add API (POST /add) on :9161
   torlnk files                headless: serve downloads over HTTP on :9160
+  torlnk attach               open/reattach the TUI in a persistent tmux session
   torlnk --version            print the version
 
 once open: type to search every source at once, enter to run, arrows to move,
@@ -129,6 +144,13 @@ where files land. Handled files move to <dir>/.processed (or /.failed).
 seed mode (watch/serve): --seed-time <dur> stops seeding a torrent that long
 after it finishes (e.g. 1h, 30m, 90s, 2d) — files are kept by default. Add
 --delete-files to also remove the downloaded data when the timer expires.
+
+--daemon (watch/serve/files): background the process (own session, logs to a
+file), so you can log out and it keeps running. Prints the pid and log path.
+
+torlnk attach: run the TUI inside a persistent tmux session — press a (or
+ctrl-b d) to detach, log out, then torlnk attach again to reattach where you
+left off. Downloads and seeds keep running while detached.
 
 serve mode (no TUI): a small HTTP API for handing torlink a magnet.
   POST /add {"magnet":"..."}   queue a magnet or info hash

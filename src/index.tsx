@@ -1,5 +1,7 @@
 import { render } from "ink";
 import { parseCliArgs, HELP_TEXT } from "./cli/args";
+import { daemonize } from "./daemon/daemonize";
+import { runAttach } from "./daemon/attach";
 import { VERSION } from "./version";
 import { App } from "./ui/App";
 
@@ -21,6 +23,11 @@ if (cmd.kind === "invalid") {
   process.exit(1);
 }
 
+// Run/reattach the TUI inside a persistent tmux session (execs tmux, then exits).
+if (cmd.kind === "attach") {
+  runAttach();
+}
+
 // Headless subcommands: run the download queue / servers with no terminal UI
 // (for seedboxes and servers). Kept above the alt-screen setup below — these
 // paths never touch the TUI. Each is dynamically imported so a plain `torlnk`
@@ -31,11 +38,13 @@ function failHeadless(err: unknown): never {
 }
 
 if (cmd.kind === "watch") {
+  if (cmd.daemon) daemonize("watch"); // parent exits here; the detached child continues
   const { dir, downloadDir, seedTimeMs, deleteFiles } = cmd;
   void import("./daemon/watch").then(({ runWatch }) =>
     runWatch(dir, downloadDir, { seedTimeMs, deleteFiles }).catch(failHeadless),
   );
 } else if (cmd.kind === "serve") {
+  if (cmd.daemon) daemonize("serve");
   const options = {
     port: cmd.port,
     host: cmd.host,
@@ -46,6 +55,7 @@ if (cmd.kind === "watch") {
   };
   void import("./daemon/serve").then(({ runServe }) => runServe(options).catch(failHeadless));
 } else if (cmd.kind === "files") {
+  if (cmd.daemon) daemonize("files");
   const options = {
     port: cmd.port,
     host: cmd.host,

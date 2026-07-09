@@ -26,3 +26,6 @@ export const seedsFile = path.join(dataDir, "seeds.json");
 // Per-torrent .torrent metadata, captured during download so a re-seed can
 // verify the on-disk file locally instead of re-fetching it from the swarm.
 export const torrentsDir = path.join(dataDir, "torrents");
+
+// Where a --daemon headless run writes its log and pidfile.
+export const logsDir = path.join(dataDir, "logs");

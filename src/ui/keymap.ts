@@ -20,6 +20,7 @@ export const HELP_GROUPS: HelpGroup[] = [
       { keys: "esc", label: "Back" },
       { keys: "o", label: "Default download folder" },
       { keys: "t", label: "Extra trackers" },
+      { keys: "a", label: "Detach (tmux)" },
       { keys: "q", label: "Quit" },
     ],
   },
