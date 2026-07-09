@@ -38,11 +38,24 @@ describe("parseCliArgs", () => {
       kind: "watch",
       dir: "/srv/blackhole",
       downloadDir: undefined,
+      seedTimeMs: undefined,
+      deleteFiles: false,
     });
     expect(parseCliArgs(["watch", "/srv/blackhole", "--to", "/mnt/media"])).toEqual({
       kind: "watch",
       dir: "/srv/blackhole",
       downloadDir: "/mnt/media",
+      seedTimeMs: undefined,
+      deleteFiles: false,
+    });
+  });
+  it("parses watch --seed-time and --delete-files", () => {
+    expect(parseCliArgs(["watch", "/srv/bh", "--seed-time", "1h", "--delete-files"])).toEqual({
+      kind: "watch",
+      dir: "/srv/bh",
+      downloadDir: undefined,
+      seedTimeMs: 3_600_000,
+      deleteFiles: true,
     });
   });
   it("rejects watch with no directory", () => {
@@ -58,15 +71,19 @@ describe("parseCliArgs", () => {
       host: undefined,
       token: undefined,
       downloadDir: undefined,
+      seedTimeMs: undefined,
+      deleteFiles: false,
     });
     expect(
-      parseCliArgs(["serve", "--port", "9999", "--host", "0.0.0.0", "--token", "s3cret", "--to", "/mnt/media"]),
+      parseCliArgs(["serve", "--port", "9999", "--host", "0.0.0.0", "--token", "s3cret", "--to", "/mnt/media", "--seed-time", "30m"]),
     ).toEqual({
       kind: "serve",
       port: 9999,
       host: "0.0.0.0",
       token: "s3cret",
       downloadDir: "/mnt/media",
+      seedTimeMs: 1_800_000,
+      deleteFiles: false,
     });
   });
   it("ignores a bad --port", () => {

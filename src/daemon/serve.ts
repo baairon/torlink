@@ -9,6 +9,7 @@
 
 import http from "node:http";
 import { startRuntime, addInput, type Runtime } from "./runtime";
+import { startSeedReaper } from "./seed-reaper";
 import { VERSION } from "../version";
 
 export const DEFAULT_API_PORT = 9161;
@@ -26,6 +27,10 @@ export interface ServeOptions {
   host?: string;
   token?: string;
   downloadDir?: string;
+  /** Stop seeding each torrent this long after it finishes (ms). */
+  seedTimeMs?: number;
+  /** With seedTimeMs, also delete the files when the timer expires. */
+  deleteFiles?: boolean;
 }
 
 // Constant-ish comparison — the token isn't a password hash, but don't leak
@@ -148,6 +153,10 @@ export async function runServe(options: ServeOptions = {}): Promise<void> {
   }
 
   const runtime = await startRuntime(options.downloadDir);
+
+  if (options.seedTimeMs && options.seedTimeMs > 0) {
+    startSeedReaper(runtime.queue, options.seedTimeMs, { deleteFiles: options.deleteFiles, log });
+  }
 
   const server = http.createServer((req, res) => {
     void (async () => {

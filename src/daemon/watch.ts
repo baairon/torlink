@@ -7,6 +7,7 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { startRuntime, addInput, type Runtime, type AddOutcome } from "./runtime";
+import { startSeedReaper } from "./seed-reaper";
 
 // Subfolders the watcher moves handled files into, so each is processed once and
 // the drop folder stays tidy. Leading dots keep them out of the way and out of
@@ -83,12 +84,25 @@ const POLL_MS = 2000;
 
 // fs.watch is unreliable across platforms (misses events, fires twice, no
 // recursion guarantees), so we poll — dead simple and identical on every OS.
-export async function runWatch(watchDir: string, downloadDir?: string): Promise<void> {
+export interface WatchOptions {
+  seedTimeMs?: number;
+  deleteFiles?: boolean;
+}
+
+export async function runWatch(
+  watchDir: string,
+  downloadDir?: string,
+  options: WatchOptions = {},
+): Promise<void> {
   const dir = path.resolve(watchDir);
   await fs.mkdir(dir, { recursive: true }).catch(() => {});
 
   const runtime = await startRuntime(downloadDir);
   runtime.queue.on("completed", (name: string) => log(`done, now seeding: ${name}`));
+
+  if (options.seedTimeMs && options.seedTimeMs > 0) {
+    startSeedReaper(runtime.queue, options.seedTimeMs, { deleteFiles: options.deleteFiles, log });
+  }
 
   log(`watching ${dir}`);
   log(`downloads -> ${runtime.downloadDir}`);

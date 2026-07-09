@@ -31,9 +31,9 @@ function failHeadless(err: unknown): never {
 }
 
 if (cmd.kind === "watch") {
-  const { dir, downloadDir } = cmd;
+  const { dir, downloadDir, seedTimeMs, deleteFiles } = cmd;
   void import("./daemon/watch").then(({ runWatch }) =>
-    runWatch(dir, downloadDir).catch(failHeadless),
+    runWatch(dir, downloadDir, { seedTimeMs, deleteFiles }).catch(failHeadless),
   );
 } else if (cmd.kind === "serve") {
   const options = {
@@ -41,6 +41,8 @@ if (cmd.kind === "watch") {
     host: cmd.host,
     token: cmd.token ?? process.env.TORLINK_API_TOKEN,
     downloadDir: cmd.downloadDir,
+    seedTimeMs: cmd.seedTimeMs,
+    deleteFiles: cmd.deleteFiles,
   };
   void import("./daemon/serve").then(({ runServe }) => runServe(options).catch(failHeadless));
 } else if (cmd.kind === "files") {

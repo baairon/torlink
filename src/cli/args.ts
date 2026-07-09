@@ -1,13 +1,36 @@
 import { isInfoHash } from "../sources/magnet";
+import { parseDuration } from "../util/duration";
 
 export type CliCommand =
   | { kind: "version" }
   | { kind: "help" }
   | { kind: "run"; initialMagnet?: string; initialTorrent?: string }
-  | { kind: "watch"; dir: string; downloadDir?: string }
-  | { kind: "serve"; port?: number; host?: string; token?: string; downloadDir?: string }
+  | { kind: "watch"; dir: string; downloadDir?: string; seedTimeMs?: number; deleteFiles?: boolean }
+  | {
+      kind: "serve";
+      port?: number;
+      host?: string;
+      token?: string;
+      downloadDir?: string;
+      seedTimeMs?: number;
+      deleteFiles?: boolean;
+    }
   | { kind: "files"; port?: number; host?: string; token?: string; dir?: string }
   | { kind: "invalid"; arg: string };
+
+// Valueless boolean flags for the headless subcommands (everything else is a
+// `--flag value` pair).
+const BOOL_FLAGS = new Set(["delete-files"]);
+
+function splitBooleans(args: string[]): { bools: Set<string>; rest: string[] } {
+  const bools = new Set<string>();
+  const rest: string[] = [];
+  for (const arg of args) {
+    if (arg.startsWith("--") && BOOL_FLAGS.has(arg.slice(2))) bools.add(arg.slice(2));
+    else rest.push(arg);
+  }
+  return { bools, rest };
+}
 
 // Minimal `--flag value` reader for the headless subcommands. Non-flag tokens
 // (e.g. the watch directory) are returned in `rest`.
@@ -25,6 +48,11 @@ function readFlags(args: string[]): { flags: Record<string, string>; rest: strin
   return { flags, rest };
 }
 
+function seedTimeFrom(raw: string | undefined): number | undefined {
+  if (!raw) return undefined;
+  return parseDuration(raw) ?? undefined;
+}
+
 function parsePort(raw: string | undefined): number | undefined {
   if (!raw) return undefined;
   const n = Number.parseInt(raw, 10);
@@ -38,19 +66,29 @@ export function parseCliArgs(argv: string[]): CliCommand {
   if (a === "--version" || a === "-v") return { kind: "version" };
   if (a === "--help" || a === "-h") return { kind: "help" };
   if (a === "watch") {
-    const { flags, rest } = readFlags(args.slice(1));
+    const { bools, rest: r0 } = splitBooleans(args.slice(1));
+    const { flags, rest } = readFlags(r0);
     const dir = rest[0];
     if (!dir) return { kind: "invalid", arg: "watch (missing directory)" };
-    return { kind: "watch", dir, downloadDir: flags.to ?? flags.dir };
+    return {
+      kind: "watch",
+      dir,
+      downloadDir: flags.to ?? flags.dir,
+      seedTimeMs: seedTimeFrom(flags["seed-time"]),
+      deleteFiles: bools.has("delete-files"),
+    };
   }
   if (a === "serve") {
-    const { flags } = readFlags(args.slice(1));
+    const { bools, rest: r0 } = splitBooleans(args.slice(1));
+    const { flags } = readFlags(r0);
     return {
       kind: "serve",
       port: parsePort(flags.port),
       host: flags.host,
       token: flags.token,
       downloadDir: flags.to ?? flags.dir,
+      seedTimeMs: seedTimeFrom(flags["seed-time"]),
+      deleteFiles: bools.has("delete-files"),
     };
   }
   if (a === "files") {
@@ -87,6 +125,10 @@ tip: quote magnet links (they contain & characters)
 watch mode (no TUI): drop a .torrent, or a .magnet/.txt holding a magnet or
 info hash, into <dir> and it downloads then seeds. Add --to <dir> to choose
 where files land. Handled files move to <dir>/.processed (or /.failed).
+
+seed mode (watch/serve): --seed-time <dur> stops seeding a torrent that long
+after it finishes (e.g. 1h, 30m, 90s, 2d) — files are kept by default. Add
+--delete-files to also remove the downloaded data when the timer expires.
 
 serve mode (no TUI): a small HTTP API for handing torlink a magnet.
   POST /add {"magnet":"..."}   queue a magnet or info hash
