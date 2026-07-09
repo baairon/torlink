@@ -33,4 +33,29 @@ describe("parseCliArgs", () => {
   it("rejects a non-hash bareword", () => {
     expect(parseCliArgs(["hello"])).toEqual({ kind: "invalid", arg: "hello" });
   });
+  it("parses watch with a directory", () => {
+    expect(parseCliArgs(["watch", "/srv/blackhole"])).toEqual({
+      kind: "watch",
+      dir: "/srv/blackhole",
+      downloadDir: undefined,
+    });
+  });
+  it("parses watch with a --to download dir", () => {
+    expect(parseCliArgs(["watch", "/srv/blackhole", "--to", "/mnt/media"])).toEqual({
+      kind: "watch",
+      dir: "/srv/blackhole",
+      downloadDir: "/mnt/media",
+    });
+    expect(parseCliArgs(["watch", "--dir", "/mnt/media", "/srv/blackhole"])).toEqual({
+      kind: "watch",
+      dir: "/srv/blackhole",
+      downloadDir: "/mnt/media",
+    });
+  });
+  it("rejects watch with no directory", () => {
+    expect(parseCliArgs(["watch"])).toEqual({
+      kind: "invalid",
+      arg: "watch (missing directory)",
+    });
+  });
 });
