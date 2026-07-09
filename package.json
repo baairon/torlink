@@ -62,15 +62,26 @@
     "ink": "^7.0.5",
     "parse-torrent": "^11.0.21",
     "react": "^19.2.7",
+    "serve-handler": "^6.1.7",
     "webtorrent": "^2.4.1"
   },
   "devDependencies": {
     "@types/node": "^26.1.0",
     "@types/react": "^19.2.17",
+    "@types/serve-handler": "^6.1.4",
     "ink-testing-library": "^4.0.0",
     "tsup": "^8.5.1",
     "tsx": "^4.22.4",
     "typescript": "^6.0.3",
     "vitest": "^4.1.8"
+  },
+  "allowScripts": {
+    "bufferutil@4.1.0": true,
+    "esbuild@0.27.7": true,
+    "esbuild@0.28.1": true,
+    "ip-set@3.0.0": true,
+    "node-datachannel@0.32.3": true,
+    "utf-8-validate@6.0.6": true,
+    "utp-native@2.5.3": true
   }
 }

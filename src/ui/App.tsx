@@ -12,6 +12,7 @@ import { magnetFromTorrentFile } from "../sources/torrentFile";
 import { readClipboard, writeClipboard } from "../util/clipboard";
 import { openFolder } from "../util/openFolder";
 import { openStream } from "../util/openStream";
+import { startWebServer, stopWebServer } from "../server";
 import { cleanText, formatBytes, truncate } from "../util/format";
 import {
   StoreContext,
@@ -192,6 +193,16 @@ export function App({
     [queue],
   );
 
+  useEffect(() => {
+    if (!config) return;
+    if (config.webServerEnabled && config.downloadDir) {
+      startWebServer(config.downloadDir, config.webServerPort)
+        .catch((e) => setNotice(`Web server failed: ${e.message}`));
+    } else {
+      stopWebServer();
+    }
+  }, [config?.webServerEnabled, config?.webServerPort, config?.downloadDir]);
+
   const toggleThrottle = useCallback(() => {
     if (!config) return;
     setConfig({ ...config, throttleEnabled: !config.throttleEnabled });
@@ -357,14 +368,18 @@ export function App({
     (id: string) => {
       if (!queue) return;
       void (async () => {
-        setNotice("Starting local stream server...");
-        const url = await queue.stream(id);
-        if (url) {
-          const ok = await openStream(url);
-          if (ok) setNotice("Launched media player.");
-          else setNotice(`Could not launch player. Stream running at: ${url}`);
-        } else {
-          setNotice("Stream not available. Waiting for metadata or files...");
+        try {
+          setNotice("Starting local stream server...");
+          const url = await queue.stream(id);
+          if (url) {
+            const ok = await openStream(url);
+            if (ok) setNotice("Launched media player.");
+            else setNotice(`Could not launch player. Stream running at: ${url}`);
+          } else {
+            setNotice("Stream not available. Waiting for metadata or files...");
+          }
+        } catch (err: any) {
+          setNotice(`Stream error: ${err.message || String(err)}`);
         }
       })();
     },
@@ -537,6 +552,14 @@ export function App({
         setEditingFolder(true);
         return;
       }
+      if (input === "W") {
+        if (!config) return;
+        const enabled = !config.webServerEnabled;
+        const c = { ...config, webServerEnabled: enabled };
+        setConfig(c);
+        void saveConfig(c);
+        return;
+      }
       if (input === "t") {
         setShowHelp(false);
         setEditingTrackers(true);
@@ -634,6 +657,7 @@ export function App({
           <Box gap={1} alignItems="center">
             <Logo />
             {store.config.throttleEnabled ? <Text dimColor>🐢 Throttled</Text> : null}
+            {store.config.webServerEnabled ? <Text dimColor>🌐 http://localhost:{store.config.webServerPort}</Text> : null}
           </Box>
           {notice ? <Text color={COLOR.good}>{notice}</Text> : null}
         </Box>

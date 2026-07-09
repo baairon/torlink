@@ -8,6 +8,8 @@ export interface Config {
   throttleEnabled: boolean;
   throttleDownloadLimit: number;
   throttleUploadLimit: number;
+  webServerEnabled: boolean;
+  webServerPort: number;
 }
 
 export const defaultConfig: Config = {
@@ -16,6 +18,8 @@ export const defaultConfig: Config = {
   throttleEnabled: false,
   throttleDownloadLimit: 1000000,
   throttleUploadLimit: 500000,
+  webServerEnabled: false,
+  webServerPort: 8080,
 };
 
 export async function loadConfig(): Promise<Config> {
@@ -38,6 +42,8 @@ export async function loadConfig(): Promise<Config> {
       throttleEnabled: typeof parsed.throttleEnabled === "boolean" ? parsed.throttleEnabled : false,
       throttleDownloadLimit: typeof parsed.throttleDownloadLimit === "number" ? parsed.throttleDownloadLimit : 1000000,
       throttleUploadLimit: typeof parsed.throttleUploadLimit === "number" ? parsed.throttleUploadLimit : 500000,
+      webServerEnabled: typeof parsed.webServerEnabled === "boolean" ? parsed.webServerEnabled : false,
+      webServerPort: typeof parsed.webServerPort === "number" ? parsed.webServerPort : 8080,
     };
     return cfg;
   } catch {

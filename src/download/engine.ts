@@ -39,6 +39,7 @@ export class TorrentEngine {
   private client: WebTorrent | null = null;
   private torrents = new Map<string, Torrent>();
   private server: any = null;
+  private serverPromise: Promise<void> | null = null;
   private deselectedFiles = new Map<string, Set<string>>();
   private pendingMetadata = new Map<string, Promise<TorrentFileInfo[]>>();
   private throttleEnabled = false;
@@ -263,12 +264,50 @@ export class TorrentEngine {
     const t = this.torrents.get(id);
     if (!t || !t.files || t.files.length === 0) return null;
 
-    if (!this.server) {
+    if (!this.serverPromise) {
       this.server = this.client!.createServer();
-      await new Promise<void>((resolve) => {
+      
+      // Intercept safe ASCII URLs to prevent Windows/VLC from mangling percent-encoded UTF-8 characters.
+      this.server.server.prependListener("request", (req: any, res: any) => {
+        if (req.url && req.url.startsWith("/torlink-stream/")) {
+          const parts = req.url.split("/");
+          if (parts.length >= 4) {
+            const infoHash = parts[2];
+            const fileIndexStr = parts[3];
+            
+            let torrent: WebTorrent.Torrent | undefined;
+            for (const t of this.torrents.values()) {
+              if (t.infoHash === infoHash) {
+                torrent = t.torrent;
+                break;
+              }
+            }
+            if (torrent && torrent.files) {
+              const fileIndex = parseInt(fileIndexStr, 10);
+              const file = torrent.files[fileIndex];
+              if (file) {
+                // Rewrite req.url for WebTorrent to process
+                const encodedPath = encodeURI(file.path.replace(/\\/g, '/'))
+                  .replace(/#/g, '%23')
+                  .replace(/\?/g, '%3F');
+                req.url = `/webtorrent/${infoHash}/${encodedPath}`;
+              }
+            }
+          }
+        }
+      });
+
+      this.serverPromise = new Promise<void>((resolve, reject) => {
+        this.server.server.once('error', (err: any) => {
+          if (err.code === 'EADDRINUSE') {
+            reject(err);
+          }
+        });
         this.server.listen(0, resolve);
       });
     }
+
+    await this.serverPromise;
 
     const port = this.server.address().port;
     
@@ -284,8 +323,8 @@ export class TorrentEngine {
       });
     }
 
-    const filePath = targetFile.path.replace(/\\/g, '/');
-    return `http://localhost:${port}/webtorrent/${t.infoHash}/${encodeURI(filePath)}`;
+    const fileIndex = t.files.indexOf(targetFile);
+    return `http://localhost:${port}/torlink-stream/${t.infoHash}/${fileIndex}`;
   }
 
   setThrottle(enabled: boolean, downLimit: number, upLimit: number): void {
@@ -320,6 +359,7 @@ export class TorrentEngine {
         this.server.close();
       } catch {}
       this.server = null;
+      this.serverPromise = null;
     }
     this.torrents.clear();
     // Never block shutdown on webtorrent's async teardown: hand off the client
