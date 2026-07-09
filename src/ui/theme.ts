@@ -38,6 +38,11 @@ export const SOURCE_STYLE: Record<SourceId, { tag: string; color: string }> = {
   "tpb-tv": { tag: "TPB", color: "#5fd0c5" },
   "x1337-movies": { tag: "1337", color: "#f6a55c" },
   "x1337-tv": { tag: "1337", color: "#f6a55c" },
+  "bt-video": { tag: "BT", color: "#7db8f0" },
+  "bt-audio": { tag: "BT", color: "#7db8f0" },
+  "bt-ebook": { tag: "BT", color: "#7db8f0" },
+  "bt-xxx": { tag: "BT", color: "#7db8f0" },
+  "bt-other": { tag: "BT", color: "#7db8f0" },
 };
 
 // Tolerant lookup: a source id may be absent (a pasted magnet / bare infohash) or

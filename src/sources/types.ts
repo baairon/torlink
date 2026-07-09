@@ -7,9 +7,23 @@ export type SourceId =
   | "tpb-movies"
   | "tpb-tv"
   | "x1337-movies"
-  | "x1337-tv";
+  | "x1337-tv"
+  | "bt-video"
+  | "bt-audio"
+  | "bt-ebook"
+  | "bt-xxx"
+  | "bt-other";
 
-export type SourceGroup = "Games" | "Movies" | "TV" | "Anime";
+export type SourceGroup =
+  | "Games"
+  | "Movies"
+  | "TV"
+  | "Anime"
+  | "Video"
+  | "Music"
+  | "Books"
+  | "XXX"
+  | "Other";
 
 export interface TorrentResult {
   infoHash: string;
