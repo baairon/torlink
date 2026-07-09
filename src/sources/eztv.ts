@@ -52,7 +52,7 @@ async function search(query: string, opts: SearchOptions = {}): Promise<TorrentR
 export const eztv: Source = {
   id: "eztv",
   label: "EZTV",
-  group: "TV",
+  groups: ["TV"],
   homepage: "https://eztvx.to",
   reportsHealth: true,
   search,

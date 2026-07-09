@@ -1,7 +1,7 @@
 export const USER_AGENT = "torlink (+https://www.npmjs.com/package/torlnk)";
 
 export type FetchImpl = (url: string, init?: RequestInit) => Promise<Response>;
-export type SleepImpl = (ms: number) => Promise<void>;
+export type SleepImpl = (ms: number, signal?: AbortSignal) => Promise<void>;
 
 export interface FetchResilientOptions extends RequestInit {
   retries?: number;
@@ -26,8 +26,24 @@ const DEFAULT_RETRIES = 5;
 const DEFAULT_BASE_MS = 500;
 const DEFAULT_CAP_MS = 20000;
 
-function realSleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+// Resolves early on abort so a cancelled search never sits out a backoff wait;
+// the retry loop re-checks the signal and bails right after.
+function realSleep(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve) => {
+    const done = (): void => {
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", done);
+      resolve();
+    };
+    const timer = setTimeout(done, ms);
+    if (signal) {
+      if (signal.aborted) {
+        done();
+        return;
+      }
+      signal.addEventListener("abort", done, { once: true });
+    }
+  });
 }
 
 function isAbortError(e: unknown): boolean {
@@ -89,7 +105,7 @@ export async function fetchResilient(
       if (isAbortError(e) || signal?.aborted) throw e;
       lastError = e;
       if (attempt < retries) {
-        await sleepImpl(backoffDelay(attempt, baseMs, capMs));
+        await sleepImpl(backoffDelay(attempt, baseMs, capMs), signal ?? undefined);
         continue;
       }
       throw e;
@@ -113,7 +129,7 @@ export async function fetchResilient(
     }
 
     const retryAfterMs = parseRetryAfter(res.headers.get("retry-after"));
-    await sleepImpl(backoffDelay(attempt, baseMs, capMs, retryAfterMs));
+    await sleepImpl(backoffDelay(attempt, baseMs, capMs, retryAfterMs), signal ?? undefined);
   }
 
   throw lastError instanceof Error

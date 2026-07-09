@@ -1,3 +1,20 @@
+/**
+ * Where the cursor lands after the list identity changes under it (a source
+ * streaming in mid-search, a sort cycle, the z filter). Follows the row the
+ * user selected by infohash; a user who never navigated stays pinned to the
+ * top so the best result keeps the pointer as arrivals reshuffle the order.
+ */
+export function stickCursor(
+  results: readonly { infoHash: string }[],
+  selected: string | null,
+  cursor: number,
+): number {
+  if (!selected) return 0;
+  const idx = results.findIndex((r) => r.infoHash === selected);
+  if (idx >= 0) return idx;
+  return Math.min(cursor, Math.max(0, results.length - 1));
+}
+
 export function wrapStep(current: number, delta: number, length: number): number {
   if (length <= 0) return 0;
   return (((current + delta) % length) + length) % length;

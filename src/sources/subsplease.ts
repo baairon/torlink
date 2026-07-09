@@ -69,7 +69,7 @@ async function search(query: string, opts: SearchOptions = {}): Promise<TorrentR
 export const subsplease: Source = {
   id: "subsplease",
   label: "SubsPlease",
-  group: "Anime",
+  groups: ["Anime"],
   homepage: "https://subsplease.org",
   // The SubsPlease API has no swarm data; every result reports seeders: 0.
   reportsHealth: false,

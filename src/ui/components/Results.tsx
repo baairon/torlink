@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Box, Text, useInput } from "ink";
 import { useStore, CATEGORIES } from "../store";
 import { Spinner } from "./Spinner";
@@ -7,7 +7,7 @@ import { Panel } from "./Panel";
 import { Rule } from "./Rule";
 import { useConcurrentSearch } from "../hooks/useConcurrentSearch";
 import { getSource, SOURCES } from "../../sources/registry";
-import { wrapStep, windowStart, resultsPanelOuter } from "../move";
+import { stickCursor, wrapStep, windowStart, resultsPanelOuter } from "../move";
 import { sortResults, nextSort, sortLabel, sortArrow, type Sort, type SortField } from "../sort";
 import { filterResults } from "../filter";
 import { COLOR, GUTTER, ICON, sourceStyle } from "../theme";
@@ -131,7 +131,7 @@ export function Results() {
   const results = useMemo(() => {
     const cat = CATEGORIES.find((c) => c.key === section);
     const base = cat?.group
-      ? search.results.filter((r) => getSource(r.source).group === cat.group)
+      ? search.results.filter((r) => getSource(r.source).groups?.includes(cat.group!))
       : search.results;
     return sortResults(filterResults(base, hideDead), sort);
   }, [search.results, section, sort, hideDead]);
@@ -139,11 +139,19 @@ export function Results() {
   const focused = region === "content";
   const [mode, setMode] = useState<Mode>("list");
   const [cursor, setCursor] = useState(0);
+  // The row the user navigated to, by infohash; null until they move. Keeps
+  // the cursor on their row while streamed-in sources reshuffle the list.
+  const selRef = useRef<string | null>(null);
   const [detail, setDetail] = useState<TorrentResult | null>(null);
 
   useEffect(() => {
-    setCursor(0);
+    setCursor((c) => stickCursor(results, selRef.current, c));
   }, [results]);
+
+  useEffect(() => {
+    selRef.current = null;
+    setCursor(0);
+  }, [query, section]);
 
   useEffect(() => {
     if (!focused) return;
@@ -183,6 +191,11 @@ export function Results() {
   const copyResultMagnet = (r: TorrentResult): void =>
     copyMagnet({ name: r.name, magnet: r.magnet });
 
+  const moveTo = (n: number): void => {
+    setCursor(n);
+    selRef.current = results[n]?.infoHash ?? null;
+  };
+
   useInput(
     (input, key) => {
       if (input === "/") {
@@ -190,14 +203,14 @@ export function Results() {
         return;
       }
       if (key.upArrow || input === "k") {
-        if (results.length > 0 && clamped > 0) setCursor(clamped - 1);
+        if (results.length > 0 && clamped > 0) moveTo(clamped - 1);
         else setMode("search");
         return;
       }
       if (results.length === 0) return;
-      if (key.downArrow || input === "j") setCursor(wrapStep(clamped, 1, results.length));
-      else if (key.pageUp) setCursor(Math.max(0, clamped - pageJump));
-      else if (key.pageDown) setCursor(Math.min(results.length - 1, clamped + pageJump));
+      if (key.downArrow || input === "j") moveTo(wrapStep(clamped, 1, results.length));
+      else if (key.pageUp) moveTo(Math.max(0, clamped - pageJump));
+      else if (key.pageDown) moveTo(Math.min(results.length - 1, clamped + pageJump));
       else if (key.return) {
         const r = results[clamped];
         if (r) {
@@ -252,9 +265,14 @@ export function Results() {
     [search.perSource],
   );
   const activeCat = CATEGORIES.find((c) => c.key === section);
-  const tabSources = activeCat?.group ? SOURCES.filter((s) => s.group === activeCat.group) : SOURCES;
+  const tabSources = activeCat?.group
+    ? SOURCES.filter((s) => s.groups?.includes(activeCat.group!))
+    : SOURCES;
   const tabErrored =
     tabSources.length > 0 && tabSources.every((s) => search.perSource[s.id]?.error);
+  // Only the active tab's sources hold its spinner; other groups' stragglers
+  // stream in silently.
+  const pending = tabSources.some((s) => search.perSource[s.id]?.loading);
   const showStats = useMemo(
     () => results.some((r) => r.sizeBytes > 0 || r.seeders > 0),
     [results],
@@ -270,14 +288,22 @@ export function Results() {
 
   const sortNote = sort === "none" ? "" : `  ${ICON.dot} sort: ${sortLabel(sort)}`;
   const filterNote = hideDead ? `  ${ICON.dot} alive only` : "";
+  const head = browsing
+    ? "newest across all sources"
+    : `${results.length} result${results.length === 1 ? "" : "s"}`;
 
   const status = () => {
-    if (search.loading) {
+    if (pending) {
+      // Rows are already usable: the settled header simply carries a spinner
+      // until the tab's last source lands.
       if (results.length > 0)
-        return <Text dimColor>{`searching… ${search.done}/${search.total} sources${sortNote}${filterNote}`}</Text>;
-      return (
-        <Spinner label={`${browsing ? "Loading" : "Searching"} ${search.done}/${search.total} sources`} />
-      );
+        return (
+          <Text>
+            <Text dimColor>{`${head}${sortNote}${filterNote}  `}</Text>
+            <Spinner />
+          </Text>
+        );
+      return <Spinner label={browsing ? "Loading…" : "Searching…"} />;
     }
     if (results.length === 0) {
       if (erroredCount >= search.total) {
@@ -300,7 +326,7 @@ export function Results() {
       if (hideDead) {
         const cat = CATEGORIES.find((c) => c.key === section);
         const base = cat?.group
-          ? search.results.filter((r) => getSource(r.source).group === cat.group)
+          ? search.results.filter((r) => getSource(r.source).groups?.includes(cat.group!))
           : search.results;
         if (base.length > 0 && base.every((r) => r.seeders <= 0)) {
           return (
@@ -319,9 +345,6 @@ export function Results() {
       );
     }
     const note = erroredCount > 0 ? `  (${erroredCount} source${erroredCount === 1 ? "" : "s"} down)` : "";
-    const head = browsing
-      ? "newest across all sources"
-      : `${results.length} result${results.length === 1 ? "" : "s"}`;
     return <Text dimColor>{`${head}${note}${sortNote}${filterNote}`}</Text>;
   };
 

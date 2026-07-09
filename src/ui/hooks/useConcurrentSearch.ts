@@ -11,8 +11,7 @@ export interface SourceState {
   count: number;
 }
 
-function errorCode(e: unknown, timedOut: boolean): string {
-  if (timedOut) return "timed out";
+function errorCode(e: unknown): string {
   if (e instanceof HttpError && e.status > 0) return `HTTP ${e.status}`;
   return "no response";
 }
@@ -24,8 +23,6 @@ export interface ConcurrentSearchState {
   done: number;
   total: number;
 }
-
-const PER_SOURCE_TIMEOUT_MS = 25000;
 
 function blankPerSource(loading: boolean): Record<SourceId, SourceState> {
   const out = {} as Record<SourceId, SourceState>;
@@ -61,6 +58,13 @@ function idleState(): ConcurrentSearchState {
   };
 }
 
+// Coalesce interval for streaming result updates. Sources finish in bursts (a
+// cache hit or a couple of fast hosts land almost together), and each update
+// re-sorts and re-renders the whole list. Flushing at most once per this window
+// keeps a burst from flooding Ink with re-renders and blocking stdin — the same
+// leading-throttle the queue hooks in store.ts use for `update` events.
+const RESULT_FLUSH_MS = 150;
+
 export function useConcurrentSearch(query: string): ConcurrentSearchState {
   const [state, setState] = useState<ConcurrentSearchState>(idleState);
 
@@ -70,6 +74,35 @@ export function useConcurrentSearch(query: string): ConcurrentSearchState {
     const collected: TorrentResult[] = [];
     const per = blankPerSource(true);
     let done = 0;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    const flush = (): void => {
+      setState({
+        results: defaultOrder(dedupe(collected.slice())),
+        perSource: { ...per },
+        loading: done < SOURCES.length,
+        done,
+        total: SOURCES.length,
+      });
+    };
+
+    // Push the accumulated state to the UI, but no more than once per window.
+    // The final source flushes immediately so "done" / loading:false is prompt.
+    const scheduleFlush = (): void => {
+      if (done >= SOURCES.length) {
+        if (timer) {
+          clearTimeout(timer);
+          timer = null;
+        }
+        flush();
+        return;
+      }
+      if (timer) return;
+      timer = setTimeout(() => {
+        timer = null;
+        if (alive) flush();
+      }, RESULT_FLUSH_MS);
+    };
 
     setState({
       results: [],
@@ -80,12 +113,7 @@ export function useConcurrentSearch(query: string): ConcurrentSearchState {
     });
 
     for (const source of SOURCES) {
-      const sc = new AbortController();
-      const onAbort = (): void => sc.abort();
-      ctrl.signal.addEventListener("abort", onAbort);
-      const timer = setTimeout(() => sc.abort(), PER_SOURCE_TIMEOUT_MS);
-
-      cachedSearch(source, query, { signal: sc.signal })
+      cachedSearch(source, query, { signal: ctrl.signal })
         .then((res) => {
           if (!alive) return;
           collected.push(...res);
@@ -93,32 +121,24 @@ export function useConcurrentSearch(query: string): ConcurrentSearchState {
         })
         .catch((e: unknown) => {
           if (!alive || ctrl.signal.aborted) return;
-          const timedOut = sc.signal.aborted;
           per[source.id] = {
             loading: false,
-            error: timedOut ? "timed out" : e instanceof Error ? e.message : String(e),
-            code: errorCode(e, timedOut),
+            error: e instanceof Error ? e.message : String(e),
+            code: errorCode(e),
             count: 0,
           };
         })
         .finally(() => {
-          clearTimeout(timer);
-          ctrl.signal.removeEventListener("abort", onAbort);
           if (!alive) return;
           done += 1;
-          setState({
-            results: defaultOrder(dedupe(collected.slice())),
-            perSource: { ...per },
-            loading: done < SOURCES.length,
-            done,
-            total: SOURCES.length,
-          });
+          scheduleFlush();
         });
     }
 
     return () => {
       alive = false;
       ctrl.abort();
+      if (timer) clearTimeout(timer);
     };
   }, [query]);
 

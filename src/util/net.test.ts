@@ -68,4 +68,40 @@ describe("fetchResilient", () => {
     expect(res.status).toBe(404);
     expect(calls).toBe(1);
   });
+
+  it("passes the abort signal to the sleep implementation", async () => {
+    const ctrl = new AbortController();
+    const seen: (AbortSignal | undefined)[] = [];
+    await expect(
+      fetchResilient("http://x", {
+        retries: 1,
+        baseMs: 1,
+        capMs: 1,
+        signal: ctrl.signal,
+        sleepImpl: async (_ms, signal) => {
+          seen.push(signal);
+        },
+        fetchImpl: async () => fakeRes(503),
+      }),
+    ).rejects.toBeInstanceOf(HttpError);
+    expect(seen).toEqual([ctrl.signal]);
+  });
+
+  it("cuts a backoff sleep short when the signal aborts", async () => {
+    // No sleepImpl: exercises the real sleep. Retry-After floors the backoff
+    // at 60s, so only an abort-aware sleep lets this settle quickly.
+    const ctrl = new AbortController();
+    setTimeout(() => ctrl.abort(), 20);
+    const started = Date.now();
+    await expect(
+      fetchResilient("http://x", {
+        retries: 2,
+        baseMs: 60_000,
+        capMs: 60_000,
+        signal: ctrl.signal,
+        fetchImpl: async () => fakeRes(503, { "retry-after": "60" }),
+      }),
+    ).rejects.toBeInstanceOf(HttpError);
+    expect(Date.now() - started).toBeLessThan(5_000);
+  });
 });

@@ -1,63 +1,77 @@
 import { Box, Text } from "ink";
+import { COL_GAP, FRAME, KEY_W, pickLayout } from "../helpLayout";
 import { HELP_GROUPS } from "../keymap";
 import { useStore } from "../store";
-import { COLOR, RULE, lerpHex } from "../theme";
+import { COLOR, ICON, RULE, lerpHex } from "../theme";
 
 const CARD_BORDER = lerpHex(COLOR.accent, RULE, 0.55);
 
-const KEY_GAP = 2;
-const COL_GAP = 2;
-const KEY_W = HELP_GROUPS.map(
-  (g) => Math.max(...g.hints.map((h) => h.keys.length)) + KEY_GAP,
-);
-const COL_W = HELP_GROUPS.map(
-  (g, i) => KEY_W[i]! + Math.max(...g.hints.map((h) => h.label.length)),
-);
-const CARD_W =
-  COL_W.reduce((a, b) => a + b, 0) + (HELP_GROUPS.length - 1) * COL_GAP + 4;
-const KEY_W_STACKED = Math.max(...KEY_W);
+const FOOT_FULL = "Your downloaded files always stay on disk.";
 
 export function HelpOverlay() {
-  const { cols } = useStore();
-  const columns = cols >= CARD_W;
+  const { cols, rows } = useStore();
+  const m = pickLayout(cols);
+  const width = Math.min(m.width, cols - 2);
+  // Condense when the full card (gridH + 9 rows, under 3 rows of app chrome)
+  // exceeds the terminal, or the card is too narrow for the two-line footer.
+  const short = rows < m.gridH + 12 || width - FRAME < FOOT_FULL.length;
 
   return (
     <Box
       flexDirection="column"
       alignSelf="flex-start"
+      width={width}
       borderStyle="round"
       borderColor={CARD_BORDER}
-      paddingX={columns ? 1 : 2}
-      paddingY={1}
+      paddingX={1}
+      paddingY={short ? 0 : 1}
     >
       <Text bold color={COLOR.accent}>
         Keyboard
       </Text>
-      <Box marginTop={1} flexDirection={columns ? "row" : "column"}>
-        {HELP_GROUPS.map((group, gi) => (
+      <Box marginTop={1} flexDirection="row">
+        {m.layout.map((col, ci) => (
           <Box
-            key={group.title}
+            key={col.join("-")}
             flexDirection="column"
-            width={columns ? COL_W[gi] : undefined}
-            marginRight={columns && gi < HELP_GROUPS.length - 1 ? COL_GAP : 0}
-            marginTop={!columns && gi > 0 ? 1 : 0}
+            width={Math.min(m.colWidths[ci]!, width - FRAME)}
+            marginRight={ci < m.layout.length - 1 ? COL_GAP : 0}
           >
-            <Text bold>{group.title}</Text>
-            {group.hints.map((h) => (
-              <Box key={h.keys + h.label}>
-                <Box width={columns ? KEY_W[gi] : KEY_W_STACKED} flexShrink={0}>
-                  <Text color={COLOR.alt}>{h.keys}</Text>
+            {col.map((gi, pos) => {
+              const group = HELP_GROUPS[gi]!;
+              return (
+                <Box
+                  key={group.title}
+                  flexDirection="column"
+                  marginTop={pos > 0 ? 1 : 0}
+                >
+                  <Text bold>{group.title}</Text>
+                  {group.hints.map((h) => (
+                    <Box key={h.keys + h.label}>
+                      <Box width={KEY_W[gi]} flexShrink={0}>
+                        <Text color={COLOR.alt}>{h.keys}</Text>
+                      </Box>
+                      <Text dimColor wrap="truncate-end">
+                        {h.label}
+                      </Text>
+                    </Box>
+                  ))}
                 </Box>
-                <Text dimColor>{h.label}</Text>
-              </Box>
-            ))}
+              );
+            })}
           </Box>
         ))}
       </Box>
-      <Box marginTop={1} flexDirection="column">
-        <Text dimColor>Your downloaded files always stay on disk.</Text>
-        <Text dimColor>Press ? or esc to close</Text>
-      </Box>
+      {short ? (
+        <Text dimColor wrap="truncate-end">
+          {`? or esc closes ${ICON.dot} files stay on disk`}
+        </Text>
+      ) : (
+        <Box marginTop={1} flexDirection="column">
+          <Text dimColor>{FOOT_FULL}</Text>
+          <Text dimColor>Press ? or esc to close</Text>
+        </Box>
+      )}
     </Box>
   );
 }

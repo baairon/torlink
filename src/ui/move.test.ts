@@ -1,5 +1,23 @@
 import { describe, it, expect } from "vitest";
-import { wrapStep, windowStart, resultsPanelOuter } from "./move";
+import { stickCursor, wrapStep, windowStart, resultsPanelOuter } from "./move";
+
+describe("stickCursor", () => {
+  const rows = (...hashes: string[]) => hashes.map((infoHash) => ({ infoHash }));
+
+  it("pins an untouched cursor to the top while the list reshuffles", () => {
+    expect(stickCursor(rows("a", "b", "c"), null, 0)).toBe(0);
+  });
+
+  it("follows the selected row to its new index", () => {
+    expect(stickCursor(rows("b", "c", "a"), "a", 0)).toBe(2);
+    expect(stickCursor(rows("a", "b"), "b", 1)).toBe(1);
+  });
+
+  it("clamps when the selected row disappears", () => {
+    expect(stickCursor(rows("a", "b"), "z", 5)).toBe(1);
+    expect(stickCursor(rows(), "z", 3)).toBe(0);
+  });
+});
 
 describe("wrapStep", () => {
   it("wraps around both ends", () => {

@@ -14,7 +14,7 @@ export const HELP_GROUPS: HelpGroup[] = [
   {
     title: "Navigate",
     hints: [
-      { keys: "↑ ↓ ← →, h j k l", label: "Navigate content and panes" },
+      { keys: "↑↓←→ / hjkl", label: "Navigate panes and lists" },
       { keys: "↵", label: "Open" },
       { keys: "tab", label: "Switch pane" },
       { keys: "esc", label: "Back" },
@@ -27,7 +27,7 @@ export const HELP_GROUPS: HelpGroup[] = [
     title: "Search",
     hints: [
       { keys: "/", label: "Edit search" },
-      { keys: "d/D", label: "Download (D picks folder)" },
+      { keys: "d", label: "Download (shift+d picks folder)" },
       { keys: "s", label: "Sort results" },
       { keys: "z", label: "Hide dead torrents" },
       { keys: "y", label: "Copy magnet" },
@@ -38,7 +38,7 @@ export const HELP_GROUPS: HelpGroup[] = [
     title: "Downloads",
     hints: [
       { keys: "p", label: "Pause/resume" },
-      { keys: "c", label: "Cancel or remove from list" },
+      { keys: "c", label: "Cancel or remove" },
       { keys: "f", label: "Retry failed" },
       { keys: "d", label: "Download again" },
       { keys: "e", label: "Open folder" },
