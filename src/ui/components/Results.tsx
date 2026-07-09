@@ -131,7 +131,7 @@ export function Results() {
   const results = useMemo(() => {
     const cat = CATEGORIES.find((c) => c.key === section);
     const base = cat?.group
-      ? search.results.filter((r) => getSource(r.source).group === cat.group)
+      ? search.results.filter((r) => getSource(r.source).groups?.includes(cat.group!))
       : search.results;
     return sortResults(filterResults(base, hideDead), sort);
   }, [search.results, section, sort, hideDead]);
@@ -265,7 +265,9 @@ export function Results() {
     [search.perSource],
   );
   const activeCat = CATEGORIES.find((c) => c.key === section);
-  const tabSources = activeCat?.group ? SOURCES.filter((s) => s.group === activeCat.group) : SOURCES;
+  const tabSources = activeCat?.group
+    ? SOURCES.filter((s) => s.groups?.includes(activeCat.group!))
+    : SOURCES;
   const tabErrored =
     tabSources.length > 0 && tabSources.every((s) => search.perSource[s.id]?.error);
   // Only the active tab's sources hold its spinner; other groups' stragglers
@@ -324,7 +326,7 @@ export function Results() {
       if (hideDead) {
         const cat = CATEGORIES.find((c) => c.key === section);
         const base = cat?.group
-          ? search.results.filter((r) => getSource(r.source).group === cat.group)
+          ? search.results.filter((r) => getSource(r.source).groups?.includes(cat.group!))
           : search.results;
         if (base.length > 0 && base.every((r) => r.seeders <= 0)) {
           return (

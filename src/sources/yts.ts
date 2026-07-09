@@ -74,7 +74,7 @@ async function search(query: string, opts: SearchOptions = {}): Promise<TorrentR
 export const yts: Source = {
   id: "yts",
   label: "YTS",
-  group: "Movies",
+  groups: ["Movies"],
   homepage: "https://yts.mx",
   reportsHealth: true,
   search,

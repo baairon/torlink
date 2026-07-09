@@ -36,7 +36,7 @@ describe("parseCliArgs", () => {
   it("parses attach", () => {
     expect(parseCliArgs(["attach"])).toEqual({ kind: "attach" });
   });
-  it("parses watch with a directory and optional --to", () => {
+  it("parses watch with a directory", () => {
     expect(parseCliArgs(["watch", "/srv/blackhole"])).toEqual({
       kind: "watch",
       dir: "/srv/blackhole",
@@ -45,6 +45,8 @@ describe("parseCliArgs", () => {
       deleteFiles: false,
       daemon: false,
     });
+  });
+  it("parses watch with a --to download dir", () => {
     expect(parseCliArgs(["watch", "/srv/blackhole", "--to", "/mnt/media"])).toEqual({
       kind: "watch",
       dir: "/srv/blackhole",
@@ -53,14 +55,34 @@ describe("parseCliArgs", () => {
       deleteFiles: false,
       daemon: false,
     });
+    expect(parseCliArgs(["watch", "--dir", "/mnt/media", "/srv/blackhole"])).toEqual({
+      kind: "watch",
+      dir: "/srv/blackhole",
+      downloadDir: "/mnt/media",
+      seedTimeMs: undefined,
+      deleteFiles: false,
+      daemon: false,
+    });
   });
-  it("parses watch --seed-time and --delete-files", () => {
-    expect(parseCliArgs(["watch", "/srv/bh", "--seed-time", "1h", "--delete-files"])).toEqual({
+  it("parses watch --seed-time, --delete-files, and --daemon", () => {
+    expect(
+      parseCliArgs(["watch", "/srv/bh", "--seed-time", "1h", "--delete-files", "--daemon"]),
+    ).toEqual({
       kind: "watch",
       dir: "/srv/bh",
       downloadDir: undefined,
       seedTimeMs: 3_600_000,
       deleteFiles: true,
+      daemon: true,
+    });
+  });
+  it("ignores an unparseable --seed-time", () => {
+    expect(parseCliArgs(["watch", "/srv/bh", "--seed-time", "soon"])).toEqual({
+      kind: "watch",
+      dir: "/srv/bh",
+      downloadDir: undefined,
+      seedTimeMs: undefined,
+      deleteFiles: false,
       daemon: false,
     });
   });
@@ -70,7 +92,7 @@ describe("parseCliArgs", () => {
       arg: "watch (missing directory)",
     });
   });
-  it("parses serve with defaults and flags", () => {
+  it("parses serve with defaults", () => {
     expect(parseCliArgs(["serve"])).toEqual({
       kind: "serve",
       port: undefined,
@@ -81,8 +103,22 @@ describe("parseCliArgs", () => {
       deleteFiles: false,
       daemon: false,
     });
+  });
+  it("parses serve flags", () => {
     expect(
-      parseCliArgs(["serve", "--port", "9999", "--host", "0.0.0.0", "--token", "s3cret", "--to", "/mnt/media", "--seed-time", "30m"]),
+      parseCliArgs([
+        "serve",
+        "--port",
+        "9999",
+        "--host",
+        "0.0.0.0",
+        "--token",
+        "s3cret",
+        "--to",
+        "/mnt/media",
+        "--seed-time",
+        "30m",
+      ]),
     ).toEqual({
       kind: "serve",
       port: 9999,
@@ -95,9 +131,10 @@ describe("parseCliArgs", () => {
     });
   });
   it("ignores a bad --port", () => {
+    expect(parseCliArgs(["serve", "--port", "abc"]).kind).toBe("serve");
     expect((parseCliArgs(["serve", "--port", "abc"]) as { port?: number }).port).toBeUndefined();
   });
-  it("parses files with defaults and flags", () => {
+  it("parses files with defaults", () => {
     expect(parseCliArgs(["files"])).toEqual({
       kind: "files",
       port: undefined,
@@ -106,8 +143,21 @@ describe("parseCliArgs", () => {
       dir: undefined,
       daemon: false,
     });
+  });
+  it("parses files flags", () => {
     expect(
-      parseCliArgs(["files", "--port", "9160", "--host", "0.0.0.0", "--token", "s3cret", "--dir", "/mnt/media", "--daemon"]),
+      parseCliArgs([
+        "files",
+        "--port",
+        "9160",
+        "--host",
+        "0.0.0.0",
+        "--token",
+        "s3cret",
+        "--dir",
+        "/mnt/media",
+        "--daemon",
+      ]),
     ).toEqual({
       kind: "files",
       port: 9160,

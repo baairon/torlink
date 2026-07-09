@@ -41,8 +41,8 @@ function splitBooleans(args: string[]): { bools: Set<string>; rest: string[] } {
   return { bools, rest };
 }
 
-// Minimal `--flag value` reader for the headless subcommands. Non-flag tokens
-// (e.g. the watch directory) are returned in `rest`.
+// Minimal `--flag value` reader for the headless subcommands. Unknown tokens are
+// left in `rest` so the caller can decide what to do with them.
 function readFlags(args: string[]): { flags: Record<string, string>; rest: string[] } {
   const flags: Record<string, string> = {};
   const rest: string[] = [];
@@ -57,15 +57,15 @@ function readFlags(args: string[]): { flags: Record<string, string>; rest: strin
   return { flags, rest };
 }
 
-function seedTimeFrom(raw: string | undefined): number | undefined {
-  if (!raw) return undefined;
-  return parseDuration(raw) ?? undefined;
-}
-
 function parsePort(raw: string | undefined): number | undefined {
   if (!raw) return undefined;
   const n = Number.parseInt(raw, 10);
   return Number.isFinite(n) && n > 0 ? n : undefined;
+}
+
+function seedTimeFrom(raw: string | undefined): number | undefined {
+  if (!raw) return undefined;
+  return parseDuration(raw) ?? undefined;
 }
 
 export function parseCliArgs(argv: string[]): CliCommand {
@@ -142,14 +142,14 @@ info hash, into <dir> and it downloads then seeds. Add --to <dir> to choose
 where files land. Handled files move to <dir>/.processed (or /.failed).
 
 seed mode (watch/serve): --seed-time <dur> stops seeding a torrent that long
-after it finishes (e.g. 1h, 30m, 90s, 2d) — files are kept by default. Add
+after it finishes (e.g. 1h, 30m, 90s, 2d); files are kept by default. Add
 --delete-files to also remove the downloaded data when the timer expires.
 
 --daemon (watch/serve/files): background the process (own session, logs to a
 file), so you can log out and it keeps running. Prints the pid and log path.
 
-torlnk attach: run the TUI inside a persistent tmux session — press a (or
-ctrl-b d) to detach, log out, then torlnk attach again to reattach where you
+torlnk attach: run the TUI inside a persistent tmux session. Detach with
+tmux's ctrl-b d, log out, then torlnk attach again to reattach where you
 left off. Downloads and seeds keep running while detached.
 
 serve mode (no TUI): a small HTTP API for handing torlink a magnet.
