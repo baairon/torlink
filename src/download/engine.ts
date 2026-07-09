@@ -267,8 +267,12 @@ export class TorrentEngine {
     if (!this.serverPromise) {
       this.server = this.client!.createServer();
       
-      // Intercept safe ASCII URLs to prevent Windows/VLC from mangling percent-encoded UTF-8 characters.
-      this.server.server.prependListener("request", (req: any, res: any) => {
+      // Intercept safe ASCII URLs and bypass WebTorrent's broken URI router (which drops `#`, `?`, and crashes on `%`)
+      // by looking up the file in memory and serving it directly.
+      const originalListeners = this.server.server.listeners("request");
+      this.server.server.removeAllListeners("request");
+
+      this.server.server.on("request", (req: any, res: any) => {
         if (req.url && req.url.startsWith("/torlink-stream/")) {
           const parts = req.url.split("/");
           if (parts.length >= 4) {
@@ -286,15 +290,16 @@ export class TorrentEngine {
               const fileIndex = parseInt(fileIndexStr, 10);
               const file = torrent.files[fileIndex];
               if (file) {
-                // Rewrite req.url for WebTorrent to process
-                const encodedPath = encodeURI(file.path.replace(/\\/g, '/'))
-                  .replace(/#/g, '%23')
-                  .replace(/\?/g, '%3F');
-                req.url = `/webtorrent/${infoHash}/${encodedPath}`;
+                // Bypass WebTorrent's broken URL router completely
+                const { NodeServer } = require("webtorrent/lib/server.js");
+                NodeServer.serveFile(file, req, res);
+                return;
               }
             }
           }
         }
+        // Fallback to original WebTorrent listeners
+        originalListeners.forEach((fn: any) => fn(req, res));
       });
 
       this.serverPromise = new Promise<void>((resolve, reject) => {
