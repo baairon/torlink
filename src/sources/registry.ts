@@ -1,3 +1,4 @@
+import { bittorrentedSources } from "./bittorrented";
 import { eztv } from "./eztv";
 import { fitgirl } from "./fitgirl";
 import { nyaa } from "./nyaa";
@@ -17,6 +18,7 @@ export const SOURCES: readonly Source[] = [
   x1337Tv,
   nyaa,
   subsplease,
+  ...bittorrentedSources,
 ];
 
 export const DEFAULT_SOURCE: Source = SOURCES[0]!;
@@ -25,7 +27,17 @@ export function getSource(id: SourceId): Source {
   return SOURCES.find((s) => s.id === id) ?? DEFAULT_SOURCE;
 }
 
-const GROUP_ORDER: readonly SourceGroup[] = ["Games", "Movies", "TV", "Anime"];
+const GROUP_ORDER: readonly SourceGroup[] = [
+  "Games",
+  "Movies",
+  "TV",
+  "Anime",
+  "Video",
+  "Music",
+  "Books",
+  "XXX",
+  "Other",
+];
 
 export function sourcesByGroup(): { group: SourceGroup; sources: Source[] }[] {
   return GROUP_ORDER.map((group) => ({
