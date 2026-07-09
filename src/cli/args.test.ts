@@ -33,4 +33,24 @@ describe("parseCliArgs", () => {
   it("rejects a non-hash bareword", () => {
     expect(parseCliArgs(["hello"])).toEqual({ kind: "invalid", arg: "hello" });
   });
+  it("parses files with defaults", () => {
+    expect(parseCliArgs(["files"])).toEqual({
+      kind: "files",
+      port: undefined,
+      host: undefined,
+      token: undefined,
+      dir: undefined,
+    });
+  });
+  it("parses files flags", () => {
+    expect(
+      parseCliArgs(["files", "--port", "9160", "--host", "0.0.0.0", "--token", "s3cret", "--dir", "/mnt/media"]),
+    ).toEqual({
+      kind: "files",
+      port: 9160,
+      host: "0.0.0.0",
+      token: "s3cret",
+      dir: "/mnt/media",
+    });
+  });
 });
