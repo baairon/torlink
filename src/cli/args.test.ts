@@ -33,6 +33,55 @@ describe("parseCliArgs", () => {
   it("rejects a non-hash bareword", () => {
     expect(parseCliArgs(["hello"])).toEqual({ kind: "invalid", arg: "hello" });
   });
+  it("parses watch with a directory", () => {
+    expect(parseCliArgs(["watch", "/srv/blackhole"])).toEqual({
+      kind: "watch",
+      dir: "/srv/blackhole",
+      downloadDir: undefined,
+    });
+  });
+  it("parses watch with a --to download dir", () => {
+    expect(parseCliArgs(["watch", "/srv/blackhole", "--to", "/mnt/media"])).toEqual({
+      kind: "watch",
+      dir: "/srv/blackhole",
+      downloadDir: "/mnt/media",
+    });
+    expect(parseCliArgs(["watch", "--dir", "/mnt/media", "/srv/blackhole"])).toEqual({
+      kind: "watch",
+      dir: "/srv/blackhole",
+      downloadDir: "/mnt/media",
+    });
+  });
+  it("rejects watch with no directory", () => {
+    expect(parseCliArgs(["watch"])).toEqual({
+      kind: "invalid",
+      arg: "watch (missing directory)",
+    });
+  });
+  it("parses serve with defaults", () => {
+    expect(parseCliArgs(["serve"])).toEqual({
+      kind: "serve",
+      port: undefined,
+      host: undefined,
+      token: undefined,
+      downloadDir: undefined,
+    });
+  });
+  it("parses serve flags", () => {
+    expect(
+      parseCliArgs(["serve", "--port", "9999", "--host", "0.0.0.0", "--token", "s3cret", "--to", "/mnt/media"]),
+    ).toEqual({
+      kind: "serve",
+      port: 9999,
+      host: "0.0.0.0",
+      token: "s3cret",
+      downloadDir: "/mnt/media",
+    });
+  });
+  it("ignores a bad --port", () => {
+    expect(parseCliArgs(["serve", "--port", "abc"]).kind).toBe("serve");
+    expect((parseCliArgs(["serve", "--port", "abc"]) as { port?: number }).port).toBeUndefined();
+  });
   it("parses files with defaults", () => {
     expect(parseCliArgs(["files"])).toEqual({
       kind: "files",
