@@ -6,7 +6,7 @@ Add this repo to your ```flake.nix```. The package is built using the unstable c
 ```nix
 inputs = {
   ...
-  torlink.url = "github:baairon/torlink";
+  torlink.url = "github:TiiZss/TorZlink";
   ...
 }
 ```

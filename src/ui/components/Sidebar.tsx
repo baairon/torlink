@@ -1,4 +1,5 @@
-import { Box, Text, useInput } from "ink";
+import { Box, Text } from "ink";
+import { useSafeInput } from "../hooks/useSafeInput";
 import { useStore, useQueueItems, CATEGORIES, type Section } from "../store";
 import { wrapStep } from "../move";
 import { ACCENT_RAMP, COLOR, GUTTER, ICON, RULE } from "../theme";
@@ -36,7 +37,7 @@ export function Sidebar() {
   const active = queue.activeCount;
   const seeding = queue.seedingCount;
 
-  useInput(
+  useSafeInput(
     (input, key) => {
       if (key.upArrow || input === "k") setSection(NAV[wrapStep(idx, -1, NAV.length)]!.key);
       else if (key.downArrow || input === "j") setSection(NAV[wrapStep(idx, 1, NAV.length)]!.key);

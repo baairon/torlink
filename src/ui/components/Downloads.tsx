@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { Box, Text, useInput } from "ink";
+import { Box, Text } from "ink";
+import { useSafeInput } from "../hooks/useSafeInput";
 import { useStore, useQueueItems, useQueueHistory, type DownloadFocus } from "../store";
 import { Panel } from "./Panel";
 import { ProgressBar } from "./ProgressBar";
@@ -64,7 +65,7 @@ export function Downloads() {
   const inActive = clamped < active.length;
   const recentCursor = clamped - active.length;
 
-  useInput(
+  useSafeInput(
     (input, key) => {
       if (key.upArrow || input === "k") setCursor(wrapStep(clamped, -1, total));
       else if (key.downArrow || input === "j") setCursor(wrapStep(clamped, 1, total));

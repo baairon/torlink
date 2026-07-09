@@ -1,0 +1,36 @@
+services:
+
+  torlnk:
+
+    build: .
+
+    image: torlnk:latest
+
+    stdin_open: true
+
+    tty: true
+
+    environment:
+
+      TORLINK_STATE_DIR: /data
+
+      TORLINK_DOWNLOAD_DIR: /downloads
+
+      TORLINK_DISABLE_NAT: "1"
+
+      TORLNK_SKIP_UPDATE: "1"
+
+    volumes:
+
+      - torlnk-data:/data
+
+      - ./downloads:/downloads
+
+    # TTY required (-it). Easiest: npm run docker:run
+
+
+
+volumes:
+
+  torlnk-data:
+

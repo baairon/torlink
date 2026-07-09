@@ -1,4 +1,5 @@
-import { Box, Text, useInput, useStdin } from "ink";
+import { Box, Text, useStdin } from "ink";
+import { useSafeInput } from "../hooks/useSafeInput";
 import { Logo } from "../components/Logo";
 import { SearchBar } from "../components/SearchBar";
 import { LOGO_WIDTH } from "../logo";
@@ -14,7 +15,7 @@ export function Splash() {
   const { submitQuery, quitAll, cols, rows } = useStore();
   const { isRawModeSupported } = useStdin();
 
-  useInput(
+  useSafeInput(
     (input, key) => {
       if (key.escape || (key.ctrl && input === "c")) quitAll();
     },

@@ -1,0 +1,14 @@
+node_modules
+dist
+.git
+.github
+.agents
+.claude
+.cursor
+preview
+*.md
+!README.md
+.DS_Store
+package-lock.json
+.env
+.env.*

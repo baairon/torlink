@@ -16,8 +16,8 @@ buildNpmPackage (finalAttrs: {
   strictDeps = true;
 
   src = fetchFromGitHub {
-    owner = "baairon";
-    repo = "torlink";
+    owner = "TiiZss";
+    repo = "TorZlink";
     tag = "v${finalAttrs.version}";
     hash = "sha256-XMwJ1nVVcwXOhj3moqBMRngOAnAfbOuICHMAYQheeWA=";
   };
@@ -54,8 +54,8 @@ buildNpmPackage (finalAttrs: {
 
   meta = {
     description = "Torlink is a torrent finder that lives in your terminal, with zero setup and nothing to configure.";
-    homepage = "https://github.com/baairon/torlink";
-    changelog = "https://github.com/baairon/torlink/releases/tag/v${finalAttrs.src.tag}";
+    homepage = "https://github.com/TiiZss/TorZlink";
+    changelog = "https://github.com/TiiZss/TorZlink/releases/tag/v${finalAttrs.src.tag}";
     license = lib.licenses.mit;
     maintainers = with lib.maintainers; [ ghastrum ];
     mainProgram = "torlnk";

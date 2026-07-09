@@ -13,7 +13,9 @@ const override = process.env.TORLINK_STATE_DIR;
 const dataDir = override ? path.join(override, "data") : base.data;
 const configDir = override ? path.join(override, "config") : base.config;
 
-export const defaultDownloadDir = path.join(os.homedir(), "Downloads", APP_NAME);
+export const defaultDownloadDir =
+  process.env.TORLINK_DOWNLOAD_DIR?.trim() ||
+  path.join(os.homedir(), "Downloads", APP_NAME);
 
 export const configFile = path.join(configDir, "config.json");
 

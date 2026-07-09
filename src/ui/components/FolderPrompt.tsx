@@ -1,4 +1,5 @@
-import { Box, Text, useInput } from "ink";
+import { Box, Text } from "ink";
+import { useSafeInput } from "../hooks/useSafeInput";
 import { TextField } from "./TextField";
 import { Panel } from "./Panel";
 import { PromptHints } from "./PromptHints";
@@ -28,7 +29,7 @@ export function FolderPrompt({
   onSubmit,
   onCancel,
 }: FolderPromptProps) {
-  useInput((_input, key) => {
+  useSafeInput((_input, key) => {
     if (key.escape) onCancel();
   });
 

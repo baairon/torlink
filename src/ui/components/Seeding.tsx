@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { Box, Text, useInput } from "ink";
+import { Box, Text } from "ink";
+import { useSafeInput } from "../hooks/useSafeInput";
 import { useStore, useQueueHistory, useSeeds, type SeedFocus } from "../store";
 import { Panel } from "./Panel";
 import { wrapStep, windowStart } from "../move";
@@ -47,7 +48,7 @@ export function Seeding() {
     return () => setSeedFocus(null);
   }, [focusStatus, setSeedFocus]);
 
-  useInput(
+  useSafeInput(
     (input, key) => {
       if (key.upArrow || input === "k") setCursor(wrapStep(clamped, -1, total));
       else if (key.downArrow || input === "j") setCursor(wrapStep(clamped, 1, total));

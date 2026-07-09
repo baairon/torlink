@@ -11,13 +11,20 @@ None of them were big. All of them fit the grain. That's the whole idea.
 ## Set up
 
 ```sh
-git clone https://github.com/baairon/torlink
-cd torlink
-npm install
-npm run dev
+git clone https://github.com/TiiZss/TorZlink
+cd TorZlink
+npm run launch
 ```
 
-`npm run dev` runs the live TUI through tsx, no build step. The README's [Contributing](README.md#contributing) section has the build variant if you want it.
+`npm run launch` runs the ensure step (Node check, `npm install` if needed, `npm update` for outdated packages) and then starts the live TUI. The same ensure logic runs on `npm run dev` and `npm start` via npm lifecycle hooks.
+
+Skip auto-updates in CI or when you need a frozen tree:
+
+```sh
+TORLNK_SKIP_UPDATE=1 npm run dev
+```
+
+The README's [Contributing](README.md#contributing) section covers Docker and the build variant.
 
 ## Before you open a PR
 

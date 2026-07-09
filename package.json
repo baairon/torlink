@@ -14,15 +14,22 @@
     "node": ">=22"
   },
   "scripts": {
+    "ensure": "node scripts/ensure.cjs",
+    "ensure:dev": "node scripts/ensure.cjs --dev",
+    "predev": "node scripts/ensure.cjs --dev",
+    "prestart": "node scripts/ensure.cjs",
+    "launch": "node scripts/ensure.cjs --dev && tsx src/index.tsx",
     "dev": "tsx src/index.tsx",
     "build": "tsup",
     "postbuild": "node scripts/postbuild.cjs",
     "start": "node dist/index.js",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
+    "test": "vitest run && node --test scripts/ensure.test.cjs",
     "verify:seeding": "tsx scripts/verify-seeding.ts",
     "previews": "tsx scripts/render-previews.tsx",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "npm run build",
+    "docker:build": "docker compose build",
+    "docker:run": "docker compose run --rm -it torlnk"
   },
   "keywords": [
     "torrent",
@@ -46,11 +53,11 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/baairon/torlink.git"
+    "url": "git+https://github.com/TiiZss/TorZlink.git"
   },
-  "homepage": "https://github.com/baairon/torlink#readme",
+  "homepage": "https://github.com/TiiZss/TorZlink#readme",
   "bugs": {
-    "url": "https://github.com/baairon/torlink/issues"
+    "url": "https://github.com/TiiZss/TorZlink/issues"
   },
   "publishConfig": {
     "access": "public"

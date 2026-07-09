@@ -23,9 +23,10 @@ export async function loadConfig(): Promise<Config> {
     const parsed = JSON.parse(raw) as Partial<Config>;
     const cfg: Config = {
       downloadDir:
-        typeof parsed.downloadDir === "string" && parsed.downloadDir
+        process.env.TORLINK_DOWNLOAD_DIR?.trim() ||
+        (typeof parsed.downloadDir === "string" && parsed.downloadDir
           ? parsed.downloadDir
-          : defaultDownloadDir,
+          : defaultDownloadDir),
       trackers: Array.isArray(parsed.trackers)
         ? parsed.trackers.filter((t): t is string => typeof t === "string" && t.length > 0)
         : [],

@@ -21,6 +21,19 @@ if (cmd.kind === "invalid") {
   process.exit(1);
 }
 
+if (!process.stdin.isTTY || !process.stdout.isTTY) {
+  process.stderr.write(
+    "\ntorlink needs an interactive terminal (TTY).\n\n" +
+      "Docker:\n" +
+      "  docker compose run --rm -it torlnk\n" +
+      "  npm run docker:run\n\n" +
+      "Plain docker run:\n" +
+      "  docker run --rm -it -e TORLINK_STATE_DIR=/data -e TORLINK_DOWNLOAD_DIR=/downloads " +
+      "-v torlnk-data:/data -v ./downloads:/downloads torlnk:latest\n\n",
+  );
+  process.exit(1);
+}
+
 // Enter the alt-screen and hide the hardware cursor: the TUI draws its own
 // cursor (the search field block, list pointers), so the terminal's should
 // stay hidden. restoreTerminal shows it again on exit.

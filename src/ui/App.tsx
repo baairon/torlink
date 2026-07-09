@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Box, Text, useApp, useInput, useStdout, useStdin } from "ink";
+import { Box, Text, useApp, useStdout, useStdin } from "ink";
+import { useSafeInput } from "./hooks/useSafeInput";
 import { promises as fs } from "node:fs";
 import { loadConfig, saveConfig, type Config } from "../config/config";
 import { normalizeDownloadDir } from "../config/folder";
@@ -9,7 +10,7 @@ import { loadHistory } from "../download/history";
 import { reconcileQueue } from "../download/reconcile";
 import { parseInput } from "../sources/magnet";
 import { magnetFromTorrentFile } from "../sources/torrentFile";
-import { readClipboard, writeClipboard } from "../util/clipboard";
+import { readClipboard, writeClipboard, clipboardFallbackFile } from "../util/clipboard";
 import { openFolder } from "../util/openFolder";
 import { cleanText, formatBytes, truncate } from "../util/format";
 import {
@@ -289,6 +290,18 @@ export function App({
     void (async () => {
       const ok = await writeClipboard(input.magnet);
       if (ok) {
+        const file = clipboardFallbackFile();
+        if (file) {
+          try {
+            const saved = await fs.readFile(file, "utf8");
+            if (saved === input.magnet) {
+              setNotice(`Magnet saved to ${truncate(file, 48)}`);
+              return;
+            }
+          } catch {
+            /* OS clipboard was used */
+          }
+        }
         setNotice(`Copied magnet: ${truncate(cleanText(input.magnet), 60)}`);
         return;
       }
@@ -444,7 +457,7 @@ export function App({
     quitAll,
   ]);
 
-  useInput(
+  useSafeInput(
     (input, key) => {
       if (key.ctrl && input === "c") {
         quitAll();

@@ -1,4 +1,6 @@
 import { spawn } from "node:child_process";
+import { promises as fs } from "node:fs";
+import path from "node:path";
 
 function run(cmd: string, args: string[]): Promise<string> {
   return new Promise((resolve) => {
@@ -69,6 +71,27 @@ const LINUX_WRITE: [string, string[]][] = [
   ["xsel", ["-b", "-i"]],
 ];
 
+/** Headless fallback (Docker/SSH): magnet saved to a file the user can read. */
+export function clipboardFallbackFile(): string | null {
+  const explicit = process.env.TORLINK_CLIPBOARD_FILE?.trim();
+  if (explicit) return explicit;
+  const state = process.env.TORLINK_STATE_DIR?.trim();
+  if (state) return path.join(state, "clipboard.txt");
+  return null;
+}
+
+async function writeClipboardFile(text: string): Promise<boolean> {
+  const file = clipboardFallbackFile();
+  if (!file) return false;
+  try {
+    await fs.mkdir(path.dirname(file), { recursive: true });
+    await fs.writeFile(file, text, "utf8");
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export async function readClipboard(): Promise<string> {
   if (process.platform === "win32") {
     return (await run("powershell", ["-NoProfile", "-Command", "Get-Clipboard"])).trim();
@@ -79,6 +102,14 @@ export async function readClipboard(): Promise<string> {
   for (const [cmd, args] of LINUX_READ) {
     const out = (await run(cmd, args)).trim();
     if (out) return out;
+  }
+  const file = clipboardFallbackFile();
+  if (file) {
+    try {
+      return (await fs.readFile(file, "utf8")).trim();
+    } catch {
+      return "";
+    }
   }
   return "";
 }
@@ -97,5 +128,5 @@ export async function writeClipboard(text: string): Promise<boolean> {
   for (const [cmd, args] of LINUX_WRITE) {
     if (await write(cmd, args, text)) return true;
   }
-  return false;
+  return writeClipboardFile(text);
 }

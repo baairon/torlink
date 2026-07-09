@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import WebTorrent, { type Torrent } from "webtorrent";
 
 export interface TorrentProgress {
@@ -32,6 +33,19 @@ function message(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
 }
 
+/** WebTorrent opts that avoid NAT/UTP native crashes in Docker and macOS NAT issues. */
+export function webTorrentClientOpts(): {
+  natPmp?: boolean;
+  natUpnp?: boolean;
+  utp?: boolean;
+} {
+  if (process.platform === "darwin") return { natPmp: false };
+  if (process.env.TORLINK_DISABLE_NAT === "1" || existsSync("/.dockerenv")) {
+    return { natPmp: false, natUpnp: false, utp: false };
+  }
+  return {};
+}
+
 export class TorrentEngine {
   private client: WebTorrent | null = null;
   private torrents = new Map<string, Torrent>();
@@ -45,7 +59,9 @@ export class TorrentEngine {
       // the app the moment a download starts. NAT-PMP can never succeed
       // on macOS because the port is permanently taken, so disable it
       // and let UPnP handle NAT traversal instead.
-      const opts = process.platform === "darwin" ? { natPmp: false } : {};
+      // In Docker, NAT-PMP/UPnP cannot work and the same async crash has
+      // been observed when a download starts — disable both.
+      const opts = webTorrentClientOpts();
       this.client = new WebTorrent(opts);
       this.client.on("error", () => {});
     }

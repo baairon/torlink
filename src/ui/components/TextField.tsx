@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Text, useInput } from "ink";
+import { Text } from "ink";
+import { useSafeInput } from "../hooks/useSafeInput";
 
 export interface TextFieldProps {
   isDisabled?: boolean;
@@ -62,7 +63,7 @@ export function TextField({
     if (next.value !== value) onChange?.(next.value);
   }
 
-  useInput(
+  useSafeInput(
     (input, key) => {
       if (key.downArrow) {
         onExitDown?.();

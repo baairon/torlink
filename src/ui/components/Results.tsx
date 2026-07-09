@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Box, Text, useInput } from "ink";
+import { Box, Text } from "ink";
+import { useSafeInput } from "../hooks/useSafeInput";
 import { useStore, CATEGORIES } from "../store";
 import { Spinner } from "./Spinner";
 import { SearchBar } from "./SearchBar";
@@ -196,7 +197,7 @@ export function Results() {
     selRef.current = results[n]?.infoHash ?? null;
   };
 
-  useInput(
+  useSafeInput(
     (input, key) => {
       if (input === "/") {
         setMode("search");
@@ -235,7 +236,7 @@ export function Results() {
     { isActive: focused && mode === "list" },
   );
 
-  useInput(
+  useSafeInput(
     (input, key) => {
       if (key.escape) {
         setMode("list");
@@ -247,7 +248,7 @@ export function Results() {
     { isActive: focused && mode === "detail" },
   );
 
-  useInput(
+  useSafeInput(
     (_input, key) => {
       if (key.escape) setMode("list");
     },

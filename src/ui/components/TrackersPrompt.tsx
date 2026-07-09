@@ -1,4 +1,5 @@
-import { Box, Text, useInput } from "ink";
+import { Box, Text } from "ink";
+import { useSafeInput } from "../hooks/useSafeInput";
 import { TextField } from "./TextField";
 import { Panel } from "./Panel";
 import { PromptHints } from "./PromptHints";
@@ -13,7 +14,7 @@ interface TrackersPromptProps {
 }
 
 export function TrackersPrompt({ width, value, onSubmit, onCancel }: TrackersPromptProps) {
-  useInput((_input, key) => {
+  useSafeInput((_input, key) => {
     if (key.escape) onCancel();
   });
 

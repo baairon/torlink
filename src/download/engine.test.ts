@@ -45,6 +45,27 @@ describe("TorrentEngine macOS port-5350 fix (#22)", () => {
     expect(constructorCalls[0]).toMatchObject({ natPmp: false });
   });
 
+  it("disables NAT traversal in Docker (TORLINK_DISABLE_NAT)", async () => {
+    const { TorrentEngine } = await import("./engine");
+    const original = process.env.TORLINK_DISABLE_NAT;
+    process.env.TORLINK_DISABLE_NAT = "1";
+    try {
+      const engine = new TorrentEngine();
+      engine.add(
+        "test-id",
+        "magnet:?xt=urn:btih:0000000000000000000000000000000000000000",
+        "/downloads",
+        {},
+      );
+      engine.destroy();
+    } finally {
+      if (original === undefined) delete process.env.TORLINK_DISABLE_NAT;
+      else process.env.TORLINK_DISABLE_NAT = original;
+    }
+    expect(constructorCalls).toHaveLength(1);
+    expect(constructorCalls[0]).toMatchObject({ natPmp: false, natUpnp: false, utp: false });
+  });
+
   it("does not disable natPmp on Linux (port 5350 is free)", async () => {
     const { TorrentEngine } = await import("./engine");
     const original = process.platform;
