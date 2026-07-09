@@ -21,22 +21,28 @@ if (cmd.kind === "invalid") {
   process.exit(1);
 }
 
-// Headless subcommand: run the download queue with no terminal UI (for seedboxes
-// and servers). Kept above the alt-screen setup below — this path never touches
-// the TUI. Loaded dynamically so a plain `torlnk` launch pays nothing for it.
-if (cmd.kind === "serve") {
+// Headless subcommands: run the download queue with no terminal UI (for
+// seedboxes and servers). Kept above the alt-screen setup below — these paths
+// never touch the TUI. Each is dynamically imported so a plain `torlnk` launch
+// pays nothing for them.
+function failHeadless(err: unknown): never {
+  console.error(err instanceof Error ? err.message : String(err));
+  process.exit(1);
+}
+
+if (cmd.kind === "watch") {
+  const { dir, downloadDir } = cmd;
+  void import("./daemon/watch").then(({ runWatch }) =>
+    runWatch(dir, downloadDir).catch(failHeadless),
+  );
+} else if (cmd.kind === "serve") {
   const options = {
     port: cmd.port,
     host: cmd.host,
     token: cmd.token ?? process.env.TORLINK_API_TOKEN,
     downloadDir: cmd.downloadDir,
   };
-  void import("./daemon/serve").then(({ runServe }) =>
-    runServe(options).catch((err: unknown) => {
-      console.error(err instanceof Error ? err.message : String(err));
-      process.exit(1);
-    }),
-  );
+  void import("./daemon/serve").then(({ runServe }) => runServe(options).catch(failHeadless));
 } else {
 
 // Enter the alt-screen and hide the hardware cursor: the TUI draws its own

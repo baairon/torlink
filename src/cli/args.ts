@@ -4,6 +4,7 @@ export type CliCommand =
   | { kind: "version" }
   | { kind: "help" }
   | { kind: "run"; initialMagnet?: string; initialTorrent?: string }
+  | { kind: "watch"; dir: string; downloadDir?: string }
   | { kind: "serve"; port?: number; host?: string; token?: string; downloadDir?: string }
   | { kind: "invalid"; arg: string };
 
@@ -29,6 +30,12 @@ export function parseCliArgs(argv: string[]): CliCommand {
   const a = args[0]!;
   if (a === "--version" || a === "-v") return { kind: "version" };
   if (a === "--help" || a === "-h") return { kind: "help" };
+  if (a === "watch") {
+    const { flags, rest } = readFlags(args.slice(1));
+    const dir = rest[0];
+    if (!dir) return { kind: "invalid", arg: "watch (missing directory)" };
+    return { kind: "watch", dir, downloadDir: flags.to ?? flags.dir };
+  }
   if (a === "serve") {
     const { flags } = readFlags(args.slice(1));
     const portNum = flags.port ? Number.parseInt(flags.port, 10) : undefined;
@@ -52,12 +59,17 @@ usage
   torlnk                      open the search TUI
   torlnk "magnet:?xt=..."     start a download on launch
   torlnk path/to/file.torrent open a .torrent file on launch
+  torlnk watch <dir>          headless: download torrents dropped into <dir>
   torlnk serve                headless: HTTP add API (POST /add) on :9161
   torlnk --version            print the version
 
 once open: type to search every source at once, enter to run, arrows to move,
 d to download, ? for keys
 tip: quote magnet links (they contain & characters)
+
+watch mode (no TUI): drop a .torrent, or a .magnet/.txt holding a magnet or
+info hash, into <dir> and it downloads then seeds. Add --to <dir> to choose
+where files land. Handled files move to <dir>/.processed (or /.failed).
 
 serve mode (no TUI): a small HTTP API for handing torlink a magnet.
   POST /add {"magnet":"..."}   queue a magnet or info hash
