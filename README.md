@@ -6,7 +6,7 @@ Finding a torrent these days sucks. One site is a minefield of fake download but
 
 TorZlink is a torrent finder that lives in your terminal, with zero setup and nothing to configure. One search checks a short, curated list of reputable sources at once, and whatever you pick downloads straight to your computer. The files are yours, saved to your downloads folder.
 
-> **This repository** — [TiiZss/TorZlink](https://github.com/TiiZss/TorZlink) is a maintained fork of [baairon/torlink](https://github.com/baairon/torlink). Same TUI and sources; this fork adds Docker, auto-setup for developers, CI, and fixes for headless/container environments. See [Differences from upstream](#differences-from-upstream) and the [Changelog](CHANGELOG.md).
+> **This repository** — [TiiZss/TorZlink](https://github.com/TiiZss/TorZlink) is a maintained fork of [baairon/torlink](https://github.com/baairon/torlink) by [bairon (@baairon)](https://github.com/baairon). Same TUI and sources; this fork adds Docker, auto-setup for developers, CI, and fixes for headless/container environments. See [Differences from upstream](#differences-from-upstream), [Acknowledgments](#acknowledgments), and the [Changelog](CHANGELOG.md).
 
 ## Get started
 
@@ -25,7 +25,7 @@ That's the only thing you'll type. TorZlink opens straight to a search bar: sear
 Type what you're looking for and press Enter. Results stream in from every source as they answer, tagged with size and how many people are sharing each one, so you can see what'll come down fast. Arrow to what you want and press `d` to save it, or `shift+d` to pick a different folder for just that download.
 
 <p align="center">
-  <img src="assets/preview/browse.svg" alt="torlink's browse view: the sidebar, the search bar, and merged results from every source" style="max-width: 832px; width: 100%; height: auto;">
+  <img src="assets/preview/browse.svg" alt="TorZlink browse view: the sidebar, the search bar, and merged results from every source" style="max-width: 832px; width: 100%; height: auto;">
 </p>
 
 ## Your downloads
@@ -35,7 +35,7 @@ Active downloads sit up top with their progress, speed, and time left; when one 
 Downloads run in the background while you keep searching, so you can queue up as many as you want. They save to your downloads folder, and the Downloads pane keeps tabs on each one; press `o` anytime to change where that is, or grab one result with `shift+d` to send it somewhere else without touching the default. When something finishes it keeps seeding automatically so the next person can find it too, and the Seeding tab lets you pause or stop that anytime.
 
 <p align="center">
-  <img src="assets/preview/downloads.svg" alt="torlink's Downloads pane: live progress on top, recently downloaded below" style="max-width: 832px; width: 100%; height: auto;">
+  <img src="assets/preview/downloads.svg" alt="TorZlink Downloads pane: live progress on top, recently downloaded below" style="max-width: 832px; width: 100%; height: auto;">
 </p>
 
 ## What it searches
@@ -153,11 +153,17 @@ The bot must be an **admin** of the channel to post. TorZlink notifies on magnet
 Interactive TUI (downloads persist in `./downloads`, state in a named volume):
 
 ```sh
-docker compose -f packaging/docker/docker-compose.yml build
 npm run docker:run
 ```
 
-(`docker:run` adds the required `-it` flags. Without them Ink cannot read keyboard input.)
+(`docker:run` runs `build --quiet` then `run --rm -it` with the required TTY flags. Without `-it`, Ink cannot read keyboard input.)
+
+Equivalent manual steps:
+
+```sh
+docker compose -f packaging/docker/docker-compose.yml build --quiet torzlink
+docker compose -f packaging/docker/docker-compose.yml run --rm -it torzlink
+```
 
 **Docker Desktop:** `docker compose run --rm` creates a one-off container (name like `torzlink-torzlink-run-…`) that only appears under **Containers** while the TUI is running. When you quit or the app exits, `--rm` removes it immediately — that is expected, not a bug.
 
@@ -210,10 +216,23 @@ docker compose -f packaging/docker/docker-compose.yml build --no-cache
 ```sh
 npm run docker:run
 # or
+docker compose -f packaging/docker/docker-compose.yml build --quiet torzlink
 docker compose -f packaging/docker/docker-compose.yml run --rm -it torzlink
 ```
 
 The app also prints this hint at startup if stdin/stdout are not TTYs.
+
+### Logo colors look wrong in Docker (gray banding)
+
+**Symptom:** The wordmark sheen looks washed out or gray in Docker, but correct when running natively.
+
+**Cause:** Docker PTYs often report 256-color mode without `COLORTERM=truecolor`, so Ink/chalk quantize hex theme colors.
+
+**Fix:** Already set in `docker-compose.yml`, the Dockerfile, and `bootstrap-terminal-env.ts` (`COLORTERM=truecolor`, `FORCE_COLOR=3`). Rebuild the image after pulling updates:
+
+```sh
+docker compose -f packaging/docker/docker-compose.yml build --quiet torzlink
+```
 
 ### App crashes when starting a download in Docker (exit 139)
 
@@ -271,9 +290,9 @@ kanban
     Node 22 pin .nvmrc / .node-version
     Docker multi-stage Dockerfile + compose
     Fix node_datachannel native build in image
-    TORLINK_DOWNLOAD_DIR and TORLINK_STATE_DIR
+    TORZLINK_DOWNLOAD_DIR and TORZLINK_STATE_DIR
     Headless clipboard fallback file
-    Disable NAT/UTP in Docker TORLINK_DISABLE_NAT
+    Disable NAT/UTP in Docker TORZLINK_DISABLE_NAT
     TTY guard and useSafeInput for Ink
     CI matrix Linux macOS Windows + Docker job
     Release workflow GHCR + GitHub Releases on tag
@@ -281,9 +300,11 @@ kanban
     Repository metadata → TiiZss/TorZlink
     README troubleshooting and changelog
     Docker build + smoke tests on Windows host
-    Sync VERSION with package.json 1.3.0
+    Root launchers torzlink.sh ps1 cmd + CI smoke
+    TorZlink wordmark + electric blue theme
+    Docker truecolor bootstrap + quiet rebuild
+    Tag v1.4.0 release
   column Planned
-    Push to TiiZss/TorZlink and tag v1.3.0
     Manual interactive download test in Docker TUI
     Windows-specific Docker volume docs
     Optional headless magnet-add CLI mode
@@ -293,43 +314,37 @@ kanban
 | Status | Item |
 | --- | --- |
 | ✅ Done | Developer auto-setup (`ensure.cjs`, `predev`/`prestart`, `npm run launch`) |
-| ✅ Done | Docker image + compose + `docker:run` with `-it` |
+| ✅ Done | Docker image + compose + `docker:run` with `-it` and quiet rebuild |
 | ✅ Done | Env-based paths and clipboard for headless |
 | ✅ Done | WebTorrent NAT/UTP hardening in containers |
-| ✅ Done | CI on three OS + Docker build |
+| ✅ Done | CI on three OS + Docker build + launcher smoke tests |
 | ✅ Done | Release workflow (`.github/workflows/release.yml`) |
 | ✅ Done | Documentation (changelog, troubleshooting, upstream diff) |
-| ✅ Done | Docker build verified on Windows (`torzlink:latest`) |
-| 📋 Next | Commit, push to `TiiZss/TorZlink`, tag `v1.3.0` → triggers GHCR + Release |
+| ✅ Done | Root launchers with native/Docker menu |
+| ✅ Done | TorZlink branding and electric blue theme |
+| ✅ Done | Docker truecolor for correct logo colors |
+| ✅ Done | **v1.4.0** tagged and released |
 | 📋 Planned | Manual TUI download smoke test in Docker |
 | 📋 Planned | Headless or scripted magnet workflow |
 | 📋 Planned | Track upstream `baairon/torlink` for merges |
 
 ### Cut a release
 
-After pushing to [TiiZss/TorZlink](https://github.com/TiiZss/TorZlink):
+After merging to [TiiZss/TorZlink](https://github.com/TiiZss/TorZlink) `main`:
 
 ```sh
-git remote set-url origin https://github.com/TiiZss/TorZlink.git
-git add -A
-git commit -m "feat: Docker support, auto-setup, and fork documentation"
-git push -u origin main
-git tag v1.3.0
-git push origin v1.3.0
+git tag v1.4.0
+git push origin v1.4.0
 ```
 
-The `release` workflow runs tests, publishes `ghcr.io/tiizss/torzlink:latest`, and opens a GitHub Release with notes from [CHANGELOG.md](CHANGELOG.md).
+The `release` workflow runs tests, publishes `ghcr.io/tiizss/torzlink:latest` and `ghcr.io/tiizss/torzlink:v1.4.0`, and opens a GitHub Release with notes from [CHANGELOG.md](CHANGELOG.md).
+
+## Acknowledgments
+
+**TorZlink** is a maintained fork of [**torlink**](https://github.com/baairon/torlink). The original terminal torrent finder — the Ink TUI, curated sources, search-and-download flow, and overall design — was created by [**bairon** (@baairon)](https://github.com/baairon).
+
+Thank you to bairon for open-sourcing the project and for the foundation this fork builds on. If you use TorZlink, consider starring both [this repository](https://github.com/TiiZss/TorZlink) and the [upstream project](https://github.com/baairon/torlink).
 
 ## Privacy
 
 Your files stay on your disk, and nothing routes through a central server; TorZlink only talks to the torrent network directly. Once a download finishes it keeps seeding by default, sharing it back so the next person can find it just as easily. The network only works because people pass things along, and even a few minutes makes a real difference. If you'd rather not, opt out anytime: open the Seeding tab, press `p` to pause or stop any item, and press it again to pick it back up. Always your call.
-
-## Star History
-
-<a href="https://www.star-history.com/?repos=TiiZss%2FTorZlink&type=date&legend=top-left">
- <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=TiiZss/TorZlink&type=date&theme=dark&legend=top-left" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=TiiZss/TorZlink&type=date&legend=top-left" />
-   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=TiiZss/TorZlink&type=date&legend=top-left" />
- </picture>
-</a>

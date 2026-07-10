@@ -20,7 +20,7 @@ Both scripts must behave the same for:
 |----------|----------|
 | Invalid menu input | Re-prompt (do not exit) |
 | Fatal error | Clear message + `exit 1` (no PowerShell stack trace) |
-| Docker path | `docker compose -f packaging/docker/docker-compose.yml run --rm -it torzlink` — **no npm** |
+| Docker path | `docker compose -f packaging/docker/docker-compose.yml build --quiet torzlink` then `run --rm -it torzlink` — **no npm** |
 | Missing `.env` | Explain (Telegram optional); prompt to create empty file; then continue |
 | Bypass flags | `--native` / `--docker` (and ps1 `-Native` / `-Docker`) skip menu |
 | No TTY | Require explicit bypass flags |
@@ -69,11 +69,10 @@ When editing one launcher file, check the other and update this table if behavio
 - `Stop-Launcher` / clean errors in PowerShell (no `throw` stack traces for users)
 - Bash menu loop aligned with PowerShell
 - `Ensure-DockerEnvFile` before compose
-- Docker calls `docker compose` directly
+- Docker calls `docker compose` directly (`build --quiet` + `run`)
 - `debug-*.log` in `.gitignore`; debug telemetry removed from scripts
 
 ## Out of scope (unless explicitly requested)
 
 - Installer `.msi` / `.dmg`
-- Auto-build Docker image on every launcher run
 - Menu options beyond native vs Docker (build, test, etc.)

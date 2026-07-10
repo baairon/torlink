@@ -62,3 +62,5 @@ TorZlink shows one contextual footer plus a `?` cheatsheet, never a wall of comm
 TorZlink is electric blue and quiet. There is exactly one gradient, the wordmark sheen. Everything else is solid color. Please don't add a second gradient.
 
 Thanks for helping keep TorZlink sharp.
+
+Upstream credit: see [Acknowledgments](README.md#acknowledgments) in the README — TorZlink is a fork of [baairon/torlink](https://github.com/baairon/torlink) by [bairon](https://github.com/baairon).

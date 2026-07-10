@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach, afterEach } from "vitest";
-import { loadEnv, telegramConfig, skipDependencyUpdate } from "../../src/config/env";
+import { loadEnv, resetEnvLoader, telegramConfig, skipDependencyUpdate } from "../../src/config/env";
 
 describe("loadEnv / telegramConfig", () => {
   const keys = [
@@ -15,10 +15,14 @@ describe("loadEnv / telegramConfig", () => {
   beforeEach(() => {
     for (const k of keys) saved[k] = process.env[k];
     for (const k of keys) delete process.env[k];
+    resetEnvLoader();
+    process.env.TORZLINK_DISABLE_DOTENV = "1";
     loadEnv();
   });
 
   afterEach(() => {
+    delete process.env.TORZLINK_DISABLE_DOTENV;
+    resetEnvLoader();
     for (const k of keys) {
       if (saved[k] === undefined) delete process.env[k];
       else process.env[k] = saved[k];

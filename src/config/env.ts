@@ -6,9 +6,15 @@ import { envFlag, envVar } from "./env-vars";
 
 let loaded = false;
 
+/** @internal Vitest only — avoids loading repo `.env` into isolated tests. */
+export function resetEnvLoader(): void {
+  loaded = false;
+}
+
 export function loadEnv(): void {
   if (loaded) return;
   loaded = true;
+  if (process.env.TORZLINK_DISABLE_DOTENV === "1") return;
   loadDotenv({ path: path.resolve(process.cwd(), ".env") });
   try {
     const here = path.dirname(fileURLToPath(import.meta.url));

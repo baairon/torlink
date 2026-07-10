@@ -144,7 +144,7 @@ save(
   <Box height={18} flexDirection="column" justifyContent="center" alignItems="center" width={COLS}>
     <Logo />
     <Box marginTop={2}>
-      <Text color={COLOR.text}>A curated, terminal-native torrent downloader.</Text>
+      <Text color={COLOR.text}>A torrent downloader forked from TorLink and designed for the terminal.</Text>
     </Box>
     <Box>
       <Text dimColor>{CATEGORIES}</Text>
