@@ -1,6 +1,6 @@
 {
   "name": "torzlink",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "description": "TorZlink — a sleek, zero-setup torrent finder and downloader in your terminal.",
   "type": "module",
   "bin": {

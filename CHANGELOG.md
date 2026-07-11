@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.6.0] — 2026-07-11
+
+Security hardening release: P0 supply-chain and download-boundary controls plus P1 tracker warnings, trust model ADR, regression tests, and release SBOM.
+
+**Verified:** 151 tests; `npm run typecheck`; `npm run build`; CI security job (Gitleaks, npm audit critical, Trivy).
+
 ### Added
 
 - **CI security job** — Gitleaks secrets scan, `npm audit` (blocks critical), Trivy filesystem and Docker image scans
@@ -23,6 +29,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Download boundary no longer passes raw scraped magnet URIs to WebTorrent when a canonical rebuild is possible
 - TUI notices and lists use `safeDisplayText()` for external-source titles
 - Saving custom trackers warns when announce URLs point to hosts outside the known-public list
+- `.env.example` keeps Telegram variables commented by default (from v1.5.0 baseline)
 
 ## [1.5.0] — 2026-07-10
 

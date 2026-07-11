@@ -309,6 +309,7 @@ kanban
     Docker truecolor bootstrap + quiet rebuild
     Tag v1.4.0 release
     Tag v1.5.0 release
+    Tag v1.6.0 release
     Telegram .magnet attachments + completion summary
     Security roadmap in README project board
     CI security gates gitleaks npm audit Trivy
@@ -346,7 +347,7 @@ kanban
 | ✅ Done | Docker | Env-based paths and clipboard for headless |
 | ✅ Done | Runtime | WebTorrent NAT/UTP hardening in containers |
 | ✅ Done | CI | Matrix Linux / macOS / Windows + Docker build + launcher smoke |
-| ✅ Done | Release | Workflow (`.github/workflows/release.yml`) + **v1.5.0** |
+| ✅ Done | Release | Workflow (`.github/workflows/release.yml`) + **v1.6.0** |
 | ✅ Done | Docs | Changelog, troubleshooting, upstream diff, security roadmap |
 | ✅ Done | UX | Root launchers, TorZlink branding, truecolor in Docker |
 | ✅ Done | Telegram | `.magnet` attachments on copy/start; completion summary without magnet URI |
@@ -371,18 +372,18 @@ kanban
 | 📋 P2 | UX/Privacy | Global no-seed-by-default config option |
 | 📋 Follow-ups | Launchers | Checklist in [docs/follow-ups-launchers.md](docs/follow-ups-launchers.md) |
 
-**Priorities:** 🔒 P0 = before next release · 🔒 P1 = next hardening sprint · 📋 P2 = quality/maintainability · 📋 Planned = agreed product roadmap.
+**Priorities:** 📋 Planned = product roadmap · 📋 P2 = quality/maintainability · Security P0/P1 complete as of **v1.6.0**.
 
 ### Cut a release
 
 After merging to [TiiZss/TorZlink](https://github.com/TiiZss/TorZlink) `main`:
 
 ```sh
-git tag v1.5.0
-git push origin v1.5.0
+git tag v1.6.0
+git push origin v1.6.0
 ```
 
-The `release` workflow runs tests, publishes `ghcr.io/tiizss/torzlink:latest` and `ghcr.io/tiizss/torzlink:v1.5.0`, and opens a GitHub Release with notes from [CHANGELOG.md](CHANGELOG.md).
+The `release` workflow runs tests, publishes `ghcr.io/tiizss/torzlink:latest` and `ghcr.io/tiizss/torzlink:v1.6.0`, attaches `sbom.cdx.json`, and opens a GitHub Release with notes from [CHANGELOG.md](CHANGELOG.md).
 
 ## Acknowledgments
 
