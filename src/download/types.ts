@@ -17,6 +17,12 @@ export interface SeedItem {
   peers: number;
 }
 
+export interface TorrentFileInfo {
+  name: string;
+  path: string;
+  length: number;
+}
+
 export interface QueueItem {
   id: string;
   name: string;
@@ -30,7 +36,8 @@ export interface QueueItem {
   speed: number;
   peers: number;
   eta?: number;
-  files?: number;
+  files?: TorrentFileInfo[];
+  selectedFiles?: number[];
   error?: string;
   addedAt: number;
 }

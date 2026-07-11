@@ -35,6 +35,8 @@ import { TabTitle } from "./components/TabTitle";
 import { Splash } from "./views/Splash";
 import { FolderPrompt } from "./components/FolderPrompt";
 import { TrackersPrompt } from "./components/TrackersPrompt";
+import { FilePicker } from "./components/FilePicker";
+import type { TorrentFileInfo } from "../download/types";
 import { footerHints } from "./keymap";
 import { COLOR, ICON } from "./theme";
 import { useMouseWheel } from "./hooks/useMouseWheel";
@@ -97,6 +99,17 @@ export function App({
     sizeBytes?: number;
   } | null>(null);
   const [lastDownloadToDir, setLastDownloadToDir] = useState<string | null>(null);
+  const [filePickerState, setFilePickerState] = useState<{
+    id: string;
+    name: string;
+    magnet: string;
+    source?: SourceId;
+    sizeBytes?: number;
+    status: "fetching" | "ready" | "error";
+    files: TorrentFileInfo[];
+    initialSelection?: number[];
+    error?: string;
+  } | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const booting = useRef(false);
 
@@ -226,11 +239,15 @@ export function App({
       magnet: string;
       source?: SourceId;
       sizeBytes?: number;
+      selectedFiles?: number[];
     }) => {
       if (!config || !queue) return;
       void fs.mkdir(config.downloadDir, { recursive: true }).catch(() => {});
       queue.add(input, config.downloadDir);
-      setNotice(`Added: ${truncate(cleanText(input.name), 40)}`);
+      const note = input.selectedFiles
+        ? `${truncate(cleanText(input.name), 28)} (${input.selectedFiles.length} files)`
+        : truncate(cleanText(input.name), 40);
+      setNotice(`Added: ${note}`);
       setSection("downloads");
       setRegion("content");
     },
@@ -284,6 +301,79 @@ export function App({
     },
     [queue, pendingDownload],
   );
+
+  const viewTorrentFiles = useCallback(
+    (input: {
+      id: string;
+      name: string;
+      magnet: string;
+      source?: SourceId;
+      sizeBytes?: number;
+    }) => {
+      if (!queue) return;
+      // If the torrent is already in the queue with a file list, use that
+      // instead of fetching metadata again from the swarm.
+      const existing = queue.getItems().find((it) => it.id === input.id);
+      if (existing?.files && existing.files.length > 0) {
+        setFilePickerState({
+          id: input.id,
+          name: existing.name,
+          magnet: input.magnet,
+          source: input.source,
+          sizeBytes: input.sizeBytes,
+          status: "ready",
+          files: existing.files,
+          initialSelection: existing.selectedFiles,
+        });
+        return;
+      }
+      // Torrent not in queue or no files yet — fetch metadata via temp client.
+      setFilePickerState({
+        id: input.id,
+        name: input.name,
+        magnet: input.magnet,
+        source: input.source,
+        sizeBytes: input.sizeBytes,
+        status: "fetching",
+        files: [],
+      });
+      queue.fetchFileList(input.magnet).then(
+        (files) => {
+          setFilePickerState((prev) =>
+            prev?.id === input.id
+              ? { ...prev, status: "ready", files }
+              : prev,
+          );
+        },
+        (err: Error) => {
+          setFilePickerState((prev) =>
+            prev?.id === input.id
+              ? { ...prev, status: "error", error: err.message, files: [] }
+              : prev,
+          );
+        },
+      );
+    },
+    [queue],
+  );
+
+  const downloadSelectedFiles = useCallback(
+    (input: { id: string; name: string; magnet: string; source?: SourceId; sizeBytes?: number }, selectedFiles: number[]) => {
+      setFilePickerState(null);
+      if (queue?.getItems().some((it) => it.id === input.id)) {
+        // Item already queued — update selection in-place without re-adding.
+        queue.updateFileSelection(input.id, selectedFiles);
+        setNotice(`Updated selection for ${truncate(cleanText(input.name), 28)}`);
+      } else {
+        startDownload({ ...input, selectedFiles });
+      }
+    },
+    [queue, startDownload],
+  );
+
+  const closeFilePicker = useCallback(() => {
+    setFilePickerState(null);
+  }, []);
 
   const copyMagnet = useCallback((input: { name: string; magnet: string }) => {
     void (async () => {
@@ -392,7 +482,7 @@ export function App({
       submitQuery,
       section,
       setSection,
-      region: showHelp || editingFolder || editingTrackers || pendingDownload ? "help" : region,
+      region: showHelp || editingFolder || editingTrackers || pendingDownload || filePickerState ? "help" : region,
       setRegion,
       captureMode,
       setCaptureMode,
@@ -402,6 +492,7 @@ export function App({
       setSeedFocus,
       startDownload,
       requestDownloadTo,
+      viewTorrentFiles,
       copyMagnet,
       openDownloadFolder,
       exportTorrent,
@@ -426,11 +517,13 @@ export function App({
     editingFolder,
     editingTrackers,
     pendingDownload,
+    filePickerState,
     captureMode,
     downloadFocus,
     seedFocus,
     startDownload,
     requestDownloadTo,
+    viewTorrentFiles,
     copyMagnet,
     openDownloadFolder,
     exportTorrent,
@@ -450,7 +543,7 @@ export function App({
         quitAll();
         return;
       }
-      if (editingFolder || editingTrackers || pendingDownload) return; // the prompt owns input (its own esc + enter)
+      if (editingFolder || editingTrackers || pendingDownload || filePickerState) return; // the prompt owns input (its own esc + enter)
       if (captureMode === "text") return;
       if (showHelp) {
         setShowHelp(false);
@@ -576,10 +669,37 @@ export function App({
           </Box>
         ) : null}
 
+        {filePickerState ? (
+          <Box marginTop={1}>
+            <FilePicker
+              status={filePickerState.status}
+              files={filePickerState.files}
+              torrentName={filePickerState.name}
+              error={filePickerState.error}
+              width={Math.max(30, Math.min(cols - 2, 100))}
+              height={bodyH}
+              initialSelection={filePickerState.initialSelection}
+              onConfirm={(indices) =>
+                downloadSelectedFiles(
+                  {
+                    id: filePickerState.id,
+                    name: filePickerState.name,
+                    magnet: filePickerState.magnet,
+                    source: filePickerState.source,
+                    sizeBytes: filePickerState.sizeBytes,
+                  },
+                  indices,
+                )
+              }
+              onCancel={closeFilePicker}
+            />
+          </Box>
+        ) : null}
+
         <Box
           height={bodyH}
           marginTop={compact ? 0 : 1}
-          display={showHelp || editingFolder || editingTrackers || pendingDownload ? "none" : "flex"}
+          display={showHelp || editingFolder || editingTrackers || pendingDownload || filePickerState ? "none" : "flex"}
           overflow="hidden"
         >
           <Sidebar />
@@ -595,7 +715,7 @@ export function App({
         </Box>
 
         {showFooter ? (
-          <Box display={showHelp || editingFolder || editingTrackers || pendingDownload ? "none" : "flex"}>
+          <Box display={showHelp || editingFolder || editingTrackers || pendingDownload || filePickerState ? "none" : "flex"}>
             <Footer hints={footerHints(region, section, downloadFocus, seedFocus)} />
           </Box>
         ) : null}

@@ -98,6 +98,11 @@ function Detail({ r, width }: { r: TorrentResult; width: number }) {
         <Text color={COLOR.text}> Download</Text>
         <Text dimColor>{`  ${ICON.dot}  `}</Text>
         <Text color={COLOR.accent} bold>
+          v
+        </Text>
+        <Text color={COLOR.text}> Files</Text>
+        <Text dimColor>{`  ${ICON.dot}  `}</Text>
+        <Text color={COLOR.accent} bold>
           y
         </Text>
         <Text color={COLOR.text}> Copy</Text>
@@ -119,6 +124,7 @@ export function Results() {
     setCaptureMode,
     startDownload,
     requestDownloadTo,
+    viewTorrentFiles,
     copyMagnet,
     contentWidth,
     listRows,
@@ -226,6 +232,9 @@ export function Results() {
       } else if (input === "y") {
         const r = results[clamped];
         if (r) copyResultMagnet(r);
+      } else if (input === "v") {
+        const r = results[clamped];
+        if (r) viewTorrentFiles({ id: r.infoHash, name: r.name, magnet: r.magnet, source: r.source, sizeBytes: r.sizeBytes });
       } else if (input === "s") {
         setSort((cur) => nextSort(cur));
       } else if (input === "z") {
@@ -242,6 +251,7 @@ export function Results() {
         setDetail(null);
       } else if (input === "d" && detail) openDownload(detail);
       else if (input === "D" && detail) openDownloadTo(detail);
+      else if (input === "v" && detail) viewTorrentFiles({ id: detail.infoHash, name: detail.name, magnet: detail.magnet, source: detail.source, sizeBytes: detail.sizeBytes });
       else if (input === "y" && detail) copyResultMagnet(detail);
     },
     { isActive: focused && mode === "detail" },

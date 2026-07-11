@@ -98,6 +98,7 @@ function makeStore(
     setSeedFocus: noop,
     startDownload: noop,
     requestDownloadTo: noop,
+    viewTorrentFiles: noop,
     copyMagnet: noop,
     openDownloadFolder: noop,
     exportTorrent: noop,

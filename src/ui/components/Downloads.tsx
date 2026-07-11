@@ -50,6 +50,7 @@ export function Downloads() {
     contentWidth,
     listRows,
     startDownload,
+    viewTorrentFiles,
     openDownloadFolder,
     setDownloadFocus,
     exportTorrent,
@@ -81,6 +82,14 @@ export function Downloads() {
         if (!it) return;
         if (input === "c") queue.cancel(it.id);
         else if (input === "p") queue.togglePause(it.id);
+        else if (input === "v")
+          viewTorrentFiles({
+            id: it.id,
+            name: it.name,
+            magnet: it.magnet,
+            source: it.source,
+            sizeBytes: it.totalBytes,
+          });
       } else {
         const h = recent[recentCursor];
         if (!h) return;

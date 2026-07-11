@@ -30,6 +30,7 @@ export const HELP_GROUPS: HelpGroup[] = [
       { keys: "d", label: "Download (shift+d picks folder)" },
       { keys: "s", label: "Sort results" },
       { keys: "z", label: "Hide dead torrents" },
+      { keys: "v", label: "View files" },
       { keys: "y", label: "Copy magnet" },
       { keys: "m", label: "Paste magnet" },
     ],
@@ -37,6 +38,7 @@ export const HELP_GROUPS: HelpGroup[] = [
   {
     title: "Downloads",
     hints: [
+      { keys: "v", label: "View files" },
       { keys: "p", label: "Pause/resume" },
       { keys: "c", label: "Cancel or remove" },
       { keys: "f", label: "Retry failed" },
@@ -91,10 +93,10 @@ export function footerHints(
   }
   if (section === "downloads") {
     if (downloadFocus === "paused") {
-      return [{ keys: "p", label: "Resume" }, { keys: "c", label: "Cancel" }, FOLDER, TORRENT, SWITCH, ALWAYS];
+      return [{ keys: "p", label: "Resume" }, { keys: "v", label: "Files" }, { keys: "c", label: "Cancel" }, FOLDER, TORRENT, SWITCH, ALWAYS];
     }
     if (downloadFocus === "failed") {
-      return [{ keys: "f", label: "Retry" }, { keys: "c", label: "Remove" }, FOLDER, TORRENT, SWITCH, ALWAYS];
+      return [{ keys: "f", label: "Retry" }, { keys: "v", label: "Files" }, { keys: "c", label: "Remove" }, FOLDER, TORRENT, SWITCH, ALWAYS];
     }
     if (downloadFocus === "recent") {
       return [
@@ -107,13 +109,14 @@ export function footerHints(
         ALWAYS,
       ];
     }
-    return [{ keys: "p", label: "Pause" }, { keys: "c", label: "Cancel" }, FOLDER, TORRENT, SWITCH, ALWAYS];
+    return [{ keys: "p", label: "Pause" }, { keys: "v", label: "Files" }, { keys: "c", label: "Cancel" }, FOLDER, TORRENT, SWITCH, ALWAYS];
   }
   return [
     NAVIGATE,
     // The footer advertises only the default download key; D (download to a
     // chosen folder) stays bound but lives in the `?` sheet alone.
     { keys: "d", label: "Download" },
+    { keys: "v", label: "View" },
     { keys: "y", label: "Copy" },
     { keys: "s", label: "Sort" },
     { keys: "/", label: "Search" },

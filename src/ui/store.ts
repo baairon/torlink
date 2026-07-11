@@ -55,10 +55,19 @@ export interface Store {
     magnet: string;
     source?: SourceId;
     sizeBytes?: number;
+    selectedFiles?: number[];
   }) => void;
   // Opens the "download to" prompt (D) so this one download can land in a
   // folder other than the configured default.
   requestDownloadTo: (input: {
+    id: string;
+    name: string;
+    magnet: string;
+    source?: SourceId;
+    sizeBytes?: number;
+  }) => void;
+  // Opens the file picker overlay to view and select files before download.
+  viewTorrentFiles: (input: {
     id: string;
     name: string;
     magnet: string;

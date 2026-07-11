@@ -5,6 +5,13 @@ declare module "webtorrent" {
     name: string;
     path: string;
     length: number;
+    select(): void;
+    deselect(): void;
+  }
+
+  interface Store {
+    put(index: number, buffer: Buffer): Promise<void>;
+    get(index: number, cb: (err?: Error, buffer?: Buffer) => void): void;
   }
 
   interface Torrent extends EventEmitter {
@@ -25,6 +32,8 @@ declare module "webtorrent" {
     paused: boolean;
     path: string;
     files: TorrentFile[];
+    pieceLength: number;
+    store: Store;
     pause(): void;
     resume(): void;
     addPeer(peer: string): boolean;

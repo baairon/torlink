@@ -13,7 +13,7 @@ import {
   type SeedRecord,
 } from "./persist";
 import { saveHistory, saveHistorySync, type HistoryItem } from "./history";
-import type { QueueItem, SeedItem } from "./types";
+import type { QueueItem, SeedItem, TorrentFileInfo } from "./types";
 import type { SourceId } from "../sources/types";
 
 /**
@@ -44,6 +44,7 @@ export interface AddInput {
   magnet: string;
   source?: SourceId;
   sizeBytes?: number;
+  selectedFiles?: number[];
 }
 
 export class DownloadQueue extends EventEmitter {
@@ -97,6 +98,7 @@ export class DownloadQueue extends EventEmitter {
           status: "downloading",
           error: undefined,
           speed: 0,
+          selectedFiles: input.selectedFiles,
           ...(existing.dir === dir
             ? {}
             : { progress: 0, downloadedBytes: 0, eta: undefined }),
@@ -113,6 +115,7 @@ export class DownloadQueue extends EventEmitter {
           downloadedBytes: 0,
           speed: 0,
           peers: 0,
+          selectedFiles: input.selectedFiles,
           addedAt: Date.now(),
         };
     this.items.set(item.id, item);
@@ -141,9 +144,19 @@ export class DownloadQueue extends EventEmitter {
         if (!it) return; // the rest only matters while still downloading
         if (meta.name) it.name = meta.name;
         if (meta.total) it.totalBytes = meta.total;
-        it.files = meta.files;
+        it.files = meta.fileList;
         this.changed();
         void this.persist();
+      },
+      onReady: () => {
+        // Apply file selection now that the store is ready and pieces
+        // have been selected by default. This runs BEFORE _updateSelections
+        // starts requesting pieces, so deselected files are never fetched.
+        const it = this.items.get(id);
+        if (it?.selectedFiles && it.files) {
+          this.engine.selectFiles(id, it.selectedFiles);
+          this.engine.applyFileFilter(id, it.selectedFiles, it.dir);
+        }
       },
       onDone: () => {
         const it = this.items.get(id);
@@ -317,6 +330,29 @@ export class DownloadQueue extends EventEmitter {
     if (!it) return;
     if (it.status === "downloading") this.pause(id);
     else if (it.status === "paused") this.resume(id);
+  }
+
+  // Fetch the file list for a magnet URI without starting a download.
+  // Uses a temporary WebTorrent client that is destroyed after metadata arrives.
+  async fetchFileList(magnet: string): Promise<TorrentFileInfo[]> {
+    return this.engine.fetchFileList(magnet, this.trackers);
+  }
+
+  // Update file selection for an already-queued item (changing which files
+  // to download mid-stream). The engine applies the change immediately if
+  // files are already known; otherwise the selection is applied when metadata
+  // arrives.
+  updateFileSelection(id: string, selectedFiles: number[]): void {
+    const it = this.items.get(id);
+    if (!it) return;
+    if (it.status === "completed" || it.status === "failed") return;
+    it.selectedFiles = selectedFiles;
+    if (it.files) {
+      this.engine.selectFiles(id, selectedFiles);
+      this.engine.applyFileFilter(id, selectedFiles, it.dir);
+    }
+    this.changed();
+    void this.persist();
   }
 
   exportTorrentFile(id: string): Promise<string | null> {
