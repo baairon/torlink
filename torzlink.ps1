@@ -83,9 +83,25 @@ function Require-Command {
     }
 }
 
+function Warn-EnvPlaceholders {
+    $envPath = Join-Path $PSScriptRoot '.env'
+    if (-not (Test-Path -LiteralPath $envPath)) {
+        return
+    }
+
+    $content = Get-Content -LiteralPath $envPath -Raw -ErrorAction SilentlyContinue
+    if ($content -match 'your-bot-token|123456789:ABCdefGHI|@mi_canal|@your_channel') {
+        Write-Host 'Warning: .env contains placeholder values from .env.example.' -ForegroundColor Yellow
+        Write-Host 'Replace TELEGRAM_BOT_TOKEN and TELEGRAM_CHANNEL_ID with real credentials.'
+        Write-Host 'Do not enable Telegram with example or placeholder tokens.'
+        Write-Host ''
+    }
+}
+
 function Invoke-Native {
     Require-Command -Name 'node' -Message 'Node.js not found. Install Node 22+ (see README).'
     Require-Command -Name 'npm' -Message 'npm not found. Install Node 22+ (see README).'
+    Warn-EnvPlaceholders
     npm run launch
 }
 
@@ -113,7 +129,8 @@ function Ensure-DockerEnvFile {
     New-Item -ItemType File -Path $envPath -Force | Out-Null
     Write-Host "Created empty .env at $envPath"
     if (Test-Path -LiteralPath $examplePath) {
-        Write-Host 'Tip: copy settings from .env.example if you want Telegram notifications.'
+        Write-Host 'Tip: copy settings from .env.example, then replace every placeholder with real values.'
+        Write-Host 'Never enable Telegram with the example bot token or channel name.'
     }
     Write-Host ''
 }
@@ -125,6 +142,7 @@ function Invoke-Docker {
         Stop-Launcher 'docker compose not found. Install Docker Compose v2 (see README).'
     }
     Ensure-DockerEnvFile
+    Warn-EnvPlaceholders
     $composeFile = Join-Path $PSScriptRoot 'packaging/docker/docker-compose.yml'
     & docker compose -f $composeFile build --quiet torzlink
     & docker compose -f $composeFile run --rm -it torzlink

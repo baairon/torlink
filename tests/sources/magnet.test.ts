@@ -1,5 +1,15 @@
 import { describe, it, expect } from "vitest";
-import { parseMagnet, parseInput, isInfoHash, normalizeInfoHash, buildMagnet } from "../../src/sources/magnet";
+import {
+  parseMagnet,
+  parseInput,
+  isInfoHash,
+  normalizeInfoHash,
+  buildMagnet,
+  sanitizeParsedMagnet,
+  sanitizeMagnetInput,
+  sanitizeDownloadInput,
+  isValidInfoHash,
+} from "../../src/sources/magnet";
 
 describe("parseMagnet", () => {
   it("keeps a full 40-char hex info hash", () => {
@@ -93,5 +103,45 @@ describe("parseInput", () => {
     expect(parseInput("g".repeat(40))).toBeNull(); // 40 chars but not hex
     expect(parseInput("magnet:?xt=urn:btih:tooshort")).toBeNull();
     expect(parseInput("")).toBeNull();
+  });
+});
+
+describe("sanitizeParsedMagnet", () => {
+  it("rebuilds magnet from infoHash and strips control chars from name", () => {
+    const hash = "abcdef0123456789abcdef0123456789abcdef01";
+    const evil = "Cool\u0080Movie";
+    const safe = sanitizeParsedMagnet({ infoHash: hash, name: evil, magnet: `magnet:?xt=urn:btih:${hash}` });
+    expect(safe?.infoHash).toBe(hash);
+    expect(safe?.name).toBe("CoolMovie");
+    expect(safe?.magnet).toContain(`xt=urn:btih:${hash}`);
+  });
+
+  it("rejects invalid info hashes", () => {
+    expect(sanitizeParsedMagnet({ infoHash: "tooshort", name: "x", magnet: "magnet:?xt=urn:btih:tooshort" })).toBeNull();
+  });
+});
+
+describe("sanitizeMagnetInput", () => {
+  it("wraps bare hash into canonical magnet", () => {
+    const hash = "abcdef0123456789abcdef0123456789abcdef01";
+    const m = sanitizeMagnetInput(hash);
+    expect(m?.infoHash).toBe(hash);
+    expect(m?.magnet).toContain("&tr=");
+  });
+});
+
+describe("sanitizeDownloadInput", () => {
+  it("normalizes scraped download payload", () => {
+    const hash = "abcdef0123456789abcdef0123456789abcdef01";
+    const raw = `magnet:?xt=urn:btih:${hash}&dn=Evil%20Name`;
+    const out = sanitizeDownloadInput({
+      id: hash,
+      name: "Evil Name",
+      magnet: raw,
+      sizeBytes: 100,
+    });
+    expect(out?.id).toBe(hash);
+    expect(out?.magnet).toContain(`xt=urn:btih:${hash}`);
+    expect(isValidInfoHash(out!.id)).toBe(true);
   });
 });

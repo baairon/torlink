@@ -7,7 +7,7 @@ import { ProgressBar } from "./ProgressBar";
 import { wrapStep, windowStart } from "../lib/move";
 import { COLOR, GUTTER, ICON, sourceStyle } from "../lib/theme";
 import {
-  cleanText,
+  safeDisplayText,
   formatBytes,
   formatBytesPerSec,
   formatEtaShort,
@@ -181,7 +181,7 @@ export function Downloads() {
                   color={here ? COLOR.accent : undefined}
                   dimColor={!here}
                 >
-                  {cleanText(it.name)}
+                  {safeDisplayText(it.name)}
                 </Text>
               </Box>
               <Box width={10} flexShrink={0} marginLeft={1} justifyContent="flex-end">
@@ -238,7 +238,7 @@ export function Downloads() {
                 color={here ? COLOR.accent : undefined}
                 dimColor={!here}
               >
-                {cleanText(h.name)}
+                {safeDisplayText(h.name)}
               </Text>
             </Box>
             <Box width={10} flexShrink={0} marginLeft={1} justifyContent="flex-end">

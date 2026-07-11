@@ -311,9 +311,8 @@ kanban
     Tag v1.5.0 release
     Telegram .magnet attachments + completion summary
     Security roadmap in README project board
-  column Security P0
     CI security gates gitleaks npm audit Trivy
-    Version package-lock.json + npm ci in CI/Docker
+    package-lock.json + npm ci in CI Docker release
     Normalize magnets before WebTorrent queue.add
     stripControl on all external-source TUI fields
     Launcher warn when copying .env.example placeholders
@@ -353,11 +352,11 @@ kanban
 | ✅ Done | UX | Root launchers, TorZlink branding, truecolor in Docker |
 | ✅ Done | Telegram | `.magnet` attachments on copy/start; completion summary without magnet URI |
 | ✅ Done | Security | `.env.example`: Telegram vars commented by default |
-| 🔒 P0 | Security | CI: gitleaks + `npm audit` (HIGH+) + Trivy fs + Docker image |
-| 🔒 P0 | Security | Version `package-lock.json`; `npm ci` in CI and Docker deps stage |
-| 🔒 P0 | Security | Normalize magnets at download boundary (infoHash → `buildMagnet`) |
-| 🔒 P0 | Security | `stripControl()` on names/notices from external sources (C1 vs `cleanText` gap) |
-| 🔒 P0 | Security | Launcher warns when copying `.env.example` placeholder tokens |
+| ✅ Done | Security | CI: Gitleaks + `npm audit` (critical) + Trivy fs/image |
+| ✅ Done | Security | `package-lock.json` + `npm ci` in CI, release, and Docker |
+| ✅ Done | Security | Magnet normalization at download boundary |
+| ✅ Done | Security | `safeDisplayText()` for external-source TUI labels |
+| ✅ Done | Security | Launchers warn on `.env` placeholder Telegram values |
 | 🔒 P1 | Security | Tracker host allowlist or warning when saving unknown custom trackers |
 | 🔒 P1 | Security | ADR-001: trust model (FitGirl-only games, seeding, Telegram privacy) |
 | 🔒 P1 | Security | Security regression tests: poisoned magnets, terminal injection in notices |

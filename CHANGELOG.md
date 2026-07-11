@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- **CI security job** — Gitleaks secrets scan, `npm audit` (blocks critical), Trivy filesystem and Docker image scans
+- **`package-lock.json`** — versioned for reproducible installs; CI, release, and Docker use `npm ci`
+- **Magnet sanitization** — `sanitizeDownloadInput()` / `sanitizeMagnetInput()` rebuild magnets from validated infoHashes before WebTorrent
+- **`safeDisplayText()`** — strips terminal control characters from scraped names shown in the TUI
+- **Launcher `.env` warnings** — detect placeholder Telegram tokens/channels in `.env` before native or Docker launch
+
+### Security
+
+- Download boundary no longer passes raw scraped magnet URIs to WebTorrent when a canonical rebuild is possible
+- TUI notices and lists use `safeDisplayText()` for external-source titles
+
 ## [1.5.0] — 2026-07-10
 
 Telegram notification polish and security roadmap documentation.

@@ -5,7 +5,7 @@ import { useStore, useQueueHistory, useSeeds, type SeedFocus } from "../state/st
 import { Panel } from "./Panel";
 import { wrapStep, windowStart } from "../lib/move";
 import { COLOR, GUTTER, ICON, sourceStyle } from "../lib/theme";
-import { cleanText, formatBytes, formatBytesPerSec, truncate } from "../../util/format";
+import { safeDisplayText, formatBytes, formatBytesPerSec, truncate } from "../../util/format";
 import type { SeedItem } from "../../download/types";
 
 const MARK = 2;
@@ -150,7 +150,7 @@ export function Seeding() {
               </Box>
               <Box flexGrow={1} minWidth={0} marginLeft={1}>
                 <Text wrap="truncate-end" bold={here} color={here ? COLOR.accent : undefined} dimColor={!here}>
-                  {cleanText(h.name)}
+                  {safeDisplayText(h.name)}
                 </Text>
               </Box>
               <Box width={SIZE_W} flexShrink={0} marginLeft={1} justifyContent="flex-end">

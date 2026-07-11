@@ -129,6 +129,11 @@ export function stripControl(s: string): string {
   return out;
 }
 
+/** Safe label for TUI output from external/scraped strings (strips terminal controls first). */
+export function safeDisplayText(s: string): string {
+  return cleanText(stripControl(s));
+}
+
 export function truncate(s: string, max: number): string {
   if (max <= 1) return s.slice(0, Math.max(0, max));
   return s.length <= max ? s : s.slice(0, max - 1) + "…";

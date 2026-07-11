@@ -7,6 +7,7 @@ import {
   formatRelative,
   formatEtaShort,
   cleanText,
+  safeDisplayText,
   stripControl,
   truncate,
 } from "../../src/util/format";
@@ -90,6 +91,13 @@ describe("truncate", () => {
   it("truncates with an ellipsis", () => {
     expect(truncate("hello world", 5)).toBe("hell…");
     expect(truncate("hi", 5)).toBe("hi");
+  });
+});
+
+describe("safeDisplayText", () => {
+  it("strips C1 controls before cleanText folding", () => {
+    const c1 = "Title\u0080\u009f";
+    expect(safeDisplayText(c1)).toBe("Title");
   });
 });
 

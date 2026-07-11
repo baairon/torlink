@@ -6,7 +6,35 @@ on:
   pull_request:
 
 jobs:
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Secrets scan
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: npm ci
+      - name: Dependency audit (block critical)
+        run: npm audit --audit-level=critical
+      - name: Dependency audit report
+        run: npm audit --audit-level=moderate || true
+      - name: Filesystem vulnerability scan
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          severity: CRITICAL
+          exit-code: "1"
+          skip-dirs: node_modules
+
   test:
+    needs: security
     strategy:
       fail-fast: false
       matrix:
@@ -18,7 +46,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}
-      - run: npm install
+      - run: npm ci
       - run: npm run typecheck
       - run: npm test
         env:
@@ -26,6 +54,7 @@ jobs:
       - run: npm run build
 
   docker:
+    needs: security
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -38,8 +67,15 @@ jobs:
           tags: torzlink:ci
           cache-from: type=gha
           cache-to: type=gha,mode=max
+      - name: Container vulnerability scan
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: torzlink:ci
+          severity: CRITICAL
+          exit-code: "1"
 
   launchers:
+    needs: security
     strategy:
       fail-fast: false
       matrix:

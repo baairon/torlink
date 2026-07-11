@@ -8,7 +8,7 @@ import { DownloadQueue } from "../download/queue";
 import { loadQueue, loadSeeds } from "../download/persist";
 import { loadHistory } from "../download/history";
 import { reconcileQueue } from "../download/reconcile";
-import { parseInput } from "../sources/magnet";
+import { sanitizeDownloadInput, sanitizeMagnetInput, sanitizeParsedMagnet } from "../sources/magnet";
 import { magnetFromTorrentFile } from "../sources/torrentFile";
 import { readClipboard, writeClipboard, lastClipboardFile, saveMagnetFile } from "../util/clipboard";
 import {
@@ -19,7 +19,7 @@ import {
 } from "../integrations/notify";
 import type { QueueItem } from "../download/types";
 import { openFolder } from "../util/openFolder";
-import { cleanText, formatBytes, truncate } from "../util/format";
+import { safeDisplayText, formatBytes, truncate } from "../util/format";
 import {
   StoreContext,
   type CaptureMode,
@@ -126,9 +126,11 @@ export function App({
       setConfigState(cfg);
       setQueue(q);
       const launch = initialMagnet
-        ? parseInput(initialMagnet)
+        ? sanitizeMagnetInput(initialMagnet)
         : initialTorrent
-          ? await magnetFromTorrentFile(initialTorrent)
+          ? await magnetFromTorrentFile(initialTorrent).then((m) =>
+              m ? sanitizeParsedMagnet(m) : null,
+            )
           : null;
       if (launch) {
         await fs.mkdir(cfg.downloadDir, { recursive: true }).catch(() => {});
@@ -149,7 +151,7 @@ export function App({
   useEffect(() => {
     if (!queue) return;
     const onCompleted = (it: QueueItem): void => {
-      setNotice(`${ICON.done} ${truncate(cleanText(it.name), 40)}`);
+      setNotice(`${ICON.done} ${truncate(safeDisplayText(it.name), 40)}`);
       const durationSec = Math.max(1, (Date.now() - it.addedAt) / 1000);
       notifyDownloadCompleted({
         name: it.name,
@@ -257,16 +259,21 @@ export function App({
       sizeBytes?: number;
     }) => {
       if (!config || !queue) return;
+      const safe = sanitizeDownloadInput(input);
+      if (!safe) {
+        setNotice("Couldn't add download: invalid magnet.");
+        return;
+      }
       void fs.mkdir(config.downloadDir, { recursive: true }).catch(() => {});
-      queue.add(input, config.downloadDir);
-      void saveMagnetFile(input.magnet, { name: input.name, infoHash: input.id });
+      queue.add(safe, config.downloadDir);
+      void saveMagnetFile(safe.magnet, { name: safe.name, infoHash: safe.id });
       notifyDownloadStarted({
-        name: input.name,
-        magnet: input.magnet,
-        infoHash: input.id,
+        name: safe.name,
+        magnet: safe.magnet,
+        infoHash: safe.id,
         dir: config.downloadDir,
       });
-      setNotice(`Added: ${truncate(cleanText(input.name), 40)}`);
+      setNotice(`Added: ${truncate(safeDisplayText(safe.name), 40)}`);
       setSection("downloads");
       setRegion("content");
     },
@@ -301,7 +308,12 @@ export function App({
       // fresh dir is exactly how a bad-disk download gets redirected.
       const existing = queue.getItems().find((it) => it.id === input.id);
       if (existing && existing.status !== "failed") {
-        setNotice(`Already in queue: ${truncate(cleanText(input.name), 40)}`);
+        setNotice(`Already in queue: ${truncate(safeDisplayText(input.name), 40)}`);
+        return;
+      }
+      const safe = sanitizeDownloadInput(input);
+      if (!safe) {
+        setNotice("Couldn't add download: invalid magnet.");
         return;
       }
       void (async () => {
@@ -312,15 +324,15 @@ export function App({
           return;
         }
         setLastDownloadToDir(dir);
-        queue.add(input, dir);
-        void saveMagnetFile(input.magnet, { name: input.name, infoHash: input.id });
+        queue.add(safe, dir);
+        void saveMagnetFile(safe.magnet, { name: safe.name, infoHash: safe.id });
         notifyDownloadStarted({
-          name: input.name,
-          magnet: input.magnet,
-          infoHash: input.id,
+          name: safe.name,
+          magnet: safe.magnet,
+          infoHash: safe.id,
           dir,
         });
-        setNotice(`Added: ${truncate(cleanText(input.name), 28)} → ${truncate(dir, 36)}`);
+        setNotice(`Added: ${truncate(safeDisplayText(safe.name), 28)} → ${truncate(dir, 36)}`);
         setSection("downloads");
         setRegion("content");
       })();
@@ -337,7 +349,7 @@ export function App({
         if (saved) {
           setNotice(`Magnet saved to ${truncate(saved, 48)}`);
         } else {
-          setNotice(`Copied magnet: ${truncate(cleanText(input.magnet), 60)}`);
+          setNotice(`Copied magnet: ${truncate(safeDisplayText(input.name), 60)}`);
         }
         notifyMagnetCopied({
           name: input.name,
@@ -346,7 +358,7 @@ export function App({
         });
         return;
       }
-      setNotice(`Couldn't copy magnet for ${truncate(cleanText(input.name), 32)}.`);
+      setNotice(`Couldn't copy magnet for ${truncate(safeDisplayText(input.name), 32)}.`);
     })();
   }, []);
 
@@ -370,7 +382,7 @@ export function App({
           setNotice(`Exported torrent file: ${truncate(file, 48)}`);
           return;
         }
-        setNotice(`No torrent file yet for ${truncate(cleanText(input.name), 32)}.`);
+        setNotice(`No torrent file yet for ${truncate(safeDisplayText(input.name), 32)}.`);
       })();
     },
     [queue],
@@ -380,7 +392,7 @@ export function App({
     (raw: string) => {
       const q = raw.trim();
       if (q) {
-        const magnet = parseInput(q);
+        const magnet = sanitizeMagnetInput(q);
         if (magnet) {
           startDownload({
             id: magnet.infoHash,
@@ -406,7 +418,7 @@ export function App({
       return;
     }
     const found = text.match(/magnet:\?xt=urn:btih:[^\s"'<>]+/i)?.[0];
-    const magnet = parseInput(found ?? text);
+    const magnet = sanitizeMagnetInput(found ?? text);
     if (magnet) {
       startDownload({ id: magnet.infoHash, name: magnet.name, magnet: magnet.magnet });
       setView("browser");
@@ -619,8 +631,8 @@ export function App({
               width={Math.max(24, Math.min(cols - 4, 62))}
               subject={
                 pendingDownload.sizeBytes
-                  ? `${cleanText(pendingDownload.name)}  ${ICON.dot}  ${formatBytes(pendingDownload.sizeBytes)}`
-                  : cleanText(pendingDownload.name)
+                  ? `${safeDisplayText(pendingDownload.name)}  ${ICON.dot}  ${formatBytes(pendingDownload.sizeBytes)}`
+                  : safeDisplayText(pendingDownload.name)
               }
               submitLabel="download"
               value={lastDownloadToDir ?? store.config.downloadDir}

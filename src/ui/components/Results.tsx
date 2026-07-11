@@ -12,7 +12,7 @@ import { stickCursor, wrapStep, windowStart, resultsPanelOuter } from "../lib/mo
 import { sortResults, nextSort, sortLabel, sortArrow, type Sort, type SortField } from "../lib/sort";
 import { filterResults } from "../lib/filter";
 import { COLOR, GUTTER, ICON, sourceStyle } from "../lib/theme";
-import { cleanText, formatBytes, formatCount, formatRelative, stripControl, truncate } from "../../util/format";
+import { formatBytes, formatCount, formatRelative, safeDisplayText, stripControl, truncate } from "../../util/format";
 import type { Source, TorrentResult } from "../../sources/types";
 
 type Mode = "list" | "search" | "detail";
@@ -49,7 +49,7 @@ function Detail({ r, width }: { r: TorrentResult; width: number }) {
       <Box>
         <Box flexGrow={1} minWidth={0}>
           <Text bold color={COLOR.text} wrap="truncate-end">
-            {cleanText(r.name)}
+            {safeDisplayText(r.name)}
           </Text>
         </Box>
         <Box flexShrink={0} marginLeft={2}>
@@ -433,7 +433,7 @@ export function Results() {
                           dimColor={!here}
                           bold={here}
                         >
-                          {cleanText(r.name)}
+                          {safeDisplayText(r.name)}
                         </Text>
                       </Box>
                       {showStats ? (

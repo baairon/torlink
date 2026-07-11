@@ -3,16 +3,16 @@
 # ── deps: production node_modules (native postinstalls must run) ─────────────
 FROM node:22-alpine AS deps
 WORKDIR /app
-COPY package.json ./
-RUN npm install --omit=dev --loglevel=error \
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev --loglevel=error \
   && test -f node_modules/node-datachannel/build/Release/node_datachannel.node \
   && npm cache clean --force 2>/dev/null || npm cache clean
 
 # ── build: compile bundle + copy ensure into dist ───────────────────────────
 FROM node:22-alpine AS build
 WORKDIR /app
-COPY package.json ./
-RUN npm install --ignore-scripts --loglevel=error
+COPY package.json package-lock.json ./
+RUN npm ci --ignore-scripts --loglevel=error
 COPY tsconfig.json tsup.config.ts ./
 COPY src ./src
 COPY scripts ./scripts

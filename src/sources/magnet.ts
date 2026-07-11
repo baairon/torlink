@@ -1,3 +1,6 @@
+import type { SourceId } from "./types";
+import { cleanText, stripControl } from "../util/format";
+
 const TRACKERS = [
   "udp://tracker.opentrackr.org:1337/announce",
   "udp://open.demonii.com:1337/announce",
@@ -40,10 +43,53 @@ export function normalizeInfoHash(raw: string): string {
   return raw.length === 32 ? (base32ToHex(raw) ?? raw.toLowerCase()) : raw.toLowerCase();
 }
 
+const VALID_HEX_HASH = /^[a-f0-9]{40}$/;
+
+export function isValidInfoHash(hash: string): boolean {
+  return VALID_HEX_HASH.test(hash);
+}
+
 export interface ParsedMagnet {
   infoHash: string;
   name: string;
   magnet: string;
+}
+
+/** Rebuild a magnet from a validated infoHash and sanitized display name. */
+export function sanitizeParsedMagnet(parsed: ParsedMagnet): ParsedMagnet | null {
+  const infoHash = normalizeInfoHash(parsed.infoHash);
+  if (!isValidInfoHash(infoHash)) return null;
+  const name = cleanText(stripControl(parsed.name || infoHash));
+  return { infoHash, name, magnet: buildMagnet(infoHash, name) };
+}
+
+export function sanitizeMagnetInput(input: string): ParsedMagnet | null {
+  const parsed = parseInput(input);
+  if (!parsed) return null;
+  return sanitizeParsedMagnet(parsed);
+}
+
+export interface DownloadMagnetInput {
+  id: string;
+  name: string;
+  magnet: string;
+  source?: SourceId;
+  sizeBytes?: number;
+}
+
+/** Normalize scraped or user-supplied magnets before they reach WebTorrent. */
+export function sanitizeDownloadInput(
+  input: DownloadMagnetInput,
+): (DownloadMagnetInput & { id: string }) | null {
+  const fromMagnet = parseMagnet(input.magnet);
+  const parsed: ParsedMagnet = fromMagnet ?? {
+    infoHash: input.id,
+    name: input.name,
+    magnet: input.magnet,
+  };
+  const safe = sanitizeParsedMagnet(parsed);
+  if (!safe) return null;
+  return { ...input, id: safe.infoHash, name: safe.name, magnet: safe.magnet };
 }
 
 export function parseMagnet(input: string): ParsedMagnet | null {

@@ -50,9 +50,21 @@ require_command() {
   fi
 }
 
+warn_env_placeholders() {
+  local env_path="$ROOT/.env"
+  [[ -f "$env_path" ]] || return 0
+  if grep -qE 'your-bot-token|123456789:ABCdefGHI|@mi_canal|@your_channel' "$env_path" 2>/dev/null; then
+    echo "Warning: .env contains placeholder values from .env.example." >&2
+    echo "Replace TELEGRAM_BOT_TOKEN and TELEGRAM_CHANNEL_ID with real credentials." >&2
+    echo "Do not enable Telegram with example or placeholder tokens." >&2
+    echo ""
+  fi
+}
+
 run_native() {
   require_command node "Node.js not found. Install Node 22+ (see README)."
   require_command npm "npm not found. Install Node 22+ (see README)."
+  warn_env_placeholders
   npm run launch
 }
 
@@ -81,7 +93,8 @@ ensure_docker_env_file() {
   : >"$env_path"
   echo "Created empty .env at $env_path"
   if [[ -f "$ROOT/.env.example" ]]; then
-    echo "Tip: copy settings from .env.example if you want Telegram notifications."
+    echo "Tip: copy settings from .env.example, then replace every placeholder with real values."
+    echo "Never enable Telegram with the example bot token or channel name."
   fi
   echo ""
 }
@@ -93,6 +106,7 @@ run_docker() {
     exit 1
   fi
   ensure_docker_env_file
+  warn_env_placeholders
   docker compose -f packaging/docker/docker-compose.yml build --quiet torzlink
   docker compose -f packaging/docker/docker-compose.yml run --rm -it torzlink
 }

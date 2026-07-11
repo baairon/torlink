@@ -62,7 +62,7 @@ When editing one launcher file, check the other and update this table if behavio
 ### Security (low priority unless copying `.env.example`)
 
 - [x] `.env.example` — Telegram vars commented by default; README warns not to use placeholders
-- [ ] Launcher warns explicitly when copying `.env.example` placeholder tokens
+- [x] Launcher warns when `.env` contains placeholder Telegram token/channel values
 
 ## Already done (session reference)
 
