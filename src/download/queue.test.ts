@@ -56,7 +56,7 @@ describe("DownloadQueue seeding", () => {
 
       const file = await q.exportTorrentFile(item.id);
 
-      expect(file).toBe(path.join(outDir, "Some Torrent.torrent"));
+      expect(file).toBe(path.join(outDir, "Completed", "Some Torrent.torrent"));
       await expect(fs.readFile(file!)).resolves.toEqual(Buffer.from([5, 6, 7]));
     } finally {
       deleteTorrentMeta(item.id);

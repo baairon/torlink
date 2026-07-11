@@ -23,6 +23,8 @@ import type {
 import type { SourceId } from "../sources/types";
 import parseTorrent from "parse-torrent";
 import { promises as fs } from "node:fs";
+import path from "node:path";
+import { getDownloadsDir, getSeedingDir, getCompletedDir } from "../config/folder";
 
 /**
  * A real seed never pulls data off the network: verifying on-disk files reads
@@ -132,7 +134,7 @@ export class DownloadQueue extends EventEmitter {
 
   private startEngine(item: QueueItem): void {
     const source = torrentMetaExists(item.id) ? torrentMetaPath(item.id) : item.magnet;
-    this.engine.add(item.id, source, item.dir, this.engineHandlers(item.id), this.trackers);
+    this.engine.add(item.id, source, getDownloadsDir(item.dir), this.engineHandlers(item.id), this.trackers);
   }
 
   // One torrent serves an item across its whole life (download -> seed ->
@@ -196,37 +198,68 @@ export class DownloadQueue extends EventEmitter {
   }
 
   private complete(it: QueueItem): void {
-    this.recordHistory(it);
     this.items.delete(it.id);
-    // Opt-out seeding: a finished download is already a complete, verified
-    // torrent, so keep it alive and seeding instead of tearing it down.
-    this.beginSeed(it);
+    this.engine.remove(it.id);
+
+    if (it.magnet) {
+      this.seeds.set(it.id, {
+        id: it.id,
+        name: it.name,
+        source: it.source,
+        magnet: it.magnet,
+        dir: it.dir,
+        sizeBytes: it.totalBytes,
+        status: "paused",
+        uploadSpeed: 0,
+        uploaded: 0,
+        peers: 0,
+      });
+      void this.moveAndSeed(it);
+    }
+
+    this.recordHistory(it);
     this.emit("completed", it.name);
     this.changed();
     void this.persist();
     this.maybeStopPoll();
   }
 
-  // Adopt the just-finished download's live torrent as a seed in place: no
-  // re-add, no re-verify (progress is already 1, so stray detection never
-  // trips). Restart / manual resume go through startSeeding instead.
-  private beginSeed(it: QueueItem): void {
-    if (!it.magnet) return;
-    this.seeds.set(it.id, {
-      id: it.id,
-      name: it.name,
-      source: it.source,
-      magnet: it.magnet,
-      dir: it.dir,
-      sizeBytes: it.totalBytes,
-      status: "seeding",
-      uploadSpeed: 0,
-      uploaded: 0,
-      peers: 0,
-    });
+  private async moveTorrent(id: string, name: string, baseDir: string, fromPhase: "Downloads" | "Seeding", toPhase: "Seeding" | "Completed"): Promise<void> {
+    const fromBase = fromPhase === "Downloads" ? getDownloadsDir(baseDir) : getSeedingDir(baseDir);
+    const toBase = toPhase === "Seeding" ? getSeedingDir(baseDir) : getCompletedDir(baseDir);
+    
+    const fromPath = path.join(fromBase, name);
+    const toPath = path.join(toBase, name);
+
+    try {
+      await fs.mkdir(toBase, { recursive: true });
+      if (await fs.stat(fromPath).then(() => true).catch(() => false)) {
+        await fs.rename(fromPath, toPath);
+      } else {
+        const legacyPath = path.join(baseDir, name);
+        if (await fs.stat(legacyPath).then(() => true).catch(() => false)) {
+          await fs.rename(legacyPath, toPath);
+        }
+      }
+    } catch (err) {
+      // Ignore errors if file is locked or missing
+    }
+  }
+
+  private async moveAndSeed(it: QueueItem): Promise<void> {
+    await this.moveTorrent(it.id, it.name, it.dir, "Downloads", "Seeding");
+    const s = this.seeds.get(it.id);
+    if (!s) return;
+
+    s.status = "seeding";
     this.strayHits.set(it.id, 0);
     this.seedStartedAt.set(it.id, Date.now());
+
+    const source = torrentMetaExists(it.id) ? torrentMetaPath(it.id) : it.magnet;
+    this.engine.add(it.id, source, getSeedingDir(it.dir), this.engineHandlers(it.id), this.trackers);
+
     this.ensurePoll();
+    this.changed();
     void this.persistSeeds();
   }
 
@@ -388,7 +421,13 @@ export class DownloadQueue extends EventEmitter {
   exportTorrentFile(id: string): Promise<string | null> {
     const it = this.items.get(id) ?? this.seeds.get(id) ?? this.history.find((h) => h.id === id);
     if (!it) return Promise.resolve(null);
-    return exportTorrentMeta(it.id, it.name, it.dir);
+    let targetDir = getDownloadsDir(it.dir);
+    if (this.seeds.has(id)) {
+      targetDir = getSeedingDir(it.dir);
+    } else if (!this.items.has(id)) {
+      targetDir = getCompletedDir(it.dir);
+    }
+    return exportTorrentMeta(it.id, it.name, targetDir);
   }
 
   cancel(id: string): void {
@@ -465,7 +504,7 @@ export class DownloadQueue extends EventEmitter {
     // Seed from the stored .torrent metadata when we have it (verifies the local
     // file immediately, no swarm needed); fall back to the magnet otherwise.
     const source = torrentMetaExists(h.id) ? torrentMetaPath(h.id) : h.magnet;
-    this.engine.add(h.id, source, h.dir, this.engineHandlers(h.id), this.trackers);
+    this.engine.add(h.id, source, getSeedingDir(h.dir), this.engineHandlers(h.id), this.trackers);
     this.ensurePoll();
     this.changed();
     void this.persistSeeds();
@@ -485,6 +524,20 @@ export class DownloadQueue extends EventEmitter {
     this.changed();
     void this.persistSeeds();
     this.maybeStopPoll();
+  }
+
+  removeSeed(id: string): void {
+    const s = this.seeds.get(id);
+    if (!s) return;
+    this.engine.remove(id);
+    this.seeds.delete(id);
+    this.strayHits.delete(id);
+    this.seedStartedAt.delete(id);
+    this.changed();
+    void this.persistSeeds();
+    this.maybeStopPoll();
+
+    void this.moveTorrent(s.id, s.name, s.dir, "Seeding", "Completed");
   }
 
   toggleSeeding(h: HistoryItem): void {

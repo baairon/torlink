@@ -11,7 +11,6 @@ import { parseInput } from "../sources/magnet";
 import { magnetFromTorrentFile } from "../sources/torrentFile";
 import { readClipboard, writeClipboard } from "../util/clipboard";
 import { openFolder } from "../util/openFolder";
-import { openStream } from "../util/openStream";
 import { startWebServer, stopWebServer } from "../server";
 import { cleanText, formatBytes, truncate } from "../util/format";
 import {
@@ -34,6 +33,7 @@ import { HelpOverlay } from "./components/HelpOverlay";
 import { Results } from "./components/Results";
 import { Downloads } from "./components/Downloads";
 import { Seeding } from "./components/Seeding";
+import { Completed } from "./components/Completed";
 import { Spinner } from "./components/Spinner";
 import { TabTitle } from "./components/TabTitle";
 import { Files } from "./components/Files";
@@ -106,8 +106,7 @@ export function App({
   const [inspectingId, setInspectingIdState] = useState<string | null>(null);
   const [inspectingMagnet, setInspectingMagnet] = useState<string | null>(null);
   const [inspectingPeersId, setInspectingPeersId] = useState<string | null>(null);
-  const [inspectFocusSelected, setInspectFocusSelected] = useState<boolean>(true);
-  
+  const [inspectFocusSelected, setInspectFocusSelected] = useState<boolean>(true);  
   const setInspectingId = useCallback((id: string | null, magnet?: string) => {
     setInspectingIdState(id);
     setInspectingMagnet(magnet ?? null);
@@ -364,27 +363,7 @@ export function App({
     [queue],
   );
 
-  const streamDownload = useCallback(
-    (id: string) => {
-      if (!queue) return;
-      void (async () => {
-        try {
-          setNotice("Starting local stream server...");
-          const url = await queue.stream(id);
-          if (url) {
-            const ok = await openStream(url);
-            if (ok) setNotice("Launched media player.");
-            else setNotice(`Could not launch player. Stream running at: ${url}`);
-          } else {
-            setNotice("Stream not available. Waiting for metadata or files...");
-          }
-        } catch (err: any) {
-          setNotice(`Stream error: ${err.message || String(err)}`);
-        }
-      })();
-    },
-    [queue]
-  );
+
 
   const toggleFileSelection = useCallback(
     (id: string, path: string, selected: boolean) => {
@@ -476,7 +455,6 @@ export function App({
       copyMagnet,
       openDownloadFolder,
       exportTorrent,
-      streamDownload,
       notice,
       setNotice,
       inspectingId,
@@ -515,7 +493,6 @@ export function App({
     copyMagnet,
     openDownloadFolder,
     exportTorrent,
-    streamDownload,
     notice,
     inspectingId,
     inspectingMagnet,
@@ -725,6 +702,8 @@ export function App({
               <Downloads />
             ) : section === "seeding" ? (
               <Seeding />
+            ) : section === "completed" ? (
+              <Completed />
             ) : (
               <Results />
             )}

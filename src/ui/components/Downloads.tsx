@@ -5,6 +5,7 @@ import { Panel } from "./Panel";
 import { ProgressBar } from "./ProgressBar";
 import { wrapStep, windowStart } from "../move";
 import { COLOR, GUTTER, ICON, sourceStyle } from "../theme";
+import { getDownloadsDir, getSeedingDir, getCompletedDir } from "../../config/folder";
 import {
   cleanText,
   formatBytes,
@@ -53,7 +54,6 @@ export function Downloads() {
     openDownloadFolder,
     setDownloadFocus,
     exportTorrent,
-    streamDownload,
     inspectingId,
     setInspectingId,
     inspectingPeersId,
@@ -76,8 +76,16 @@ export function Downloads() {
       else if (input === "f") queue.retryFailed();
       else if (input === "x") queue.clearHistory();
       else if (input === "e") {
-        const dir = inActive ? active[clamped]?.dir : recent[recentCursor]?.dir;
-        if (dir) openDownloadFolder(dir);
+        if (inActive) {
+          const it = active[clamped];
+          if (it) openDownloadFolder(getDownloadsDir(it.dir));
+        } else {
+          const h = recent[recentCursor];
+          if (h) {
+            const isSeeding = queue.getSeed(h.id);
+            openDownloadFolder(isSeeding ? getSeedingDir(h.dir) : getCompletedDir(h.dir));
+          }
+        }
       } else if (input === "s") {
         const item = inActive ? active[clamped] : recent[recentCursor];
         if (item) exportTorrent({ id: item.id, name: item.name });
@@ -89,7 +97,6 @@ export function Downloads() {
         if (!it) return;
         if (input === "c") queue.cancel(it.id);
         else if (input === "p") queue.togglePause(it.id);
-        else if (input === "v") streamDownload(it.id);
         else if (input === "w") setInspectingPeersId(it.id);
         else if (input === "i" || input === "Enter" || input === " ") setInspectingId(it.id);
       } else {

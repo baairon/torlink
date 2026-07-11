@@ -46,7 +46,6 @@ export const HELP_GROUPS: HelpGroup[] = [
       { keys: "f", label: "Retry failed" },
       { keys: "d", label: "Download again" },
       { keys: "e", label: "Open folder" },
-      { keys: "v", label: "Stream video" },
       { keys: "i", label: "Inspect files" },
       { keys: "s", label: "Export torrent file" },
       { keys: "x", label: "Clear recent" },
@@ -57,6 +56,7 @@ export const HELP_GROUPS: HelpGroup[] = [
     hints: [
       { keys: "p", label: "Pause/resume" },
       { keys: "c", label: "Remove from list" },
+      { keys: "x", label: "Stop" },
       { keys: "e", label: "Open folder" },
     ],
   },
@@ -65,7 +65,6 @@ export const HELP_GROUPS: HelpGroup[] = [
     hints: [
       { keys: "space", label: "Keep or skip file" },
       { keys: "↵", label: "Open file natively" },
-      { keys: "v", label: "Stream video" },
     ],
   },
 ];
@@ -80,8 +79,6 @@ const ALWAYS: Hint = { keys: "?", label: "Keys" };
 const SWITCH: Hint = { keys: "tab", label: "Switch" };
 
 const FOLDER: Hint = { keys: "e", label: "Folder" };
-
-const STREAM: Hint = { keys: "v", label: "Stream" };
 
 const TORRENT: Hint = { keys: "s", label: "Export" };
 
@@ -103,7 +100,6 @@ export function footerHints(
         { keys: "↑↓", label: "Move" },
         { keys: "space", label: spaceLabel, color: spaceColor },
         { keys: "↵", label: "Open" },
-        STREAM,
         { keys: "esc", label: "Back" },
         ALWAYS,
       ];
@@ -129,11 +125,14 @@ export function footerHints(
     if (section === "seeding") {
       const label =
         seedFocus === "seeding" ? "Pause" : seedFocus === "missing" ? "Retry" : "Resume";
-      return [{ keys: "p", label }, { keys: "c", label: "Remove" }, FOLDER, SWITCH, ALWAYS];
+      return [{ keys: "p", label }, { keys: "c", label: "Remove" }, { keys: "x", label: "Stop" }, FOLDER, SWITCH, ALWAYS];
+    }
+    if (section === "completed") {
+      return [{ keys: "c", label: "Remove" }, { keys: "x", label: "Clear" }, FOLDER, TORRENT, SWITCH, ALWAYS];
     }
     if (section === "downloads") {
       if (downloadFocus === "paused") {
-        return [{ keys: "i", label: "Files" }, { keys: "p", label: "Resume" }, { keys: "c", label: "Cancel" }, STREAM, FOLDER, TORRENT, SWITCH, ALWAYS];
+        return [{ keys: "i", label: "Files" }, { keys: "p", label: "Resume" }, { keys: "c", label: "Cancel" }, FOLDER, TORRENT, SWITCH, ALWAYS];
       }
       if (downloadFocus === "failed") {
         return [{ keys: "i", label: "Files" }, { keys: "f", label: "Retry" }, { keys: "c", label: "Remove" }, FOLDER, TORRENT, SWITCH, ALWAYS];
@@ -154,14 +153,13 @@ export function footerHints(
           { keys: "i", label: "Files" },
           { keys: "p", label: "Pause" },
           { keys: "c", label: "Cancel" },
-          STREAM,
           FOLDER,
           TORRENT,
           SWITCH,
           ALWAYS,
         ];
       }
-      return [{ keys: "p", label: "Pause" }, { keys: "c", label: "Cancel" }, STREAM, FOLDER, TORRENT, SWITCH, ALWAYS];
+      return [{ keys: "p", label: "Pause" }, { keys: "c", label: "Cancel" }, FOLDER, TORRENT, SWITCH, ALWAYS];
     }
     return [
       NAVIGATE,

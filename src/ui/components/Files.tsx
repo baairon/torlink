@@ -6,8 +6,10 @@ import { cleanText, formatBytes } from "../../util/format";
 import path from "node:path";
 import { openFolder } from "../../util/openFolder";
 
+import { getDownloadsDir, getSeedingDir, getCompletedDir } from "../../config/folder";
+
 export function Files() {
-  const { queue, inspectingId, inspectingMagnet, toggleFileSelection, streamDownload, listRows, setNotice, setInspectFocusSelected } = useStore();
+  const { queue, inspectingId, inspectingMagnet, toggleFileSelection, listRows, setNotice, setInspectFocusSelected } = useStore();
   const files = useFiles(queue, inspectingId, inspectingMagnet);
   const [cursor, setCursor] = useState(0);
 
@@ -29,16 +31,22 @@ export function Files() {
       else if (input === " ") {
         const f = files[cursor]!;
         toggleFileSelection(inspectingId!, f.path, !f.selected);
-      } else if (input === "v") {
-        const f = files[cursor]!;
-        streamDownload(inspectingId!, f.path);
+
       } else if (key.return) {
         const f = files[cursor]!;
-        // Construct the absolute path
-        const items = queue.getItems();
-        const it = items.find(i => i.id === inspectingId);
+        const it = queue.getItems().find(i => i.id === inspectingId);
+        let baseDir = "";
         if (it) {
-          const absPath = path.join(it.dir, f.path);
+          baseDir = getDownloadsDir(it.dir);
+        } else {
+          const h = queue.getHistory().find(i => i.id === inspectingId);
+          if (h) {
+            const isSeeding = queue.getSeed(h.id);
+            baseDir = isSeeding ? getSeedingDir(h.dir) : getCompletedDir(h.dir);
+          }
+        }
+        if (baseDir) {
+          const absPath = path.join(baseDir, f.path);
           openFolder(absPath).then((ok) => {
             if (ok) setNotice("Opened file.");
             else setNotice("Couldn't open file.");

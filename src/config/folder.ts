@@ -18,3 +18,15 @@ export function normalizeDownloadDir(input: string, home: string = os.homedir())
   if (!expanded) return "";
   return path.normalize(expanded);
 }
+
+export function getDownloadsDir(base: string): string {
+  return path.join(base, "Downloads");
+}
+
+export function getSeedingDir(base: string): string {
+  return path.join(base, "Seeding");
+}
+
+export function getCompletedDir(base: string): string {
+  return path.join(base, "Completed");
+}

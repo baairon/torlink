@@ -9,7 +9,7 @@ export type View = "splash" | "browser";
 
 export type Category = "all" | "games" | "movies" | "tv" | "anime";
 
-export type Section = Category | "downloads" | "seeding";
+export type Section = Category | "downloads" | "seeding" | "completed";
 
 export const CATEGORIES: { key: Category; label: string; group?: SourceGroup }[] = [
   { key: "all", label: "All" },
@@ -72,8 +72,7 @@ export interface Store {
   toggleThrottle: () => void;
   // Copies the cached .torrent metadata into the item's download folder and
   // reports the outcome through the notice line.
-  exportTorrent: (input: { id: string; name: string }) => void;
-  streamDownload: (id: string, targetPath?: string) => void;
+  exportTorrent: (item: { id: string; name: string }) => void;
   notice: string | null;
   setNotice: (msg: string | null) => void;
   inspectingId: string | null;

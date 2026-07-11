@@ -4,6 +4,7 @@ import { useStore, useQueueHistory, useSeeds, type SeedFocus } from "../store";
 import { Panel } from "./Panel";
 import { wrapStep, windowStart } from "../move";
 import { COLOR, GUTTER, ICON, sourceStyle } from "../theme";
+import { getSeedingDir } from "../../config/folder";
 import { cleanText, formatBytes, formatBytesPerSec, truncate } from "../../util/format";
 import type { SeedItem } from "../../download/types";
 
@@ -34,14 +35,15 @@ export function Seeding() {
     useStore();
   const history = useQueueHistory(queue);
   const seeds = useSeeds(queue);
+  const activeHistory = history.filter((h) => seeds.has(h.id));
   const focused = region === "content";
 
-  const total = history.length;
+  const total = activeHistory.length;
   const [cursor, setCursor] = useState(0);
   const clamped = Math.min(cursor, Math.max(0, total - 1));
 
   const focusStatus: SeedFocus | null =
-    focused && total > 0 ? (seeds.get(history[clamped]?.id ?? "")?.status ?? "idle") : null;
+    focused && total > 0 ? (seeds.get(activeHistory[clamped]?.id ?? "")?.status ?? "idle") : null;
   useEffect(() => {
     setSeedFocus(focusStatus);
     return () => setSeedFocus(null);
@@ -52,26 +54,26 @@ export function Seeding() {
       if (key.upArrow || input === "k") setCursor(wrapStep(clamped, -1, total));
       else if (key.downArrow || input === "j") setCursor(wrapStep(clamped, 1, total));
       else if (input === "p") {
-        const h = history[clamped];
+        const h = activeHistory[clamped];
         if (!h) return;
         queue.toggleSeeding(h);
         if (queue.getSeed(h.id)?.status === "missing") {
           setNotice(`${ICON.warn} That file isn't on disk anymore.`);
         }
+      } else if (input === "x") {
+        const h = activeHistory[clamped];
+        if (h) queue.removeSeed(h.id);
       } else if (input === "c") {
-        const h = history[clamped];
+        const h = activeHistory[clamped];
         if (h) queue.removeHistory(h.id);
       } else if (input === "e") {
-        const h = history[clamped];
-        if (h) openDownloadFolder(h.dir);
-      } else if (input === "w") {
-        const h = history[clamped];
-        if (h) setInspectingPeersId(h.id);
+        const h = activeHistory[clamped];
+        if (h) openDownloadFolder(getSeedingDir(h.dir));
       } else if (input === "i") {
-        const h = history[clamped];
+        const h = activeHistory[clamped];
         if (h) setInspectingId(h.id);
       } else if (input === "w") {
-        const h = history[clamped];
+        const h = activeHistory[clamped];
         if (h) setInspectingPeersId(h.id);
       }
     },
@@ -103,7 +105,7 @@ export function Seeding() {
 
   const rows = Math.max(1, panelH - 2);
   const start = windowStart(clamped, total, rows);
-  const visible = history.slice(start, start + rows);
+  const visible = activeHistory.slice(start, start + rows);
 
   return (
     <Panel
