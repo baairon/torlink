@@ -1,7 +1,9 @@
 import WebTorrent, { type Torrent } from "webtorrent";
 import type { TorrentFileInfo, PeerInfo } from "./types";
 import { saveTorrentMeta } from "./persist";
+import { createRequire } from "node:module";
 
+const require = createRequire(import.meta.url);
 
 export interface TorrentProgress {
   progress: number;
@@ -39,6 +41,7 @@ export class TorrentEngine {
   private client: WebTorrent | null = null;
   private torrents = new Map<string, Torrent>();
   private server: any = null;
+  private serverPromise: Promise<void> | null = null;
   private deselectedFiles = new Map<string, Set<string>>();
   private pendingMetadata = new Map<string, Promise<TorrentFileInfo[]>>();
   private throttleEnabled = false;
@@ -263,12 +266,67 @@ export class TorrentEngine {
     const t = this.torrents.get(id);
     if (!t || !t.files || t.files.length === 0) return null;
 
-    if (!this.server) {
+    if (!this.serverPromise) {
       this.server = this.client!.createServer();
-      await new Promise<void>((resolve) => {
+      
+      // Intercept safe ASCII URLs and bypass WebTorrent's broken URI router (which drops `#`, `?`, and crashes on `%`)
+      // by looking up the file in memory and serving it directly.
+      const originalListeners = this.server.server.listeners("request");
+      this.server.server.removeAllListeners("request");
+
+      this.server.server.on("request", (req: any, res: any) => {
+        if (req.url && req.url.startsWith("/torlink-stream/")) {
+          const parts = req.url.split("/");
+          if (parts.length >= 4) {
+            const infoHash = parts[2];
+            const fileIndexStr = parts[3];
+            
+            let torrent: WebTorrent.Torrent | undefined;
+            for (const t of this.torrents.values()) {
+              if (t.infoHash === infoHash) {
+                torrent = t;
+                break;
+              }
+            }
+            if (torrent && torrent.files) {
+              const fileIndex = parseInt(fileIndexStr, 10);
+              const file = torrent.files[fileIndex];
+              if (file) {
+                // Bypass WebTorrent's broken URL router completely
+                const { NodeServer } = require("webtorrent/lib/server.js");
+                const fakeRes = { headers: {} as Record<string, any> };
+                const result = NodeServer.serveFile(file, req, fakeRes);
+
+                const status = result.statusCode || result.status || 200;
+                res.writeHead(status, result.headers);
+                
+                if (result.body && typeof result.body.pipe === "function") {
+                  result.body.pipe(res);
+                } else if (result.body) {
+                  res.end(result.body);
+                } else {
+                  res.end();
+                }
+                return;
+              }
+            }
+          }
+        }
+        // Fallback to original WebTorrent listeners
+        originalListeners.forEach((fn: any) => fn(req, res));
+      });
+
+      this.serverPromise = new Promise<void>((resolve, reject) => {
+        this.server.server.once('error', (err: any) => {
+          if (err.code === 'EADDRINUSE') {
+            reject(err);
+          }
+        });
         this.server.listen(0, resolve);
       });
     }
+
+    await this.serverPromise;
 
     const port = this.server.address().port;
     
@@ -284,8 +342,8 @@ export class TorrentEngine {
       });
     }
 
-    const filePath = targetFile.path.replace(/\\/g, '/');
-    return `http://localhost:${port}/webtorrent/${t.infoHash}/${encodeURI(filePath)}`;
+    const fileIndex = t.files.indexOf(targetFile);
+    return `http://localhost:${port}/torlink-stream/${t.infoHash}/${fileIndex}`;
   }
 
   setThrottle(enabled: boolean, downLimit: number, upLimit: number): void {
@@ -320,6 +378,7 @@ export class TorrentEngine {
         this.server.close();
       } catch {}
       this.server = null;
+      this.serverPromise = null;
     }
     this.torrents.clear();
     // Never block shutdown on webtorrent's async teardown: hand off the client

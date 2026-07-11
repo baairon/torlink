@@ -22,6 +22,7 @@ export const HELP_GROUPS: HelpGroup[] = [
       { keys: "o", label: "Default download folder" },
       { keys: "t", label: "Extra trackers" },
       { keys: "b", label: "Turtle Mode (Throttle)" },
+      { keys: "W", label: "Toggle Web Server" },
       { keys: "q", label: "Quit" },
     ],
   },
