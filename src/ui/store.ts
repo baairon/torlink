@@ -64,6 +64,7 @@ export interface Store {
     magnet: string;
     source?: SourceId;
     sizeBytes?: number;
+    returnToSplash?: boolean;
   }) => void;
   copyMagnet: (input: { name: string; magnet: string }) => void;
   openDownloadFolder: (dir: string) => void;

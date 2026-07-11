@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import { Box, Text, useInput, useStdin } from "ink";
 import { Logo } from "../components/Logo";
 import { SearchBar } from "../components/SearchBar";
@@ -5,21 +6,61 @@ import { LOGO_WIDTH } from "../logo";
 import { useStore } from "../store";
 import { sourcesByGroup } from "../../sources/registry";
 import { COLOR, ICON } from "../theme";
+import { parseInput } from "../../sources/magnet";
 
 const CATEGORIES = sourcesByGroup()
   .map((g) => g.group.toLowerCase())
   .join(`  ${ICON.dot}  `);
 
 export function Splash() {
-  const { submitQuery, quitAll, cols, rows } = useStore();
+  const { submitQuery, startDownload, requestDownloadTo, setView, setRegion, quitAll, cols, rows } =
+    useStore();
   const { isRawModeSupported } = useStdin();
+
+  // Track the live text for processing.
+  const textRef = useRef("");
 
   useInput(
     (input, key) => {
       if (key.escape || (key.ctrl && input === "c")) quitAll();
+
+      // Ctrl+D: download magnet to a specific folder
+      if (key.ctrl && input === "d") {
+        const q = textRef.current.trim();
+        if (!q) return;
+        const magnet = parseInput(q);
+        if (!magnet) return;
+        requestDownloadTo({
+          id: magnet.infoHash,
+          name: magnet.name,
+          magnet: magnet.magnet,
+          returnToSplash: true,
+        });
+        setView("browser");
+      }
     },
     { isActive: isRawModeSupported },
   );
+
+  const handleSubmit = (raw: string) => {
+    const q = raw.trim();
+
+    
+    if (q) {
+      const magnet = parseInput(q);
+      if (magnet) {
+        startDownload({
+          id: magnet.infoHash,
+          name: magnet.name,
+          magnet: magnet.magnet,
+        });
+        setView("browser");
+        return;
+      }
+    }
+
+    submitQuery(raw);
+  };
 
   const showLogo = cols >= LOGO_WIDTH + 2;
   const barWidth = Math.max(24, Math.min(cols - 6, 62));
@@ -51,13 +92,17 @@ export function Splash() {
           value=""
           editing
           placeholder="Search or paste a magnet link…"
-          onSubmit={submitQuery}
+          onSubmit={handleSubmit}
+          onChange={(v) => { textRef.current = v; }}
         />
       </Box>
       <Box marginTop={1}>
         <Text>
           <Text color={COLOR.alt}>↵</Text>
-          <Text dimColor> search</Text>
+          <Text dimColor> search </Text>
+          <Text dimColor>{`  ${ICON.dot}  `}</Text>
+          <Text color={COLOR.alt}>^d</Text>
+          <Text dimColor> pick folder</Text>
           <Text dimColor>{`  ${ICON.dot}  `}</Text>
           <Text dimColor>empty </Text>
           <Text color={COLOR.alt}>↵</Text>

@@ -95,6 +95,7 @@ export function App({
     magnet: string;
     source?: SourceId;
     sizeBytes?: number;
+    returnToSplash?: boolean;
   } | null>(null);
   const [lastDownloadToDir, setLastDownloadToDir] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -244,6 +245,7 @@ export function App({
       magnet: string;
       source?: SourceId;
       sizeBytes?: number;
+      returnToSplash?: boolean;
     }) => {
       setPendingDownload(input);
     },
@@ -251,8 +253,9 @@ export function App({
   );
 
   const closeDownloadToPrompt = useCallback(() => {
+    if (pendingDownload?.returnToSplash) setView("splash");
     setPendingDownload(null);
-  }, []);
+  }, [pendingDownload]);
 
   const startDownloadTo = useCallback(
     (raw: string) => {
