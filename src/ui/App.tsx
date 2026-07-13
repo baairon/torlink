@@ -35,6 +35,7 @@ import { TabTitle } from "./components/TabTitle";
 import { Splash } from "./views/Splash";
 import { FolderPrompt } from "./components/FolderPrompt";
 import { TrackersPrompt } from "./components/TrackersPrompt";
+import { SubtitleLangPrompt } from "./components/SubtitleLangPrompt";
 import { footerHints } from "./keymap";
 import { COLOR, ICON } from "./theme";
 import { useMouseWheel } from "./hooks/useMouseWheel";
@@ -86,6 +87,7 @@ export function App({
   const [showHelp, setShowHelp] = useState(false);
   const [editingFolder, setEditingFolder] = useState(false);
   const [editingTrackers, setEditingTrackers] = useState(false);
+  const [editingSubtitleLang, setEditingSubtitleLang] = useState(false);
   // A result waiting on the "download to" prompt (D); null when the prompt is
   // closed. lastDownloadToDir pre-fills the next prompt so queueing a batch
   // into the same alternate folder only costs one typed path per session.
@@ -108,6 +110,7 @@ export function App({
       const cfg = await loadConfig();
       const q = new DownloadQueue();
       q.setTrackers(cfg.trackers);
+      q.setSubtitleLang(cfg.subtitleLang);
       q.restore(reconcileQueue(await loadQueue()));
       q.restoreHistory(await loadHistory());
       q.restoreSeeds(await loadSeeds());
@@ -142,9 +145,17 @@ export function App({
     if (!queue) return;
     const onCompleted = (name: string): void =>
       setNotice(`${ICON.done} ${truncate(cleanText(name), 40)}`);
+    const onSubtitles = (_name: string, count: number, lang: string): void =>
+      setNotice(
+        count > 0
+          ? `${ICON.done} Subtitles (${lang}): ${count} saved`
+          : `${ICON.warn} No ${lang} subtitles found`,
+      );
     queue.on("completed", onCompleted);
+    queue.on("subtitles", onSubtitles);
     return () => {
       queue.off("completed", onCompleted);
+      queue.off("subtitles", onSubtitles);
     };
   }, [queue]);
 
@@ -167,6 +178,7 @@ export function App({
     (c: Config) => {
       setConfigState(c);
       queue?.setTrackers(c.trackers);
+      queue?.setSubtitleLang(c.subtitleLang);
       void saveConfig(c);
     },
     [queue],
@@ -179,6 +191,24 @@ export function App({
   const closeTrackersPrompt = useCallback(() => {
     setEditingTrackers(false);
   }, []);
+
+  const closeSubtitleLangPrompt = useCallback(() => {
+    setEditingSubtitleLang(false);
+  }, []);
+
+  const setSubtitleLang = useCallback(
+    (lang: string) => {
+      closeSubtitleLangPrompt();
+      if (!config) return;
+      if (lang === config.subtitleLang) {
+        setNotice("Subtitle language unchanged.");
+        return;
+      }
+      setConfig({ ...config, subtitleLang: lang });
+      setNotice(`Subtitle language: ${lang}`);
+    },
+    [config, setConfig, closeSubtitleLangPrompt],
+  );
 
   const setTrackers = useCallback(
     (list: string[]) => {
@@ -392,7 +422,7 @@ export function App({
       submitQuery,
       section,
       setSection,
-      region: showHelp || editingFolder || editingTrackers || pendingDownload ? "help" : region,
+      region: showHelp || editingFolder || editingTrackers || editingSubtitleLang || pendingDownload ? "help" : region,
       setRegion,
       captureMode,
       setCaptureMode,
@@ -425,6 +455,7 @@ export function App({
     showHelp,
     editingFolder,
     editingTrackers,
+    editingSubtitleLang,
     pendingDownload,
     captureMode,
     downloadFocus,
@@ -450,7 +481,7 @@ export function App({
         quitAll();
         return;
       }
-      if (editingFolder || editingTrackers || pendingDownload) return; // the prompt owns input (its own esc + enter)
+      if (editingFolder || editingTrackers || editingSubtitleLang || pendingDownload) return; // the prompt owns input (its own esc + enter)
       if (captureMode === "text") return;
       if (showHelp) {
         setShowHelp(false);
@@ -468,6 +499,11 @@ export function App({
       if (input === "t") {
         setShowHelp(false);
         setEditingTrackers(true);
+        return;
+      }
+      if (input === "u") {
+        setShowHelp(false);
+        setEditingSubtitleLang(true);
         return;
       }
       if (input === "m") {
@@ -568,6 +604,17 @@ export function App({
           </Box>
         ) : null}
 
+        {editingSubtitleLang ? (
+          <Box marginTop={1}>
+            <SubtitleLangPrompt
+              width={Math.max(24, Math.min(cols - 4, 62))}
+              value={store.config.subtitleLang}
+              onSubmit={setSubtitleLang}
+              onCancel={closeSubtitleLangPrompt}
+            />
+          </Box>
+        ) : null}
+
         {pendingDownload ? (
           <Box marginTop={1}>
             <FolderPrompt
@@ -589,7 +636,7 @@ export function App({
         <Box
           height={bodyH}
           marginTop={compact ? 0 : 1}
-          display={showHelp || editingFolder || editingTrackers || pendingDownload ? "none" : "flex"}
+          display={showHelp || editingFolder || editingTrackers || editingSubtitleLang || pendingDownload ? "none" : "flex"}
           overflow="hidden"
         >
           <Sidebar />
@@ -605,7 +652,7 @@ export function App({
         </Box>
 
         {showFooter ? (
-          <Box display={showHelp || editingFolder || editingTrackers || pendingDownload ? "none" : "flex"}>
+          <Box display={showHelp || editingFolder || editingTrackers || editingSubtitleLang || pendingDownload ? "none" : "flex"}>
             <Footer hints={footerHints(region, section, downloadFocus, seedFocus)} />
           </Box>
         ) : null}
