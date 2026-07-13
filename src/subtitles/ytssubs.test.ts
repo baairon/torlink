@@ -8,8 +8,8 @@ function html(body: string): Response {
 // Real pages are one long line; fixtures model the row shapes without newlines.
 const SEARCH_HTML =
   `<html><body><ul class="media-list"><li class="media">` +
-  `<a href="/movie-imdb/tt1375666"><div class="media-body"><h3 class="media-heading">Inception</h3><small>year 2010</small></div></a></li>` +
-  `<li class="media"><a href="/movie-imdb/tt9999999"><div class="media-body"><h3 class="media-heading">Inception Deux</h3><small>year 2024</small></div></a></li>` +
+  `<a href="/movie-imdb/tt1375666"><div class="media-body"><h3 class="media-heading" itemprop="name">Inception</h3><small>year 2010</small></div></a></li>` +
+  `<li class="media"><a href="/movie-imdb/tt9999999"><div class="media-body"><h3 class="media-heading" itemprop="name">Inception Deux</h3><small>year 2024</small></div></a></li>` +
   `</ul></body></html>`;
 
 const MOVIE_HTML =

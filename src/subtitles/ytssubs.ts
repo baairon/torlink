@@ -51,7 +51,7 @@ function findImdbId(html: string, title: string, year: number | undefined): stri
   const want = norm(title);
   for (const seg of html.split('href="/movie-imdb/').slice(1)) {
     const id = seg.match(/^(tt\d+)"/)?.[1];
-    const heading = seg.match(/<h3 class="media-heading">([^<]*)<\/h3>/)?.[1];
+    const heading = seg.match(/<h3 class="media-heading"[^>]*>([^<]*)<\/h3>/)?.[1];
     if (!id || !heading || norm(heading) !== want) continue;
     if (year !== undefined && !seg.includes(String(year))) continue;
     return id;

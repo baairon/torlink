@@ -61,12 +61,14 @@ describe("downloadSubtitle", () => {
     expect(await readFile(dest, "utf8")).toBe(SRT);
   });
 
-  it("sends the yts-subs referer for yifysubtitles.ch downloads", async () => {
+  it("sends a same-origin referer for yifysubtitles.ch downloads", async () => {
+    // The host's hotlink check serves an HTML page (HTTP 200) to any
+    // cross-domain referer; only its own origin gets the zip.
     const f = vi.fn<typeof fetch>().mockResolvedValue(new Response(SRT));
     const dest = join(dir, "c.srt");
     await downloadSubtitle(candidate("https://yifysubtitles.ch/subtitle/x.zip"), dest, f);
     const headers = (f.mock.calls[0]![1]!.headers ?? {}) as Record<string, string>;
-    expect(headers["referer"]).toBe("https://yts-subs.com/");
+    expect(headers["referer"]).toBe("https://yifysubtitles.ch/");
   });
 
   it("aborts bodies over 2 MB without buffering them and returns false", async () => {
@@ -96,6 +98,16 @@ describe("downloadSubtitle", () => {
   it("rejects content without a timing arrow", async () => {
     const f = vi.fn<typeof fetch>().mockResolvedValue(new Response("<html>blocked</html>"));
     const dest = join(dir, "f.srt");
+    expect(await downloadSubtitle(candidate(), dest, f)).toBe(false);
+    expect(existsSync(dest)).toBe(false);
+  });
+
+  it("rejects HTML whose comments contain a bare arrow", async () => {
+    // A blocked-download page is HTTP 200 HTML; "<!-- ads -->" must not pass
+    // as a subtitle. Only a real timing line (hh:mm:ss,mmm --> ...) counts.
+    const html = "<!DOCTYPE html><html><!-- served by cdn --><body>blocked</body></html>";
+    const f = vi.fn<typeof fetch>().mockResolvedValue(new Response(html));
+    const dest = join(dir, "f2.srt");
     expect(await downloadSubtitle(candidate(), dest, f)).toBe(false);
     expect(existsSync(dest)).toBe(false);
   });

@@ -42,9 +42,11 @@ export async function downloadSubtitle(
 ): Promise<boolean> {
   try {
     const headers: Record<string, string> = { "user-agent": BROWSER_UA };
-    // yifysubtitles.ch returns 403 for zip downloads without the page referer.
-    if (new URL(candidate.downloadUrl).host === "yifysubtitles.ch") {
-      headers["referer"] = "https://yts-subs.com/";
+    // yifysubtitles.ch hotlink-checks the referer: absent is a 403, a
+    // cross-domain one is a 200 HTML page. Only its own origin gets the zip.
+    const origin = new URL(candidate.downloadUrl).origin;
+    if (origin === "https://yifysubtitles.ch") {
+      headers["referer"] = `${origin}/`;
     }
     const res = await fetchImpl(candidate.downloadUrl, {
       headers,
@@ -59,7 +61,9 @@ export async function downloadSubtitle(
     const text = isZip
       ? extractSrtFromZip(buf, MAX_BYTES)
       : buf.toString("utf8").replace(/^\uFEFF/, "");
-    if (!text || !text.includes("-->")) return false;
+    // A real timing line, not any "-->": blocked-download pages are HTTP 200
+    // HTML whose comments ("<!-- ... -->") satisfy a bare-arrow check.
+    if (!text || !/\d{2}:\d{2}:\d{2}[,.]\d{3}\s*-->/.test(text)) return false;
 
     // "wx" so a subtitle the user already has (or edited) is never clobbered.
     await writeFile(destPath, text, { flag: "wx" });
