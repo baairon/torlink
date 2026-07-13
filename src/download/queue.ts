@@ -218,6 +218,8 @@ export class DownloadQueue extends EventEmitter {
       files,
       lang: this.subtitleLang,
     }).catch(() => 0);
+    // null = never searched (not subtitle-applicable): no toast either way.
+    if (count === null) return;
     this.emit("subtitles", it.name, count, this.subtitleLang);
   }
 

@@ -16,6 +16,8 @@ function srtPath(dir: string, videoPath: string, lang: string): string {
 }
 
 // Best-effort: never throws, returns how many .srt files were written.
+// null = never searched (not subtitle-applicable / nothing to subtitle),
+// 0 = searched and found nothing — callers must not warn on null.
 export async function fetchSubtitlesForDownload(opts: {
   name: string;
   dir: string;
@@ -23,12 +25,12 @@ export async function fetchSubtitlesForDownload(opts: {
   files: { path: string; length: number }[];
   lang: string;
   fetchImpl?: typeof fetch;
-}): Promise<number> {
+}): Promise<number | null> {
   const { name, dir, source, files, lang, fetchImpl = fetch } = opts;
   const kind = classifyForSubtitles(source, name);
-  if (!kind) return 0;
+  if (!kind) return null;
   const videos = files.filter((f) => isVideoFile(f.path) && f.length >= MIN_VIDEO_BYTES);
-  if (videos.length === 0) return 0;
+  if (videos.length === 0) return null;
 
   if (kind === "movie") {
     try {

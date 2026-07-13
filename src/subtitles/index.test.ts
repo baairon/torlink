@@ -124,7 +124,7 @@ describe("fetchSubtitlesForDownload", () => {
     await fs.rm(dir, { recursive: true, force: true });
   });
 
-  it("classify-null (games source): zero writes and zero fetch calls", async () => {
+  it("classify-null (games source): null, zero writes and zero fetch calls", async () => {
     const files = [{ path: "Elden.Ring.2022/setup.mkv", length: 900 * MB }];
     const dir = await makeDir(files);
     const fetchImpl = vi.fn() as unknown as typeof fetch;
@@ -138,9 +138,31 @@ describe("fetchSubtitlesForDownload", () => {
       fetchImpl,
     });
 
-    expect(count).toBe(0);
+    expect(count).toBeNull();
     expect(fetchImpl).not.toHaveBeenCalled();
     expect(await exists(path.join(dir, "Elden.Ring.2022", "setup.en.srt"))).toBe(false);
+    await fs.rm(dir, { recursive: true, force: true });
+  });
+
+  it("no qualifying video files: null without any fetch (nothing to subtitle)", async () => {
+    const files = [
+      { path: path.join(TV_NAME, "sample.mkv"), length: 20 * MB },
+      { path: path.join(TV_NAME, "info.nfo"), length: 300 * MB },
+    ];
+    const dir = await makeDir(files);
+    const fetchImpl = vi.fn() as unknown as typeof fetch;
+
+    const count = await fetchSubtitlesForDownload({
+      name: TV_NAME,
+      dir,
+      source: "eztv",
+      files,
+      lang: "en",
+      fetchImpl,
+    });
+
+    expect(count).toBeNull();
+    expect(fetchImpl).not.toHaveBeenCalled();
     await fs.rm(dir, { recursive: true, force: true });
   });
 

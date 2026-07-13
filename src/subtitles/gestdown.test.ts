@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { searchTv } from "./gestdown";
 import { parseRelease } from "./parse";
+import { pickBest } from "./score";
 
 function json(body: unknown): Response {
   return new Response(JSON.stringify(body), { status: 200 });
@@ -52,9 +53,16 @@ describe("searchTv", () => {
       .mockResolvedValueOnce(json(SHOWS))
       .mockResolvedValueOnce(json(SUBS));
     const out = await searchTv("severance", 1, 2, "en", f);
+    // One candidate per quality: parseRelease keeps only the first resolution
+    // token, so a combined "720p.1080p" name would hide the 1080p variant.
     expect(out).toEqual([
       {
-        releaseName: "Severance.S01E02.720p.1080p-MiNX",
+        releaseName: "Severance.S01E02.720p-MiNX",
+        lang: "en",
+        downloadUrl: "https://api.gestdown.info/subtitles/download/019474c9-aaaa",
+      },
+      {
+        releaseName: "Severance.S01E02.1080p-MiNX",
         lang: "en",
         downloadUrl: "https://api.gestdown.info/subtitles/download/019474c9-aaaa",
       },
@@ -71,6 +79,17 @@ describe("searchTv", () => {
     expect(String(f.mock.calls[1]![0])).toBe(
       "https://api.gestdown.info/subtitles/get/31437de3-1234/1/2/en",
     );
+  });
+
+  it("a 1080p video with a non-matching group still picks the 1080p variant", async () => {
+    const f = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(json(SHOWS))
+      .mockResolvedValueOnce(json(SUBS));
+    const out = await searchTv("severance", 1, 2, "en", f);
+    const video = parseRelease("Severance.S01E02.1080p.WEB.h264-NTb.mkv");
+    // Resolution alone (2 points) clears pickBest's >= 2 floor.
+    expect(pickBest(video, out, "en")?.releaseName).toBe("Severance.S01E02.1080p-MiNX");
   });
 
   it("returns [] when no show name matches the title, without a subtitles request", async () => {

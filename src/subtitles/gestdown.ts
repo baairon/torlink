@@ -65,13 +65,21 @@ export async function searchTv(
     const se = `S${pad2(season)}E${pad2(episode)}`;
     return (subs.matchingSubtitles ?? [])
       .filter((s) => s.completed)
-      .map((s) => ({
+      .flatMap((s) => {
         // Hyphen before the version: parseRelease only reads a release group
         // off a "-GROUP" tail, and pickBest's top weight rides on it.
-        releaseName: `${show.name}.${se}.${s.qualities.join(".")}-${s.version}`,
-        lang,
-        downloadUrl: BASE + s.downloadUri,
-      }));
+        // One candidate per quality: parseRelease keeps only the first
+        // resolution token, so a combined "720p.1080p" name hides the rest.
+        const names =
+          s.qualities.length > 0
+            ? s.qualities.map((q) => `${show.name}.${se}.${q}-${s.version}`)
+            : [`${show.name}.${se}-${s.version}`];
+        return names.map((releaseName) => ({
+          releaseName,
+          lang,
+          downloadUrl: BASE + s.downloadUri,
+        }));
+      });
   } catch {
     return [];
   }
