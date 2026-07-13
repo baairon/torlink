@@ -61,3 +61,21 @@ describe("isVideoFile", () => {
     expect(isVideoFile("movie")).toBe(false);
   });
 });
+
+// Season-only pack names: a torrent named for the whole season carries S01 or
+// "Season 1" with no episode; the per-file parse supplies episodes later.
+describe("parseRelease season-only forms", () => {
+  it("parses bare S01 as season without episode", () => {
+    const p = parseRelease("Severance.S01.1080p.WEB.h264");
+    expect(p.title).toBe("severance");
+    expect(p.season).toBe(1);
+    expect(p.episode).toBeUndefined();
+    expect(p.resolution).toBe("1080p");
+  });
+  it("parses 'Season 2' word form", () => {
+    const p = parseRelease("The.Bear.Season.2.Complete.720p.WEB");
+    expect(p.title).toBe("the bear");
+    expect(p.season).toBe(2);
+    expect(p.episode).toBeUndefined();
+  });
+});

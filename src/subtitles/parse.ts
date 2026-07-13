@@ -21,6 +21,7 @@ const RESOLUTION = /^(2160|1080|720|480)p$/;
 const CODEC = /^[xh]26[45]$/;
 const SE = /^s(\d{1,2})e(\d{1,3})$/;
 const NXN = /^(\d{1,2})x(\d{2,3})$/;
+const S_ONLY = /^s(\d{1,2})$/;
 const YEAR = /^(19|20)\d{2}$/;
 
 // A trailing -TOKEN is only a release group when it isn't an attribute word.
@@ -63,6 +64,13 @@ export function parseRelease(name: string): ParsedRelease {
     if ((m = t.match(SE)) || (m = t.match(NXN))) {
       parsed.season ??= parseInt(m[1]!, 10);
       parsed.episode ??= parseInt(m[2]!, 10);
+    } else if ((m = t.match(S_ONLY))) {
+      // A season pack ("Show.S01.1080p") names the season with no episode.
+      parsed.season ??= parseInt(m[1]!, 10);
+    } else if (t === "season" && /^\d{1,2}$/.test(tokens[i + 1] ?? "")) {
+      // Mark at "season", not the digit it consumes, so the title stops here.
+      if (markerIdx === -1) markerIdx = i;
+      parsed.season ??= parseInt(tokens[++i]!, 10);
     } else if (YEAR.test(t)) {
       parsed.year ??= parseInt(t, 10);
     } else if (RESOLUTION.test(t)) {
