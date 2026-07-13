@@ -13,6 +13,7 @@ import {
   type SeedRecord,
 } from "./persist";
 import { saveHistory, saveHistorySync, type HistoryItem } from "./history";
+import { fetchSubtitlesForDownload } from "../subtitles/index";
 import type { QueueItem, SeedItem } from "./types";
 import type { SourceId } from "../sources/types";
 
@@ -55,12 +56,18 @@ export class DownloadQueue extends EventEmitter {
   private strayHits = new Map<string, number>();
   private seedStartedAt = new Map<string, number>();
   private trackers: string[] = [];
+  private subtitleLang = "en";
 
   // Extra announce URLs appended to every torrent added from now on.
   // Existing running torrents aren't retro-updated — the change takes effect
   // for the next add / resume / re-seed.
   setTrackers(trackers: string[]): void {
     this.trackers = trackers;
+  }
+
+  // Language subtitles are fetched in for downloads completing from now on.
+  setSubtitleLang(lang: string): void {
+    this.subtitleLang = lang;
   }
 
   getItems(): QueueItem[] {
@@ -192,10 +199,26 @@ export class DownloadQueue extends EventEmitter {
     // Opt-out seeding: a finished download is already a complete, verified
     // torrent, so keep it alive and seeding instead of tearing it down.
     this.beginSeed(it);
+    // beginSeed keeps the torrent alive, so the engine can still list its files.
+    const files = this.engine.files(it.id) ?? [];
+    void this.fetchSubs(it, files);
     this.emit("completed", it.name);
     this.changed();
     void this.persist();
     this.maybeStopPoll();
+  }
+
+  // Best-effort side task: a subtitle failure must never affect the
+  // download/seed lifecycle, so every error collapses to count 0 here.
+  private async fetchSubs(it: QueueItem, files: { path: string; length: number }[]): Promise<void> {
+    const count = await fetchSubtitlesForDownload({
+      name: it.name,
+      dir: it.dir,
+      source: it.source,
+      files,
+      lang: this.subtitleLang,
+    }).catch(() => 0);
+    this.emit("subtitles", it.name, count, this.subtitleLang);
   }
 
   // Adopt the just-finished download's live torrent as a seed in place: no

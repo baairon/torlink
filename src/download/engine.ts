@@ -139,6 +139,18 @@ export class TorrentEngine {
     };
   }
 
+  // Relative paths (from the download dir) + sizes of the torrent's files.
+  files(id: string): { path: string; length: number }[] | null {
+    const t = this.torrents.get(id);
+    if (!t) return null;
+    try {
+      return t.files.map((f) => ({ path: f.path, length: f.length }));
+    } catch {
+      // webtorrent getters can throw before metadata is fully parsed
+      return null;
+    }
+  }
+
   remove(id: string): void {
     const t = this.torrents.get(id);
     this.torrents.delete(id);
