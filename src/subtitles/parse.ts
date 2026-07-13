@@ -31,6 +31,14 @@ export function isVideoFile(path: string): boolean {
   return VIDEO_EXT.test(path);
 }
 
+// Loose title comparison shared by the providers: case/punctuation-insensitive.
+export function normalizeTitle(s: string): string {
+  return s
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
 export function parseRelease(name: string): ParsedRelease {
   let s = name.replace(STRIP_EXT, "");
   s = s.replace(/([xh])\.(26[45])/gi, "$1$2");
@@ -71,7 +79,8 @@ export function parseRelease(name: string): ParsedRelease {
       // Mark at "season", not the digit it consumes, so the title stops here.
       if (markerIdx === -1) markerIdx = i;
       parsed.season ??= parseInt(tokens[++i]!, 10);
-    } else if (YEAR.test(t)) {
+    } else if (YEAR.test(t) && i > 0) {
+      // A year at token 0 is a title ("1917", "2012"), not the release year.
       parsed.year ??= parseInt(t, 10);
     } else if (RESOLUTION.test(t)) {
       parsed.resolution ??= t;

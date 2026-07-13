@@ -1,4 +1,5 @@
 import { writeFile } from "node:fs/promises";
+import { fetchResilient } from "../util/net";
 import { extractSrtFromZip } from "./zip";
 import type { SubtitleCandidate } from "./types";
 
@@ -10,7 +11,8 @@ export const FETCH_TIMEOUT_MS = 10_000;
 
 const MAX_BYTES = 2 * 1024 * 1024;
 
-async function readCapped(res: Response): Promise<Buffer | null> {
+// Single body-cap implementation for all subtitle fetches (providers import it).
+export async function readCapped(res: Response): Promise<Buffer | null> {
   const contentLength = res.headers.get("content-length");
   if (contentLength && Number(contentLength) > MAX_BYTES) return null;
   if (!res.body) {
@@ -48,9 +50,12 @@ export async function downloadSubtitle(
     if (origin === "https://yifysubtitles.ch") {
       headers["referer"] = `${origin}/`;
     }
-    const res = await fetchImpl(candidate.downloadUrl, {
+    // retries: 1 keeps this background hook polite to the subtitle hosts.
+    const res = await fetchResilient(candidate.downloadUrl, {
       headers,
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+      retries: 1,
+      fetchImpl,
     });
     if (!res.ok) return false;
 

@@ -4,6 +4,7 @@ import { TextField } from "./TextField";
 import { Panel } from "./Panel";
 import { PromptHints } from "./PromptHints";
 import { COLOR, ICON } from "../theme";
+import { SUBTITLE_LANG_RE } from "../../config/config";
 
 interface SubtitleLangPromptProps {
   width: number;
@@ -37,7 +38,7 @@ export function SubtitleLangPrompt({ width, value, onSubmit, onCancel }: Subtitl
               onChange={() => setInvalid(false)}
               onSubmit={(raw) => {
                 const lang = raw.trim().toLowerCase();
-                if (/^[a-z]{2,3}$/.test(lang)) onSubmit(lang);
+                if (SUBTITLE_LANG_RE.test(lang)) onSubmit(lang);
                 else setInvalid(true);
               }}
             />

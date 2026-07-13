@@ -14,12 +14,15 @@ export const defaultConfig: Config = {
   subtitleLang: "en",
 };
 
-// Accept only a plausible ISO 639 code (2-3 ASCII letters); anything else
-// falls back to English rather than poisoning every subtitle search.
+// A plausible ISO 639 code (2-3 ASCII letters) — the single home of the rule;
+// the TUI prompt validates against it too.
+export const SUBTITLE_LANG_RE = /^[a-z]{2,3}$/;
+
+// Anything else falls back to English rather than poisoning every subtitle search.
 export function normalizeSubtitleLang(value: unknown): string {
   if (typeof value !== "string") return "en";
   const lang = value.trim().toLowerCase();
-  return /^[a-z]{2,3}$/.test(lang) ? lang : "en";
+  return SUBTITLE_LANG_RE.test(lang) ? lang : "en";
 }
 
 export async function loadConfig(): Promise<Config> {

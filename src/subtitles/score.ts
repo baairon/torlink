@@ -37,7 +37,7 @@ export function pickBest(
   let best = survivors[0]!;
   for (const s of survivors) if (s.score > best.score) best = s;
 
-  const isTv = video.season !== undefined && video.episode !== undefined;
-  if (best.score >= 2 || (isTv && survivors.length === 1)) return best.cand;
-  return null;
+  // Contract floor: no candidate at >= 2 means nothing is downloaded, TV and
+  // movies alike (gestdown names carry group/resolution, so real matches clear it).
+  return best.score >= 2 ? best.cand : null;
 }

@@ -31,6 +31,9 @@ describe("parseRelease", () => {
     ["The Prestige (2006) 720p BRRip x265", { title: "the prestige", year: 2006, source: "bluray", codec: "x265" }],
     ["Some_Movie_2019_WEB-DL_H.265-GRP.mp4", { title: "some movie", year: 2019, source: "web", codec: "h265", group: "grp" }],
     ["Plain.Title.S01E05.WEBRip", { title: "plain title", season: 1, episode: 5, source: "web" }],
+    // A year-shaped token at position 0 is the title, not the release year.
+    ["1917.2019.1080p.BluRay", { title: "1917", year: 2019, resolution: "1080p", source: "bluray" }],
+    ["2012.2009.720p", { title: "2012", year: 2009, resolution: "720p" }],
   ];
 
   for (const [name, want] of cases) {

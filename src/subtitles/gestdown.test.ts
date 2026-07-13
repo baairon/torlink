@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { searchTv } from "./gestdown";
+import { parseRelease } from "./parse";
 
 function json(body: unknown): Response {
   return new Response(JSON.stringify(body), { status: 200 });
@@ -53,11 +54,19 @@ describe("searchTv", () => {
     const out = await searchTv("severance", 1, 2, "en", f);
     expect(out).toEqual([
       {
-        releaseName: "Severance.S01E02.720p.1080p.MiNX",
+        releaseName: "Severance.S01E02.720p.1080p-MiNX",
         lang: "en",
         downloadUrl: "https://api.gestdown.info/subtitles/download/019474c9-aaaa",
       },
     ]);
+    // The hyphen matters: parseRelease only reads a group off a hyphen tail,
+    // and pickBest's top weight rides on .group.
+    expect(parseRelease(out[0]!.releaseName)).toMatchObject({
+      title: "severance",
+      season: 1,
+      episode: 2,
+      group: "minx",
+    });
     expect(f).toHaveBeenCalledTimes(2);
     expect(String(f.mock.calls[1]![0])).toBe(
       "https://api.gestdown.info/subtitles/get/31437de3-1234/1/2/en",

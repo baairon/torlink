@@ -63,9 +63,8 @@ describe("pickBest scoring", () => {
     expect(pickBest(movie, [x265, h264], "en")).toBe(h264);
   });
 
-  it("accepts a sole TV survivor at score 0", () => {
-    const c = cand("Severance S02E01");
-    expect(pickBest(tv, [c], "en")).toBe(c);
+  it("rejects a sole TV survivor at score 0 (floor applies to TV too)", () => {
+    expect(pickBest(tv, [cand("Severance S02E01")], "en")).toBeNull();
   });
 
   it("rejects a movie at score below 2", () => {
