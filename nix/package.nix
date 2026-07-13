@@ -27,19 +27,22 @@ let
       nodejs_22
       cacert
     ];
-    # needs cert for registry to resolve
+
     buildPhase = ''
       export HOME=$(mktemp -d)
-      export SSL_CERT_FILE=${cacert}/etc/ssl/certs/ca-bundle.crt
+      export SSL_CERT_FILE=${cacert}/etc/ssl/certs/ca-bundle.crt    # needs cert for registry to resolve
+      # copy package.json and package-lock.json to the build directory
+      cp ${./package.json} package.json
+      cp ${./package-lock.json} package-lock.json
+      npm ci --ignore-scripts
       mkdir -p $out
-      npm install --prefix $out --no-save --ignore-scripts \
-        cmake-js@8.0.0 node-addon-api@8.9.0
+      cp -r node_modules $out/
     '';
 
     dontUnpack = true;
     dontInstall = true;
     outputHashMode = "recursive";
-    outputHash = "sha256-Haj527mURO7NAy3Xms7LEVvAKm314LDP2IeAYFYKMpw=";
+    outputHash = "sha256-Psa2R99JFUHGCA3DsrKFYgC1D7KIY+Va/kDGuiRi/CQ=";
   };
 in
 
