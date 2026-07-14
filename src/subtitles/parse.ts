@@ -3,12 +3,20 @@ import type { ParsedRelease } from "./types";
 const VIDEO_EXT = /\.(mkv|mp4|avi|m4v|mov|wmv)$/i;
 const STRIP_EXT = /\.(mkv|mp4|avi|m4v|mov|wmv|srt)$/i;
 
+// Scene vocabulary has no platform source, so this stays hand-curated. Bare
+// "max" is deliberately absent: it collides with titles (Mad Max) and a match
+// here truncates the parsed title.
 const SOURCES: Record<string, string> = {
   web: "web",
   webdl: "web",
   webrip: "web",
   amzn: "web",
   nf: "web",
+  dsnp: "web",
+  hulu: "web",
+  atvp: "web",
+  hmax: "web",
+  pcok: "web",
   bluray: "bluray",
   bdrip: "bluray",
   brrip: "bluray",

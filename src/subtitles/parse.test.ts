@@ -82,3 +82,22 @@ describe("parseRelease season-only forms", () => {
     expect(p.episode).toBeUndefined();
   });
 });
+
+// Modern streaming-service tags all mean a web rip; bare "max" is deliberately
+// NOT a source tag — it collides with titles (Mad Max) and would truncate them.
+describe("parseRelease streaming-service source tags", () => {
+  it.each([
+    ["The.Bear.S02E01.1080p.DSNP.x264", "web"],
+    ["Show.S01E01.720p.HULU.h264", "web"],
+    ["Series.S03E02.2160p.ATVP.x265", "web"],
+    ["Movie.2023.1080p.HMAX.x264", "web"],
+    ["Show.S01E05.1080p.PCOK.h264", "web"],
+  ])("%s → source %s", (name, source) => {
+    expect(parseRelease(name).source).toBe(source);
+  });
+  it("keeps 'max' as title text, not a source marker", () => {
+    const p = parseRelease("Mad.Max.Fury.Road.2015.1080p.BluRay.x264");
+    expect(p.title).toBe("mad max fury road");
+    expect(p.year).toBe(2015);
+  });
+});
