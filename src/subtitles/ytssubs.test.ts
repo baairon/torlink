@@ -67,3 +67,38 @@ describe("searchMovie", () => {
     expect(await searchMovie("inception", 2010, "en", f)).toEqual([]);
   });
 });
+
+// The language map must cover any ISO code the config accepts, not a
+// hand-picked subset — Swedish is outside the old hardcoded list and its
+// English name doesn't share a prefix with "sv".
+describe("searchMovie language coverage", () => {
+  const SWEDISH_HTML =
+    `<table class="table"><tbody>` +
+    `<tr><td class="flag-cell"><span class="sub-lang">Swedish</span></td>` +
+    `<td><a href="/subtitles/inception-2010-swedish-yify-77777"><span class="text-muted">subtitle</span> Inception.2010.1080p.BluRay.x264</a></td></tr>` +
+    `</tbody></table>`;
+  const FARSI_HTML =
+    `<table class="table"><tbody>` +
+    `<tr><td class="flag-cell"><span class="sub-lang">Farsi/Persian</span></td>` +
+    `<td><a href="/subtitles/inception-2010-farsi-persian-yify-88888"><span class="text-muted">subtitle</span> Inception.2010.720p</a></td></tr>` +
+    `</tbody></table>`;
+  it("matches compound site labels by slash segment (fa -> Farsi/Persian)", async () => {
+    const f = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(html(SEARCH_HTML))
+      .mockResolvedValueOnce(html(FARSI_HTML));
+    const out = await searchMovie("inception", 2010, "fa", f);
+    expect(out).toHaveLength(1);
+    expect(out[0]!.downloadUrl).toContain("farsi-persian-yify-88888");
+  });
+  it("matches languages beyond the legacy hardcoded set", async () => {
+    const f = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(html(SEARCH_HTML))
+      .mockResolvedValueOnce(html(SWEDISH_HTML));
+    const out = await searchMovie("inception", 2010, "sv", f);
+    expect(out).toHaveLength(1);
+    expect(out[0]!.lang).toBe("sv");
+    expect(out[0]!.downloadUrl).toContain("inception-2010-swedish-yify-77777");
+  });
+});

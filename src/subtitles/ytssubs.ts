@@ -8,21 +8,17 @@ const PAGE_BASE = "https://yts-subs.com";
 // downloadSubtitle).
 const ZIP_BASE = "https://yifysubtitles.ch";
 
-// The site labels rows with full language names; map ISO codes to them.
-const LANG_NAMES: Record<string, string> = {
-  en: "english",
-  he: "hebrew",
-  es: "spanish",
-  fr: "french",
-  de: "german",
-  it: "italian",
-  pt: "portuguese",
-  ar: "arabic",
-  ru: "russian",
-  nl: "dutch",
-  pl: "polish",
-  tr: "turkish",
-};
+// The site labels rows with full English language names ("Swedish", not
+// "sv"); Intl covers every ISO 639 code without a hand-kept map. An unknown
+// code comes back as itself, which degrades to the prefix-match fallback.
+function langName(code: string): string | undefined {
+  try {
+    const name = new Intl.DisplayNames(["en"], { type: "language" }).of(code);
+    return name && name !== code ? name.toLowerCase() : undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 function stripTags(s: string): string {
   return s
@@ -77,14 +73,19 @@ export async function searchMovie(
     if (!movieHtml) return [];
 
     const code = lang.toLowerCase();
-    const wantName = LANG_NAMES[code];
+    const wantName = langName(code);
     const out: SubtitleCandidate[] = [];
     for (const row of movieHtml.split(/<tr[\s>]/i).slice(1)) {
       const span = row.match(/<span class="sub-lang">([^<]*)<\/span>/i)?.[1]?.trim();
       const anchor = row.match(/<a href="\/subtitles\/([^"]+)"[^>]*>([\s\S]*?)<\/a>/i);
       if (!span || !anchor) continue;
       const spanLower = span.toLowerCase();
-      if (wantName ? spanLower !== wantName : !spanLower.startsWith(code)) continue;
+      // Slash-compound labels ("Farsi/Persian") match on either segment;
+      // space-compounds ("Brazilian Portuguese") stay distinct from the base.
+      const labelMatches = wantName
+        ? spanLower.split("/").some((seg) => seg.trim() === wantName)
+        : spanLower.startsWith(code);
+      if (!labelMatches) continue;
       const slug = anchor[1]!.split("/").pop()!;
       const caption = stripTags(anchor[2]!).replace(/^subtitle\s+/i, "");
       out.push({
