@@ -240,6 +240,11 @@ export function Downloads() {
                 {cleanText(h.name)}
               </Text>
             </Box>
+            {h.subsLang ? (
+              <Box flexShrink={0} marginLeft={1}>
+                <Text dimColor>{`subs · ${h.subsLang}`}</Text>
+              </Box>
+            ) : null}
             <Box width={10} flexShrink={0} marginLeft={1} justifyContent="flex-end">
               <Text dimColor>{h.sizeBytes > 0 ? formatBytes(h.sizeBytes) : "-"}</Text>
             </Box>

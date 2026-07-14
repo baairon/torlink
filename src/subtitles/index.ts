@@ -2,7 +2,7 @@ import { basename, dirname, extname, join } from "node:path";
 import type { SourceId } from "../sources/types";
 import { downloadSubtitle } from "./fetchSubtitle";
 import { searchTv } from "./gestdown";
-import { isVideoFile, parseRelease } from "./parse";
+import { isSubtitleFile, isVideoFile, parseRelease } from "./parse";
 import { pickBest } from "./score";
 import { classifyForSubtitles } from "./trigger";
 import { searchMovie } from "./ytssubs";
@@ -27,6 +27,8 @@ export async function fetchSubtitlesForDownload(opts: {
   fetchImpl?: typeof fetch;
 }): Promise<number | null> {
   const { name, dir, source, files, lang, fetchImpl = fetch } = opts;
+  // Release-group subs are synced to the release; fetching beside them is redundant or worse.
+  if (files.some((f) => isSubtitleFile(f.path))) return null;
   const kind = classifyForSubtitles(source, name);
   if (!kind) return null;
   const videos = files.filter((f) => isVideoFile(f.path) && f.length >= MIN_VIDEO_BYTES);

@@ -31,6 +31,12 @@ export function isVideoFile(path: string): boolean {
   return VIDEO_EXT.test(path);
 }
 
+const SUBTITLE_EXT = /\.(srt|ass|ssa|sub|vtt|idx)$/i;
+
+export function isSubtitleFile(path: string): boolean {
+  return SUBTITLE_EXT.test(path);
+}
+
 // Loose title comparison shared by the providers: case/punctuation-insensitive.
 export function normalizeTitle(s: string): string {
   return s

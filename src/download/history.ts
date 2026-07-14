@@ -14,6 +14,7 @@ export interface HistoryItem {
   magnet: string;
   dir: string;
   completedAt: number;
+  subsLang?: string; // set once subtitles were fetched for this item
 }
 
 const write = serializeWrites();

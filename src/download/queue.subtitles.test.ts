@@ -29,6 +29,13 @@ vi.mock("./engine", () => ({
 const fetchSubs = vi.hoisted(() => vi.fn(async (): Promise<number | null> => 2));
 vi.mock("../subtitles/index", () => ({ fetchSubtitlesForDownload: fetchSubs }));
 
+// History persistence is disk I/O; stub it so tests assert the save calls.
+const saveHistoryMock = vi.hoisted(() => vi.fn(async (): Promise<void> => {}));
+vi.mock("./history", () => ({
+  saveHistory: saveHistoryMock,
+  saveHistorySync: vi.fn(),
+}));
+
 const MAGNET = "magnet:?xt=urn:btih:0000000000000000000000000000000000000000";
 
 function onDone(id: string): void {
@@ -37,6 +44,7 @@ function onDone(id: string): void {
 
 beforeEach(() => {
   fetchSubs.mockClear();
+  saveHistoryMock.mockClear();
   state.handlers.clear();
 });
 
@@ -70,6 +78,25 @@ describe("DownloadQueue subtitle hook", () => {
     q.suspend();
   });
 
+  it("a successful fetch tags the history entry with the lang and persists it", async () => {
+    const q = new DownloadQueue();
+    q.setSubtitleLang("he");
+    const events: unknown[] = [];
+    q.on("subtitles", (...args: unknown[]) => events.push(args));
+
+    q.add({ id: "t4", name: "Show.S01E03", magnet: MAGNET, source: "eztv" }, "/downloads/a");
+    onDone("t4");
+
+    await vi.waitFor(() => expect(events).toHaveLength(1));
+    expect(q.getHistory().find((h) => h.id === "t4")?.subsLang).toBe("he");
+    // The tag must reach disk: the last saveHistory call carries it.
+    const last = saveHistoryMock.mock.calls.at(-1) as unknown as [
+      Array<{ id: string; subsLang?: string }>,
+    ];
+    expect(last[0].find((h) => h.id === "t4")?.subsLang).toBe("he");
+    q.suspend();
+  });
+
   it("a null result (never searched) emits no subtitles event", async () => {
     fetchSubs.mockResolvedValueOnce(null);
     const q = new DownloadQueue();
@@ -86,6 +113,7 @@ describe("DownloadQueue subtitle hook", () => {
     await new Promise((r) => setImmediate(r));
     expect(events).toEqual([]);
     expect(completed).toEqual(["Elden.Ring.Repack"]);
+    expect(q.getHistory().find((h) => h.id === "t3")?.subsLang).toBeUndefined();
     q.suspend();
   });
 

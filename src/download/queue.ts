@@ -220,6 +220,15 @@ export class DownloadQueue extends EventEmitter {
     }).catch(() => 0);
     // null = never searched (not subtitle-applicable): no toast either way.
     if (count === null) return;
+    if (count > 0) {
+      // Tag the history entry recordHistory just wrote so the UI can show it.
+      const h = this.history.find((x) => x.id === it.id);
+      if (h) {
+        h.subsLang = this.subtitleLang;
+        void saveHistory(this.history).catch(() => {});
+        this.changed();
+      }
+    }
     this.emit("subtitles", it.name, count, this.subtitleLang);
   }
 
