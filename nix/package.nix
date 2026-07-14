@@ -18,7 +18,7 @@ let
     repo = "libdatachannel";
     tag = "v0.24.5";
     fetchSubmodules = true;
-    hash = "sha256-0Yrp9cZL8JvBD5YZYbJdmPpPSBHTM/5WXNNK/s+GkDI=";
+    hash = "sha256-rr3au3JMqLd/sjNtXtXY2mcuW0CeOgG+Xj2RgEQCWys=";
   };
 
   libdatachannelBuildDeps = stdenv.mkDerivation {
