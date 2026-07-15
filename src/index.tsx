@@ -37,7 +37,9 @@ function failHeadless(err: unknown): never {
   process.exit(1);
 }
 
-if (cmd.kind === "watch") {
+if (cmd.kind === "update") {
+  void import("./update/run").then(({ runUpdate }) => runUpdate({ force: cmd.force }).catch(failHeadless));
+} else if (cmd.kind === "watch") {
   if (cmd.daemon) daemonize("watch"); // parent exits here; the detached child continues
   const { dir, downloadDir, seedTimeMs, deleteFiles } = cmd;
   void import("./daemon/watch").then(({ runWatch }) =>

@@ -36,6 +36,10 @@ describe("parseCliArgs", () => {
   it("parses attach", () => {
     expect(parseCliArgs(["attach"])).toEqual({ kind: "attach" });
   });
+  it("parses update, with and without --force", () => {
+    expect(parseCliArgs(["update"])).toEqual({ kind: "update", force: false });
+    expect(parseCliArgs(["update", "--force"])).toEqual({ kind: "update", force: true });
+  });
   it("parses watch with a directory", () => {
     expect(parseCliArgs(["watch", "/srv/blackhole"])).toEqual({
       kind: "watch",

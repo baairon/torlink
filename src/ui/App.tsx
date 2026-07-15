@@ -23,6 +23,7 @@ import {
   type View,
 } from "./store";
 import { Logo } from "./components/Logo";
+import { UpdateBanner } from "./components/UpdateBanner";
 import { Sidebar, RAIL_WIDTH } from "./components/Sidebar";
 import { Rule } from "./components/Rule";
 import { Footer } from "./components/Footer";
@@ -38,6 +39,8 @@ import { TrackersPrompt } from "./components/TrackersPrompt";
 import { footerHints } from "./keymap";
 import { COLOR, ICON } from "./theme";
 import { useMouseWheel } from "./hooks/useMouseWheel";
+import { VERSION } from "../version";
+import { fetchLatestVersion, isNewer } from "../update/version";
 import type { SourceId } from "../sources/types";
 
 export function App({
@@ -98,6 +101,7 @@ export function App({
   } | null>(null);
   const [lastDownloadToDir, setLastDownloadToDir] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [updateVersion, setUpdateVersion] = useState<string | null>(null);
   const booting = useRef(false);
 
   useEffect(() => {
@@ -137,6 +141,20 @@ export function App({
       alive = false;
     };
   }, [initialMagnet, initialTorrent]);
+
+  // Best-effort, once per launch, off the hot path: if a newer release exists,
+  // surface a quiet banner. Any failure (offline, opt-out) just leaves it hidden.
+  useEffect(() => {
+    if (process.env.TORLINK_NO_UPDATE_CHECK) return;
+    let alive = true;
+    void (async () => {
+      const latest = await fetchLatestVersion();
+      if (alive && latest && isNewer(VERSION, latest)) setUpdateVersion(latest);
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (!queue) return;
@@ -515,7 +533,7 @@ export function App({
     return (
       <StoreContext.Provider value={store}>
         <TabTitle />
-        <Splash />
+        <Splash updateVersion={updateVersion} />
       </StoreContext.Provider>
     );
   }
@@ -527,7 +545,8 @@ export function App({
         <Box justifyContent="space-between">
           {/* The wordmark never shrinks: without these constraints a long notice
               squeezes the logo box and wraps its own text through the art. */}
-          <Box flexShrink={0}>
+          <Box flexShrink={0} flexDirection="column">
+            <UpdateBanner latest={updateVersion} />
             <Logo />
           </Box>
           {notice ? (

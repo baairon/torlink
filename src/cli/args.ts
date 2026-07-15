@@ -25,6 +25,7 @@ export type CliCommand =
     }
   | { kind: "files"; port?: number; host?: string; token?: string; dir?: string; daemon?: boolean }
   | { kind: "attach" }
+  | { kind: "update"; force?: boolean }
   | { kind: "invalid"; arg: string };
 
 // Valueless boolean flags for the headless subcommands (everything else is a
@@ -75,6 +76,7 @@ export function parseCliArgs(argv: string[]): CliCommand {
   if (a === "--version" || a === "-v") return { kind: "version" };
   if (a === "--help" || a === "-h") return { kind: "help" };
   if (a === "attach") return { kind: "attach" };
+  if (a === "update") return { kind: "update", force: args.slice(1).includes("--force") };
   if (a === "watch") {
     const { bools, rest: r0 } = splitBooleans(args.slice(1));
     const { flags, rest } = readFlags(r0);
@@ -131,6 +133,8 @@ usage
   torlnk serve                headless: HTTP add API (POST /add) on :9161
   torlnk files                headless: serve downloads over HTTP on :9160
   torlnk attach               open/reattach the TUI in a persistent tmux session
+  torlnk update [--force]     update to the latest release and restart any daemon
+                              (--force rebuilds/restarts even if already current)
   torlnk --version            print the version
 
 once open: type to search every source at once, enter to run, arrows to move,

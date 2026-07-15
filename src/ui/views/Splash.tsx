@@ -1,5 +1,6 @@
 import { Box, Text, useInput, useStdin } from "ink";
 import { Logo } from "../components/Logo";
+import { UpdateBanner } from "../components/UpdateBanner";
 import { SearchBar } from "../components/SearchBar";
 import { LOGO_WIDTH } from "../logo";
 import { useStore } from "../store";
@@ -10,7 +11,7 @@ const CATEGORIES = sourcesByGroup()
   .map((g) => g.group.toLowerCase())
   .join(`  ${ICON.dot}  `);
 
-export function Splash() {
+export function Splash({ updateVersion }: { updateVersion?: string | null } = {}) {
   const { submitQuery, quitAll, cols, rows } = useStore();
   const { isRawModeSupported } = useStdin();
 
@@ -31,6 +32,7 @@ export function Splash() {
       justifyContent="center"
       alignItems="center"
     >
+      <UpdateBanner latest={updateVersion ?? null} />
       {showLogo ? (
         <Logo />
       ) : (
