@@ -24,6 +24,13 @@ export type CliCommand =
       daemon?: boolean;
     }
   | { kind: "files"; port?: number; host?: string; token?: string; dir?: string; daemon?: boolean }
+  | {
+      kind: "discord";
+      downloadDir?: string;
+      seedTimeMs?: number;
+      deleteFiles?: boolean;
+      daemon?: boolean;
+    }
   | { kind: "attach" }
   | { kind: "invalid"; arg: string };
 
@@ -115,6 +122,17 @@ export function parseCliArgs(argv: string[]): CliCommand {
       daemon: bools.has("daemon"),
     };
   }
+  if (a === "discord") {
+    const { bools, rest: r0 } = splitBooleans(args.slice(1));
+    const { flags } = readFlags(r0);
+    return {
+      kind: "discord",
+      downloadDir: flags.to ?? flags.dir,
+      seedTimeMs: seedTimeFrom(flags["seed-time"]),
+      deleteFiles: bools.has("delete-files"),
+      daemon: bools.has("daemon"),
+    };
+  }
   if (/^magnet:\?/i.test(a)) return { kind: "run", initialMagnet: a };
   if (isInfoHash(a)) return { kind: "run", initialMagnet: a };
   if (/\.torrent$/i.test(a)) return { kind: "run", initialTorrent: a };
@@ -130,6 +148,7 @@ usage
   torlnk watch <dir>          headless: download torrents dropped into <dir>
   torlnk serve                headless: HTTP add API (POST /add) on :9161
   torlnk files                headless: serve downloads over HTTP on :9160
+  torlnk discord              headless: notify + take commands over Discord
   torlnk attach               open/reattach the TUI in a persistent tmux session
   torlnk --version            print the version
 
@@ -141,12 +160,12 @@ watch mode (no TUI): drop a .torrent, or a .magnet/.txt holding a magnet or
 info hash, into <dir> and it downloads then seeds. Add --to <dir> to choose
 where files land. Handled files move to <dir>/.processed (or /.failed).
 
-seed mode (watch/serve): --seed-time <dur> stops seeding a torrent that long
-after it finishes (e.g. 1h, 30m, 90s, 2d); files are kept by default. Add
+seed mode (watch/serve/discord): --seed-time <dur> stops seeding a torrent that
+long after it finishes (e.g. 1h, 30m, 90s, 2d); files are kept by default. Add
 --delete-files to also remove the downloaded data when the timer expires.
 
---daemon (watch/serve/files): background the process (own session, logs to a
-file), so you can log out and it keeps running. Prints the pid and log path.
+--daemon (watch/serve/files/discord): background the process (own session, logs
+to a file), so you can log out and it keeps running. Prints the pid and log path.
 
 torlnk attach: run the TUI inside a persistent tmux session. Detach with
 tmux's ctrl-b d, log out, then torlnk attach again to reattach where you
@@ -167,4 +186,12 @@ folder, so finished files stream to a browser or media player.
 flags: --port <n> (default 9160), --host <addr> (default 127.0.0.1),
 --token <secret> (required to bind a public --host; or TORLINK_FILES_TOKEN),
 --dir <dir> (folder to serve; defaults to your downloads folder).
+
+discord mode (no TUI): posts download done/failed notices to a channel webhook.
+With a bot token, channel id, and an allowlist it also registers slash commands
+(/search, /add, /status, /cancel, /help) and answers them over the gateway.
+Configure it in the TUI (press g), the config file, or via env:
+TORLINK_DISCORD_WEBHOOK, TORLINK_DISCORD_BOT_TOKEN, TORLINK_DISCORD_CHANNEL,
+TORLINK_DISCORD_ALLOWED_USERS (comma-separated ids). Accepts --to and the seed
+flags like watch/serve.
 `;

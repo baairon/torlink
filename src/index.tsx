@@ -63,6 +63,14 @@ if (cmd.kind === "watch") {
     dir: cmd.dir,
   };
   void import("./daemon/files").then(({ runFiles }) => runFiles(options).catch(failHeadless));
+} else if (cmd.kind === "discord") {
+  if (cmd.daemon) daemonize("discord");
+  const options = {
+    downloadDir: cmd.downloadDir,
+    seedTimeMs: cmd.seedTimeMs,
+    deleteFiles: cmd.deleteFiles,
+  };
+  void import("./daemon/discord").then(({ runDiscord }) => runDiscord(options).catch(failHeadless));
 } else {
 
 // Enter the alt-screen and hide the hardware cursor: the TUI draws its own

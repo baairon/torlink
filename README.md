@@ -56,9 +56,37 @@ torlink also runs without the TUI, for servers and seedboxes:
     torlnk watch <dir>    download anything dropped into a folder
     torlnk serve          take magnets over HTTP
     torlnk files          stream finished downloads over HTTP
+    torlnk discord        report to a Discord channel and take commands from it
     torlnk attach         keep the TUI alive across ssh sessions
 
-Add `--daemon` to keep watch, serve, or files running after you log out; `torlnk --help` has the full list of modes and flags.
+Add `--daemon` to keep watch, serve, files, or discord running after you log out; `torlnk --help` has the full list of modes and flags.
+
+## Discord
+
+torlink can post to a Discord channel and take commands from it, so a seedbox is a search box and a status page without opening a terminal.
+
+Notifications need only a **webhook**. Make one under the channel's Integrations settings, and torlink posts there when a download finishes or fails.
+
+Commands need a **bot** too. Create an application in the [Discord developer portal](https://discord.com/developers/applications), add a bot, and invite it to the server with the `bot` and `applications.commands` scopes. torlink registers five slash commands:
+
+    /search   pick a category, then type a query
+    /add      download a result, or paste a magnet
+    /status   active downloads and seeds, with progress
+    /cancel   stop a download
+    /help     the command list
+
+Search results come with a dropdown, so downloading a pick is one click, and pages of results have prev/next buttons. Commands run only for the user ids you allowlist; an empty allowlist leaves notifications on and commands off.
+
+Set it up in the TUI (press `g`), in the config file, or with environment variables. The last is handiest on a server, and keeps the secrets out of the config file:
+
+    TORLINK_DISCORD_WEBHOOK        channel webhook URL
+    TORLINK_DISCORD_BOT_TOKEN      bot token, for commands
+    TORLINK_DISCORD_CHANNEL        channel id, for commands
+    TORLINK_DISCORD_ALLOWED_USERS  comma-separated user ids allowed to run commands
+
+Then start it:
+
+    torlnk discord --daemon
 
 ## Contributing
 

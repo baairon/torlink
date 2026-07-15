@@ -167,6 +167,7 @@ export class DownloadQueue extends EventEmitter {
           it.error = msg;
           it.speed = 0;
           it.peers = 0;
+          this.emit("failed", it.name, msg);
           this.changed();
           void this.persist();
           this.maybeStopPoll();

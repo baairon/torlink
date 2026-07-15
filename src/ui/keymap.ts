@@ -20,6 +20,7 @@ export const HELP_GROUPS: HelpGroup[] = [
       { keys: "esc", label: "Back" },
       { keys: "o", label: "Default download folder" },
       { keys: "t", label: "Extra trackers" },
+      { keys: "g", label: "Discord setup" },
       { keys: "q", label: "Quit" },
     ],
   },

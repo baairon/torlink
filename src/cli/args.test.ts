@@ -167,4 +167,24 @@ describe("parseCliArgs", () => {
       daemon: true,
     });
   });
+  it("parses discord with defaults", () => {
+    expect(parseCliArgs(["discord"])).toEqual({
+      kind: "discord",
+      downloadDir: undefined,
+      seedTimeMs: undefined,
+      deleteFiles: false,
+      daemon: false,
+    });
+  });
+  it("parses discord flags", () => {
+    expect(
+      parseCliArgs(["discord", "--to", "/mnt/media", "--seed-time", "1h", "--delete-files", "--daemon"]),
+    ).toEqual({
+      kind: "discord",
+      downloadDir: "/mnt/media",
+      seedTimeMs: 3_600_000,
+      deleteFiles: true,
+      daemon: true,
+    });
+  });
 });
