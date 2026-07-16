@@ -131,6 +131,20 @@ test_static_contract() {
   else
     fail "PowerShell Docker path does not match expected compose invocation"
   fi
+
+  if grep -qF -- '--web|-w|3) mode=web' "$ROOT/torzlink.sh" \
+    && grep -q 'npm run serve' "$ROOT/torzlink.sh"; then
+    pass "bash exposes --web and invokes npm run serve"
+  else
+    fail "bash web mode missing (--web / npm run serve)"
+  fi
+
+  if grep -qF -- '[switch]$Web' "$ROOT/torzlink.ps1" \
+    && grep -q 'npm run serve' "$ROOT/torzlink.ps1"; then
+    pass "PowerShell exposes -Web and invokes npm run serve"
+  else
+    fail "PowerShell web mode missing (-Web / npm run serve)"
+  fi
 }
 
 test_bash_native_bypass() {
@@ -163,6 +177,20 @@ test_bash_docker_bypass() {
     fi
   else
     fail "bash --docker exited non-zero"
+  fi
+}
+
+test_bash_web_bypass() {
+  echo "--- bash --web bypass ---"
+  setup_fixture
+  if run_in_fixture bash ./torzlink.sh --web; then
+    if grep -q 'run serve' "$FIXTURE/npm.log"; then
+      pass "bash --web invokes npm run serve"
+    else
+      fail "bash --web did not invoke npm run serve"
+    fi
+  else
+    fail "bash --web exited non-zero"
   fi
 }
 
@@ -267,6 +295,25 @@ test_ps1_native_bypass() {
   fi
 }
 
+test_ps1_web_bypass() {
+  echo "--- PowerShell -Web bypass ---"
+  if ! command -v pwsh >/dev/null 2>&1; then
+    skip "PowerShell -Web: pwsh not found"
+    return
+  fi
+
+  setup_fixture
+  if run_in_fixture pwsh -NoProfile -File ./torzlink.ps1 -Web; then
+    if grep -q 'run serve' "$FIXTURE/npm.log"; then
+      pass "PowerShell -Web invokes npm run serve"
+    else
+      fail "PowerShell -Web did not invoke npm run serve"
+    fi
+  else
+    fail "PowerShell -Web exited non-zero"
+  fi
+}
+
 test_ps1_missing_env() {
   echo "--- PowerShell missing .env ---"
   if ! command -v pwsh >/dev/null 2>&1; then
@@ -315,11 +362,13 @@ main() {
   test_static_contract
   test_bash_native_bypass
   test_bash_docker_bypass
+  test_bash_web_bypass
   test_bash_missing_env
   test_bash_no_tty
   test_bash_invalid_menu_runtime
   test_ps1_native_bypass
   test_ps1_docker_bypass
+  test_ps1_web_bypass
   test_ps1_missing_env
   test_ps1_no_tty
 

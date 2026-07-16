@@ -19,6 +19,7 @@
     "predev": "node scripts/ensure.cjs --dev",
     "prestart": "node scripts/ensure.cjs",
     "launch": "node scripts/ensure.cjs --dev && tsx src/app/entry.tsx",
+    "serve": "node scripts/ensure.cjs --dev && tsx src/app/entry.tsx serve",
     "dev": "tsx src/app/entry.tsx",
     "build": "tsup",
     "postbuild": "node scripts/postbuild.cjs",

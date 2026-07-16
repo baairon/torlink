@@ -299,6 +299,50 @@ body::before {
     grid-template-columns: 1.25fr 0.85fr;
     align-items: start;
   }
+
+  .config-panel {
+    grid-column: 1 / -1;
+  }
+}
+
+.config-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.config-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  color: var(--dim);
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+}
+
+.config-field input,
+.config-field textarea {
+  border: 1px solid var(--line);
+  background: var(--bg0);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 0.45rem 0.55rem;
+  resize: vertical;
+}
+
+.config-field input:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.config-actions {
+  margin-bottom: 0;
+  align-items: center;
+}
+
+.config-actions .status {
+  margin: 0;
 }
 
 .panel {
@@ -442,6 +486,109 @@ button.danger:hover {
 .status code {
   color: var(--bright);
   font-family: inherit;
+}
+
+.search-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.55rem 0.85rem;
+  margin: 0 0 0.75rem;
+  padding: 0;
+  border: 0;
+  min-inline-size: 0;
+}
+
+.cat-tabs,
+.panel-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
+.cat-tab,
+.panel-tab {
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--dim);
+  padding: 0.35rem 0.55rem;
+  font: inherit;
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.cat-tab:hover,
+.panel-tab:hover {
+  color: var(--ink);
+  border-color: var(--muted);
+  background: var(--bg2);
+  box-shadow: none;
+}
+
+.cat-tab.is-active,
+.panel-tab.is-active {
+  color: var(--bright);
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 16%, var(--bg0));
+}
+
+.search-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem;
+  color: var(--dim);
+  font-size: 0.78rem;
+}
+
+.tool-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  cursor: pointer;
+  user-select: none;
+}
+
+.tool-check input {
+  accent-color: var(--accent);
+}
+
+.tool-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.tool-select select {
+  border: 1px solid var(--line);
+  background: var(--bg0);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.78rem;
+  padding: 0.3rem 0.4rem;
+}
+
+.panel-head--tabs {
+  gap: 0.65rem;
+}
+
+.lib-actions {
+  margin-bottom: 0.75rem;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .list {

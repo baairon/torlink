@@ -90,31 +90,104 @@
               </label>
               <button type="submit" id="search-btn">Buscar</button>
             </form>
+            <fieldset class="search-toolbar">
+              <legend class="visually-hidden">Filtros de búsqueda</legend>
+              <div id="category-tabs" class="cat-tabs" role="tablist" aria-label="Categoría"></div>
+              <div class="search-tools">
+                <label class="tool-check">
+                  <input type="checkbox" id="hide-dead" />
+                  <span>solo vivos</span>
+                </label>
+                <label class="tool-select">
+                  <span>orden</span>
+                  <select id="sort-field" aria-label="Ordenar resultados">
+                    <option value="">seeders ▾</option>
+                    <option value="seeders:asc">seeders ▴</option>
+                    <option value="size:desc">size ▾</option>
+                    <option value="size:asc">size ▴</option>
+                    <option value="name:asc">name ▴</option>
+                    <option value="name:desc">name ▾</option>
+                    <option value="source:asc">source ▴</option>
+                  </select>
+                </label>
+              </div>
+            </fieldset>
             <p id="search-status" class="status" hidden></p>
             <ul id="results" class="list"></ul>
           </div>
         </section>
 
-        <section class="panel" aria-labelledby="queue-heading">
-          <div class="panel-head">
+        <section class="panel" aria-labelledby="library-heading">
+          <div class="panel-head panel-head--tabs">
             <span class="chrome">↓</span>
-            <h2 id="queue-heading">queue</h2>
+            <h2 id="library-heading" class="visually-hidden">library</h2>
+            <div class="panel-tabs" role="tablist" aria-label="Cola e historial">
+              <button type="button" class="panel-tab is-active" role="tab" aria-selected="true" data-lib-tab="queue">queue</button>
+              <button type="button" class="panel-tab" role="tab" aria-selected="false" data-lib-tab="history">history</button>
+              <button type="button" class="panel-tab" role="tab" aria-selected="false" data-lib-tab="seeding">seeding</button>
+            </div>
           </div>
           <div class="panel-body">
-            <form id="magnet-form" class="row">
-              <label class="prompt-field">
-                <span class="caret">+</span>
+            <div id="lib-queue" class="lib-pane" data-lib-pane="queue">
+              <form id="magnet-form" class="row">
+                <label class="prompt-field">
+                  <span class="caret">+</span>
+                  <input
+                    id="magnet"
+                    name="magnet"
+                    type="text"
+                    placeholder="magnet:?xt=urn:btih:… o infohash"
+                    autocomplete="off"
+                  />
+                </label>
+                <button type="submit">Añadir</button>
+              </form>
+              <ul id="queue" class="list"></ul>
+            </div>
+            <div id="lib-history" class="lib-pane" data-lib-pane="history" hidden>
+              <div class="row lib-actions">
+                <button type="button" id="history-clear" class="danger">Vaciar historial</button>
+              </div>
+              <ul id="history" class="list"></ul>
+            </div>
+            <div id="lib-seeding" class="lib-pane" data-lib-pane="seeding" hidden>
+              <ul id="seeds" class="list"></ul>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel config-panel" aria-labelledby="config-heading">
+          <div class="panel-head">
+            <span class="chrome">⚙</span>
+            <h2 id="config-heading">config</h2>
+          </div>
+          <div class="panel-body">
+            <form id="config-form" class="config-form">
+              <label class="config-field">
+                <span>download dir</span>
                 <input
-                  id="magnet"
-                  name="magnet"
+                  id="config-download-dir"
+                  name="downloadDir"
                   type="text"
-                  placeholder="magnet:?xt=urn:btih:… o infohash"
                   autocomplete="off"
+                  spellcheck="false"
                 />
               </label>
-              <button type="submit">Añadir</button>
+              <label class="config-field">
+                <span>trackers</span>
+                <textarea
+                  id="config-trackers"
+                  name="trackers"
+                  rows="2"
+                  spellcheck="false"
+                  placeholder="udp://… https://… (espacio o coma)"
+                ></textarea>
+              </label>
+              <div class="row config-actions">
+                <button type="submit">Guardar</button>
+                <p id="config-status" class="status" hidden></p>
+              </div>
             </form>
-            <ul id="queue" class="list"></ul>
           </div>
         </section>
       </main>

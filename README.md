@@ -71,7 +71,7 @@ Full version history: [CHANGELOG.md](CHANGELOG.md).
 
 ## Quick launch
 
-After cloning, run the root launcher — it shows a menu to pick **native** (Node.js) or **Docker**:
+After cloning, run the root launcher — it shows a menu to pick **native** (TUI), **Docker** (TUI), or **web** (`torzlink serve`):
 
 | OS | Command |
 |----|---------|
@@ -81,14 +81,15 @@ After cloning, run the root launcher — it shows a menu to pick **native** (Nod
 
 ```
 TorZlink — launcher
-  1) Native (Node.js, local development)
-  2) Docker (interactive container)
+  1) Native (Node.js TUI, local development)
+  2) Docker (interactive TUI container)
+  3) Web UI (torzlink serve)
   q) Exit
 
-Choose [1/2/q]:
+Choose [1/2/3/q]:
 ```
 
-Skip the menu in scripts or CI: `./torzlink.sh --native`, `.\torzlink.ps1 -Docker`, etc.
+Skip the menu in scripts or CI: `./torzlink.sh --native`, `.\torzlink.ps1 -Docker`, `./torzlink.sh --web`, etc.
 
 If `.env` is missing when you pick Docker, the launcher offers to create an empty file (Telegram is optional; see `.env.example`).
 
@@ -109,8 +110,9 @@ To run or work on TorZlink locally:
 3. Launch with auto-setup (installs and updates dependencies on every start):
 
    ```sh
-   ./torzlink.sh          # menu: native or Docker
-   npm run launch         # native only
+   ./torzlink.sh          # menu: native / Docker / web
+   npm run launch         # native TUI only
+   npm run serve          # web UI only
    ```
 
    Or the classic flow:
@@ -191,11 +193,14 @@ On Linux/macOS, replace `%cd%` with `$(pwd)`.
 LAN admin UI + JSON API (search + download queue). No in-app login — trust Traefik / your LAN (see [ADR-001](docs/adr/001-trust-model.md)).
 
 ```sh
+./torzlink.sh --web
+# or:
+npm run serve
 torzlink serve --host 127.0.0.1 --port 8787
 # or from repo: npx tsx src/app/entry.tsx serve --host 127.0.0.1 --port 8787
 ```
 
-Open `http://127.0.0.1:8787`. Endpoints: `GET /health`, `GET /api/auth`, `GET /api/search?q=`, `GET|POST /api/downloads`, `POST /api/downloads/:id/pause|resume|cancel`.
+Open `http://127.0.0.1:8787`. Endpoints: `GET /health`, `GET /api/auth`, `GET /api/categories`, `GET /api/search?q=&group=&hideDead=&sort=`, `POST /api/copy-magnet`, `GET|POST /api/downloads`, `POST /api/downloads/:id/pause|resume|cancel`, `GET|DELETE /api/history`, `POST /api/history/:id/redownload`, `GET /api/seeds`, `POST /api/seeds/:id/pause|resume|toggle`, `GET|PATCH /api/config`, `GET|POST /api/network`.
 
 On shared Docker networks, set `TORZLINK_SERVE_TOKEN` so `/api/*` requires `Authorization: Bearer …` (the UI prompts for the token).
 
@@ -457,7 +462,9 @@ kanban
 | ✅ Done | Docs | Agent workflow — [docs/agent-workflow.md](docs/agent-workflow.md) + `npm run pre-release` |
 | ✅ Done | Product | Web UI + API (`torzlink serve`) — search + download queue (MVP) |
 | ✅ Done | Ops | NAS deploy — Traefik v3, `TORZLINK_NETWORK_MODE=direct\|vpn`, `tools/deploy-nas.sh` |
-| 🔜 Next | Product | **Web ≡ TUI** — misma funcionalidad que la TUI (categorías, History, Seeding, Copy, config, trackers) — [docs/next-session.md](docs/next-session.md) |
+| ✅ Done | Product | Web UI parity — categorías, sort, hideDead, Copy magnet, History, Seeding, Config |
+| ✅ Done | Product | Web `GET/PATCH /api/config` (downloadDir + trackers) |
+| 🔜 Next | Product | **Web ≡ TUI** — config downloadDir/trackers, upload `.torrent`, download-to… — [docs/next-session.md](docs/next-session.md) |
 | 🔜 Next | Ops | **VPN ON/OFF sin redeploy** — el switch de la web debe aplicar direct↔Gluetun automáticamente |
 | 🔜 Next | Ops | NAS redeploy — UI retro + switch VPN + parity incremental |
 | 🔜 Next | QA | Manual TUI download smoke test in Docker (Windows host) |
@@ -470,7 +477,8 @@ kanban
 | 📋 P2 | Quality | Optional `TORZLINK_DOWNLOAD_ROOT` + `realpath` validation |
 | 📋 P2 | Ops | Structured logging `TORZLINK_LOG` with token/magnet redaction |
 | 📋 P2 | UX/Privacy | Global no-seed-by-default config option |
-| 📋 Follow-ups | Launchers | Checklist in [docs/follow-ups-launchers.md](docs/follow-ups-launchers.md) |
+| ✅ Done | Launchers | Menu option **3) Web UI** (`--web` / `-Web` → `npm run serve`) |
+| 📋 Follow-ups | Launchers | Remaining checklist in [docs/follow-ups-launchers.md](docs/follow-ups-launchers.md) |
 
 **Priorities:** 🔜 Next = pick up here ([docs/next-session.md](docs/next-session.md)) · 📋 Planned = broader roadmap · 📋 P2 = quality/maintainability · Security P0/P1 complete as of **v1.6.0**.
 

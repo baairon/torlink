@@ -294,4 +294,152 @@ describe("HTTP API", () => {
       runtime.dispose();
     }
   });
+
+  it("lists categories and empty history/seeds", async () => {
+    const runtime = await createTorzlinkRuntime();
+    try {
+      const handler: http.RequestListener = (req, res) => {
+        void handleRequest(req, res, runtime, publicDir);
+      };
+      const cats = await request(handler, "GET", "/api/categories");
+      expect(cats.status).toBe(200);
+      expect(cats.json).toMatchObject({
+        categories: expect.arrayContaining([
+          expect.objectContaining({ key: "movies", group: "Movies" }),
+        ]),
+      });
+
+      const history = await request(handler, "GET", "/api/history");
+      expect(history.status).toBe(200);
+      expect(history.json).toEqual({ items: [] });
+
+      const seeds = await request(handler, "GET", "/api/seeds");
+      expect(seeds.status).toBe(200);
+      expect(seeds.json).toEqual({ items: [] });
+    } finally {
+      runtime.dispose();
+    }
+  });
+
+  it("copies a magnet via /api/copy-magnet", async () => {
+    const runtime = await createTorzlinkRuntime();
+    try {
+      const handler: http.RequestListener = (req, res) => {
+        void handleRequest(req, res, runtime, publicDir);
+      };
+      const hash = "abcdef0123456789abcdef0123456789abcdef01";
+      const magnet = `magnet:?xt=urn:btih:${hash}&dn=Test`;
+      const res = await request(
+        handler,
+        "POST",
+        "/api/copy-magnet",
+        JSON.stringify({ name: "Test", magnet, infoHash: hash }),
+      );
+      expect(res.status).toBe(200);
+      expect(res.json).toMatchObject({ ok: true });
+      expect(JSON.stringify(res.json)).not.toMatch(/magnet:\?xt=/i);
+
+      const bad = await request(
+        handler,
+        "POST",
+        "/api/copy-magnet",
+        JSON.stringify({ name: "x", magnet: "not-a-magnet" }),
+      );
+      expect(bad.status).toBe(400);
+    } finally {
+      runtime.dispose();
+    }
+  });
+
+  it("gets and patches config (trackers + locked downloadDir)", async () => {
+    // beforeEach sets TORZLINK_DOWNLOAD_DIR — keep it so we don't race other files on process.env.
+    const runtime = await createTorzlinkRuntime();
+    try {
+      const handler: http.RequestListener = (req, res) => {
+        void handleRequest(req, res, runtime, publicDir);
+      };
+
+      const get = await request(handler, "GET", "/api/config");
+      expect(get.status).toBe(200);
+      const cfg = get.json as {
+        downloadDir: string;
+        trackers: string[];
+        downloadDirLocked: boolean;
+        unknownTrackerHosts: string[];
+      };
+      expect(cfg.downloadDir).toBeTruthy();
+      expect(cfg.trackers).toEqual([]);
+      expect(cfg.downloadDirLocked).toBe(true);
+      expect(cfg.unknownTrackerHosts).toEqual([]);
+
+      const tracker = "udp://tracker.opentrackr.org:1337/announce";
+      const patch = await request(
+        handler,
+        "PATCH",
+        "/api/config",
+        JSON.stringify({ trackers: [tracker] }),
+      );
+      expect(patch.status).toBe(200);
+      expect(patch.json).toMatchObject({
+        ok: true,
+        trackers: [tracker],
+        downloadDirLocked: true,
+      });
+
+      const again = await request(handler, "GET", "/api/config");
+      expect(again.json).toMatchObject({ trackers: [tracker] });
+
+      const otherDir = path.join(stateDir, "other-downloads");
+      const locked = await request(
+        handler,
+        "PATCH",
+        "/api/config",
+        JSON.stringify({ downloadDir: otherDir }),
+      );
+      expect(locked.status).toBe(409);
+      expect(locked.json).toMatchObject({ downloadDirLocked: true });
+      expect(runtime.config.downloadDir).toBe(cfg.downloadDir);
+    } finally {
+      runtime.dispose();
+    }
+  });
+
+  it("restores history, redownloads, and clears", async () => {
+    const runtime = await createTorzlinkRuntime();
+    try {
+      const handler: http.RequestListener = (req, res) => {
+        void handleRequest(req, res, runtime, publicDir);
+      };
+      const hash = "fedcba9876543210fedcba9876543210fedcba98";
+      const magnet = `magnet:?xt=urn:btih:${hash}&dn=HistItem`;
+      runtime.queue.restoreHistory([
+        {
+          id: hash,
+          name: "HistItem",
+          magnet,
+          sizeBytes: 1000,
+          dir: process.env.TORZLINK_DOWNLOAD_DIR!,
+          completedAt: Date.now(),
+        },
+      ]);
+
+      const list = await request(handler, "GET", "/api/history");
+      expect(list.status).toBe(200);
+      expect((list.json as { items: { id: string; magnet?: string }[] }).items).toHaveLength(1);
+      expect((list.json as { items: { magnet?: string }[] }).items[0]?.magnet).toContain(hash);
+
+      const redown = await request(handler, "POST", `/api/history/${hash}/redownload`, "{}");
+      expect(redown.status).toBe(201);
+
+      const cancel = await request(handler, "POST", `/api/downloads/${hash}/cancel`, "{}");
+      expect(cancel.status).toBe(200);
+
+      const clear = await request(handler, "DELETE", "/api/history");
+      expect(clear.status).toBe(200);
+      const empty = await request(handler, "GET", "/api/history");
+      expect(empty.json).toEqual({ items: [] });
+    } finally {
+      runtime.dispose();
+    }
+  });
 });

@@ -10,25 +10,28 @@ mode=""
 case "${1:-}" in
   --native|-n|1) mode=native ;;
   --docker|-d|2) mode=docker ;;
+  --web|-w|3) mode=web ;;
 esac
 
 show_menu() {
   echo "TorZlink — launcher"
-  echo "  1) Native (Node.js, local development)"
-  echo "  2) Docker (interactive container)"
+  echo "  1) Native (Node.js TUI, local development)"
+  echo "  2) Docker (interactive TUI container)"
+  echo "  3) Web UI (torzlink serve)"
   echo "  q) Exit"
 }
 
 resolve_mode_from_menu() {
   while true; do
     show_menu
-    read -r -p "Choose [1/2/q]: " pick
+    read -r -p "Choose [1/2/3/q]: " pick
     case "$pick" in
       1) mode=native; break ;;
       2) mode=docker; break ;;
+      3) mode=web; break ;;
       q|Q) exit 0 ;;
       *)
-        echo "Invalid option. Use 1, 2, or q." >&2
+        echo "Invalid option. Use 1, 2, 3, or q." >&2
         ;;
     esac
   done
@@ -38,7 +41,7 @@ if [[ -z "$mode" ]]; then
   if [[ -t 0 ]]; then
     resolve_mode_from_menu
   else
-    echo "No TTY. Use --native or --docker." >&2
+    echo "No TTY. Use --native, --docker, or --web." >&2
     exit 1
   fi
 fi
@@ -66,6 +69,13 @@ run_native() {
   require_command npm "npm not found. Install Node 22+ (see README)."
   warn_env_placeholders
   npm run launch
+}
+
+run_web() {
+  require_command node "Node.js not found. Install Node 22+ (see README)."
+  require_command npm "npm not found. Install Node 22+ (see README)."
+  warn_env_placeholders
+  npm run serve
 }
 
 ensure_docker_env_file() {
@@ -111,8 +121,8 @@ run_docker() {
   docker compose -f packaging/docker/docker-compose.yml run --rm -it torzlink
 }
 
-if [[ "$mode" == docker ]]; then
-  run_docker
-else
-  run_native
-fi
+case "$mode" in
+  docker) run_docker ;;
+  web) run_web ;;
+  *) run_native ;;
+esac

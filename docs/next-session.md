@@ -1,6 +1,6 @@
 # Next session — TorZlink backlog
 
-In progress after **v1.7.1**: web UI retro theme + Red/VPN toggle (local serve); NAS redeploy pending.
+In progress after **v1.7.1**: web UI parity (categories, copy magnet, history, seeding); NAS redeploy + VPN apply-without-redeploy still pending.
 
 ## Product invariant — Web ≡ TUI
 
@@ -10,21 +10,21 @@ In progress after **v1.7.1**: web UI retro theme + Red/VPN toggle (local serve);
 
 | # | Capacidad TUI | Estado web | Notas de implementación |
 | --- | --- | --- | --- |
-| 1 | Búsqueda multi-fuente + resultados | Parcial | Falta filtrar por categoría/fuente como el sidebar (`All` / Games / Movies / …) |
+| 1 | Búsqueda multi-fuente + resultados | OK | Filtro categoría/group + hideDead + sort en `GET /api/search` |
 | 2 | Añadir a cola (magnet / infohash / resultado) | Parcial | OK básico; falta “download to…” (carpeta alternativa por ítem) |
-| 3 | Cola activa: pause / resume / cancel + progreso | Parcial | OK; falta ETA, open folder, parity de badges/contadores |
-| 4 | **Downloads** (historial / recently downloaded) | Falta | API + pestaña History |
-| 5 | **Seeding** (lista, pause/stop seed) | Falta | API + pestaña Seeding |
-| 6 | Copiar magnet / guardar `.magnet` | Falta | Botón Copy + notificación Telegram alineada con TUI |
+| 3 | Cola activa: pause / resume / cancel + progreso | Parcial | OK + ETA en UI; falta open folder (evitar en web remota) |
+| 4 | **Downloads** (historial / recently downloaded) | OK | `GET/DELETE /api/history` + redownload; pestaña History |
+| 5 | **Seeding** (lista, pause/stop seed) | OK | `GET /api/seeds` + pause/resume/toggle; pestaña Seeding |
+| 6 | Copiar magnet / guardar `.magnet` | OK | `POST /api/copy-magnet` + botón Copiar (clipboard + Telegram) |
 | 7 | Pegar magnet (clipboard / input) | Parcial | Input magnet OK; clipboard del host es distinto en browser |
 | 8 | Abrir `.torrent` | Falta | Upload / path API |
-| 9 | Config: carpeta de descarga global | Falta | GET/PATCH config + UI |
-| 10 | Config: trackers custom (+ warning hosts) | Falta | Misma validación que TUI |
-| 11 | Categorías / filtros de fuentes (sidebar) | Falta | Nav espejo del rail TUI |
-| 12 | Ordenación de resultados | Falta | Sort por seeds/size/name como Results |
+| 9 | Config: carpeta de descarga global | OK | `GET/PATCH /api/config` + panel Config; bloqueada si `TORZLINK_DOWNLOAD_DIR` |
+| 10 | Config: trackers custom (+ warning hosts) | OK | Misma validación TUI (`parseTrackers` / `unknownTrackerHosts`) |
+| 11 | Categorías / filtros de fuentes (sidebar) | OK | Tabs All/Games/Movies/TV/Anime (`src/sources/categories.ts`) |
+| 12 | Ordenación de resultados | OK | `sort=` en search (seeders/size/name/source) |
 | 13 | Help / keymap contextual | N/A web | Sustituir por ayuda corta en UI (no clonar atajos Ink) |
 | 14 | Splash / branding | Parcial | Look retro alineado; splash TUI no obligatorio |
-| 15 | Notificaciones Telegram (copy/start/complete/error) | Parcial | Runtime serve ya puede notificar; web debe disparar los mismos eventos |
+| 15 | Notificaciones Telegram (copy/start/complete/error) | Parcial | Copy vía API; start/complete/error vía runtime serve |
 | 16 | Modo red **direct** ↔ **vpn** (NAS) | Parcial | Toggle UI VPN ON/OFF existe; **falta apply sin redeploy** (ver invariante abajo) |
 
 **Regla de trabajo:** cada PR de producto web debe avanzar al menos una fila “Falta” → “Parcial/OK” y compartir lógica con el core (no reimplementar scrapers/queue en el front).
@@ -50,9 +50,9 @@ Ideas de diseño (elegir una en implementación):
 
 | Priority | Area | Item | Notes |
 | --- | --- | --- | --- |
-| 1 | Product | **Web ≡ TUI feature parity** | Ver checklist arriba; empezar por categorías + History + Seeding + Copy magnet |
-| 2 | Ops | **VPN ON/OFF sin redeploy** | Switch web aplica direct↔vpn automáticamente; ver invariante arriba |
-| 3 | Ops | NAS redeploy (UI retro + switch VPN + parity incremental) | `deploy-from-dev` cuando el look/dev esté OK |
+| 1 | Ops | **VPN ON/OFF sin redeploy** | Switch web aplica direct↔vpn automáticamente; ver invariante arriba |
+| 2 | Ops | NAS redeploy (UI retro + switch VPN + parity incremental) | `deploy-from-dev` cuando el look/dev esté OK |
+| 3 | Product | Web remaining parity | download-to…, upload `.torrent` (config downloadDir/trackers OK) |
 | 4 | QA | Manual TUI download smoke test in Docker (Windows host) | Validate end-to-end on the primary dev machine |
 | 5 | Docs | Windows-specific Docker volume docs | `%cd%`, WSL2, Desktop bind-mount quirks |
 | 6 | Quality P2 | Zod schema for `config.json` | `downloadDir`, `trackers[]` validation at load |
@@ -63,7 +63,7 @@ Ideas de diseño (elegir una en implementación):
 - **P2:** `TORZLINK_DOWNLOAD_ROOT` path jail, structured logging `TORZLINK_LOG`, no-seed-by-default
 - **Web UX:** SSE/WebSocket progress (sustituto del refresh 1s), Traefik basicAuth opcional
 - **Maintenance:** Selective upstream sync from `baairon/torlink`
-- **Launchers:** [docs/follow-ups-launchers.md](follow-ups-launchers.md) — code review PR hygiene
+- **Launchers:** [docs/follow-ups-launchers.md](follow-ups-launchers.md) — modo **web** hecho; queda code review PR hygiene
 
 ## Reference — v1.7.1
 
