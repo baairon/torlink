@@ -2,13 +2,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Box, Text, useApp, useStdout, useStdin } from "ink";
 import { useSafeInput } from "./hooks/useSafeInput";
 import { promises as fs } from "node:fs";
-import { loadConfig, saveConfig, type Config } from "../config/config";
+import { saveConfig, type Config } from "../config/config";
 import { normalizeDownloadDir } from "../config/folder";
 import { unknownTrackerHosts } from "../config/trackers";
-import { DownloadQueue } from "../download/queue";
-import { loadQueue, loadSeeds } from "../download/persist";
-import { loadHistory } from "../download/history";
-import { reconcileQueue } from "../download/reconcile";
+import { createTorzlinkRuntime } from "../core/runtime";
+import type { DownloadQueue } from "../download/queue";
 import { sanitizeDownloadInput, sanitizeMagnetInput, sanitizeParsedMagnet } from "../sources/magnet";
 import { magnetFromTorrentFile } from "../sources/torrentFile";
 import { readClipboard, writeClipboard, lastClipboardFile, saveMagnetFile } from "../util/clipboard";
@@ -114,18 +112,13 @@ export function App({
     booting.current = true;
     let alive = true;
     void (async () => {
-      const cfg = await loadConfig();
-      const q = new DownloadQueue();
-      q.setTrackers(cfg.trackers);
-      q.restore(reconcileQueue(await loadQueue()));
-      q.restoreHistory(await loadHistory());
-      q.restoreSeeds(await loadSeeds());
+      const runtime = await createTorzlinkRuntime();
       if (!alive) {
-        q.suspend();
+        runtime.dispose();
         return;
       }
-      setConfigState(cfg);
-      setQueue(q);
+      setConfigState(runtime.config);
+      setQueue(runtime.queue);
       const launch = initialMagnet
         ? sanitizeMagnetInput(initialMagnet)
         : initialTorrent
@@ -134,10 +127,10 @@ export function App({
             )
           : null;
       if (launch) {
-        await fs.mkdir(cfg.downloadDir, { recursive: true }).catch(() => {});
-        q.add(
+        await fs.mkdir(runtime.config.downloadDir, { recursive: true }).catch(() => {});
+        runtime.queue.add(
           { id: launch.infoHash, name: launch.name, magnet: launch.magnet },
-          cfg.downloadDir,
+          runtime.config.downloadDir,
         );
         setView("browser");
         setSection("downloads");

@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>TorZlink</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="shell">
+      <header class="brand">
+        <h1>TorZlink</h1>
+        <p class="tagline">Busca y descarga torrents en tu red local.</p>
+      </header>
+
+      <section id="auth-gate" class="panel" hidden>
+        <h2>API token</h2>
+        <p class="status">Este servidor exige <code>TORZLINK_SERVE_TOKEN</code>.</p>
+        <form id="auth-form" class="row">
+          <input id="token" name="token" type="password" placeholder="Bearer token" required />
+          <button type="submit">Entrar</button>
+        </form>
+      </section>
+
+      <main id="main" class="layout">
+        <section class="panel" aria-labelledby="search-heading">
+          <h2 id="search-heading">Buscar</h2>
+          <form id="search-form" class="row">
+            <input
+              id="q"
+              name="q"
+              type="search"
+              placeholder="película, serie, juego…"
+              autocomplete="off"
+              maxlength="200"
+              required
+            />
+            <button type="submit" id="search-btn">Buscar</button>
+          </form>
+          <p id="search-status" class="status" hidden></p>
+          <div id="results" class="list" role="list"></div>
+        </section>
+
+        <section class="panel" aria-labelledby="queue-heading">
+          <h2 id="queue-heading">Cola</h2>
+          <form id="magnet-form" class="row">
+            <input
+              id="magnet"
+              name="magnet"
+              type="text"
+              placeholder="magnet:?xt=urn:btih:… o infohash"
+              autocomplete="off"
+            />
+            <button type="submit">Añadir</button>
+          </form>
+          <div id="queue" class="list" role="list"></div>
+        </section>
+      </main>
+    </div>
+    <script src="/app.js" type="module"></script>
+  </body>
+</html>

@@ -6,7 +6,7 @@ Finding torrents has become frustrating due to misleading ads, redirects, and br
 
 TorZlink solves this problem from the command line. With no initial setup required, it lets you search simultaneously across an indexed catalog of reputable sources. Select your file and download it directly to your local machine—cleanly, quickly, and securely.
 
-> **This repository** — [TiiZss/TorZlink](https://github.com/TiiZss/TorZlink) is a maintained fork of [baairon/torlink](https://github.com/baairon/torlink) by [bairon (@baairon)](https://github.com/baairon). Same TUI and sources; this fork adds Docker, auto-setup for developers, CI, security hardening, and fixes for headless/container environments. **Latest release:** [v1.6.0](https://github.com/TiiZss/TorZlink/releases/tag/v1.6.0). See [Differences from upstream](#differences-from-upstream), [Acknowledgments](#acknowledgments), and the [Changelog](CHANGELOG.md).
+> **This repository** — [TiiZss/TorZlink](https://github.com/TiiZss/TorZlink) is a maintained fork of [baairon/torlink](https://github.com/baairon/torlink) by [bairon (@baairon)](https://github.com/baairon). Same TUI and sources; this fork adds Docker, auto-setup for developers, CI, security hardening, and fixes for headless/container environments. **Latest release:** [v1.7.0](https://github.com/TiiZss/TorZlink/releases/tag/v1.7.0). See [Differences from upstream](#differences-from-upstream), [Acknowledgments](#acknowledgments), and the [Changelog](CHANGELOG.md).
 
 ## Get started
 
@@ -186,6 +186,36 @@ docker run --rm -it \
 
 On Linux/macOS, replace `%cd%` with `$(pwd)`.
 
+### Web UI (`torzlink serve`)
+
+LAN admin UI + JSON API (search + download queue). No in-app login — trust Traefik / your LAN (see [ADR-001](docs/adr/001-trust-model.md)).
+
+```sh
+torzlink serve --host 127.0.0.1 --port 8787
+# or from repo: npx tsx src/app/entry.tsx serve --host 127.0.0.1 --port 8787
+```
+
+Open `http://127.0.0.1:8787`. Endpoints: `GET /health`, `GET /api/auth`, `GET /api/search?q=`, `GET|POST /api/downloads`, `POST /api/downloads/:id/pause|resume|cancel`.
+
+On shared Docker networks, set `TORZLINK_SERVE_TOKEN` so `/api/*` requires `Authorization: Bearer …` (the UI prompts for the token).
+
+### NAS deploy (Ugreen + Traefik v3)
+
+Production compose uses GHCR and attaches to your existing `proxy_net`:
+
+```sh
+# on the NAS
+cp packaging/docker/.env.nas.example /path/to/deploy/.env
+# set PROXY_NET_NAME (docker network ls) and TORZLINK_NETWORK_MODE=direct|vpn
+bash tools/deploy-nas.sh install   # from repo; or copy script + packaging/docker
+cd /path/to/deploy && TORZLINK_DEPLOY_DIR=$PWD bash /path/to/repo/tools/deploy-nas.sh up
+```
+
+- **`TORZLINK_NETWORK_MODE=direct`** — TorZlink on `proxy_net`; Traefik labels on the service (`Host(\`torzlink.lan\`)`).
+- **`TORZLINK_NETWORK_MODE=vpn`** — `network_mode: container:gluetun`; paste labels from [packaging/docker/traefik-gluetun-torzlink.labels.md](packaging/docker/traefik-gluetun-torzlink.labels.md) onto Gluetun.
+
+Point Pi-hole DNS `torzlink.lan` at Traefik’s LAN IP. State: `${DOCKER_CONFIG_ROOT}/torzlink`; downloads: `${MEDIA_ROOT}/media/torzlink`.
+
 Before opening a PR, skim [CONTRIBUTING.md](CONTRIBUTING.md); it lays out the bar with examples from real merged PRs.
 
 ## Troubleshooting
@@ -198,7 +228,7 @@ Problems encountered while building and running this fork, and how they were fix
 
 **Cause:** `npm install --ignore-scripts` in the production deps stage skipped postinstall scripts that compile the native binary.
 
-**Fix:** The deps stage runs `npm install --omit=dev` **without** `--ignore-scripts`, and verifies the `.node` file exists. Rebuild:
+**Fix:** The deps stage runs `npm ci --omit=dev` **without** `--ignore-scripts`, and verifies the `.node` file exists. Rebuild:
 
 ```sh
 docker compose -f packaging/docker/docker-compose.yml build --no-cache
@@ -311,6 +341,7 @@ kanban
     Tag v1.4.0 release
     Tag v1.5.0 release
     Tag v1.6.0 release
+    Tag v1.7.0 release web UI NAS Traefik
     Telegram .magnet attachments + completion summary
     Security roadmap in README project board
     CI security gates gitleaks npm audit Trivy
@@ -324,12 +355,13 @@ kanban
     SBOM generation on release workflow
     Release fix dockerignore package-lock + SBOM stdout redirect
     Agent workflow docs pre-release gate skill routing
+    Web UI torzlink serve search plus queue API
+    NAS deploy Traefik direct vpn switch deploy-nas.sh
   column Next session
     Manual interactive download test in Docker TUI
     Windows-specific Docker volume docs
     Zod schema validation for config.json
     Scraper anti-corruption rebuild magnet from infoHash
-    Optional headless magnet-add CLI mode
     See docs/next-session.md
   column Planned
     Sync selective upstream fixes from baairon/torlink
@@ -354,7 +386,7 @@ kanban
 | ✅ Done | Docker | Env-based paths and clipboard for headless |
 | ✅ Done | Runtime | WebTorrent NAT/UTP hardening in containers |
 | ✅ Done | CI | Matrix Linux / macOS / Windows + Docker build + launcher smoke |
-| ✅ Done | Release | Workflow (`.github/workflows/release.yml`) + **v1.6.0** |
+| ✅ Done | Release | Workflow (`.github/workflows/release.yml`) + **v1.7.0** |
 | ✅ Done | Docs | Changelog, troubleshooting, upstream diff, security roadmap |
 | ✅ Done | UX | Root launchers, TorZlink branding, truecolor in Docker |
 | ✅ Done | Telegram | `.magnet` attachments on copy/start; completion summary without magnet URI |
@@ -368,13 +400,14 @@ kanban
 | ✅ Done | Security | ADR-001 trust model ([docs/adr/001-trust-model.md](docs/adr/001-trust-model.md)) |
 | ✅ Done | Security | Regression tests for poisoned magnets and TUI injection |
 | ✅ Done | Security | CycloneDX SBOM attached to GitHub Releases |
-| ✅ Done | Release | v1.6.0 published — [GitHub Release](https://github.com/TiiZss/TorZlink/releases/tag/v1.6.0) + GHCR `:v1.6.0` / `:latest` |
+| ✅ Done | Release | v1.7.0 published — [GitHub Release](https://github.com/TiiZss/TorZlink/releases/tag/v1.7.0) + GHCR `:v1.7.0` / `:latest` |
 | ✅ Done | Docs | Agent workflow — [docs/agent-workflow.md](docs/agent-workflow.md) + `npm run pre-release` |
+| ✅ Done | Product | Web UI + API (`torzlink serve`) — search + download queue |
+| ✅ Done | Ops | NAS deploy — Traefik v3, `TORZLINK_NETWORK_MODE=direct\|vpn`, `tools/deploy-nas.sh` |
 | 🔜 Next | QA | Manual TUI download smoke test in Docker (Windows host) — [docs/next-session.md](docs/next-session.md) |
 | 🔜 Next | Docs | Windows-specific Docker volume docs |
 | 🔜 Next | Quality P2 | Zod schema for `config.json` (`downloadDir`, `trackers[]`) |
 | 🔜 Next | Quality P2 | Scraper anti-corruption layer: rebuild magnet from infoHash |
-| 🔜 Next | Product | Headless / scripted magnet-add CLI mode |
 | 📋 Planned | Maintenance | Sync selective upstream fixes from `baairon/torlink` |
 | 📋 P2 | Quality | Zod schema for `config.json` (`downloadDir`, `trackers[]`) |
 | 📋 P2 | Quality | Scraper anti-corruption layer: rebuild magnet from infoHash, no raw HTML passthrough |
@@ -385,7 +418,7 @@ kanban
 
 **Priorities:** 🔜 Next = pick up here ([docs/next-session.md](docs/next-session.md)) · 📋 Planned = broader roadmap · 📋 P2 = quality/maintainability · Security P0/P1 complete as of **v1.6.0**.
 
-**Current release:** [v1.6.0](https://github.com/TiiZss/TorZlink/releases/tag/v1.6.0) — security hardening (P0+P1).
+**Current release:** [v1.7.0](https://github.com/TiiZss/TorZlink/releases/tag/v1.7.0) — web UI + NAS/Traefik deploy.
 
 ### Cut a release
 
@@ -393,13 +426,13 @@ After merging to [TiiZss/TorZlink](https://github.com/TiiZss/TorZlink) `main`, b
 
 ```sh
 npm run pre-release    # tests, SBOM, Docker smoke — see docs/agent-workflow.md
-git tag v1.7.0
-git push origin v1.7.0
+git tag v1.8.0
+git push origin v1.8.0
 ```
 
 Agents: run `review-security` and `review-bugbot` before tagging; monitor the Release workflow after push ([docs/agent-workflow.md](docs/agent-workflow.md)).
 
-The `release` workflow runs tests, publishes `ghcr.io/tiizss/torzlink:latest` and `ghcr.io/tiizss/torzlink:v1.7.0`, attaches `sbom.cdx.json`, and opens a GitHub Release with notes from [CHANGELOG.md](CHANGELOG.md).
+The `release` workflow runs tests, publishes `ghcr.io/tiizss/torzlink:latest` and `ghcr.io/tiizss/torzlink:v1.8.0`, attaches `sbom.cdx.json`, and opens a GitHub Release with notes from [CHANGELOG.md](CHANGELOG.md).
 
 ## Acknowledgments
 

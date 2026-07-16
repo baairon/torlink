@@ -1,6 +1,6 @@
 {
   "name": "torzlink",
-  "version": "1.6.0",
+  "version": "1.7.0",
   "description": "TorZlink — a sleek, zero-setup torrent finder and downloader in your terminal.",
   "type": "module",
   "bin": {
@@ -32,7 +32,8 @@
     "previews": "tsx tools/render-previews.tsx",
     "prepublishOnly": "npm run build",
     "docker:build": "docker compose -f packaging/docker/docker-compose.yml build",
-    "docker:run": "docker compose -f packaging/docker/docker-compose.yml build --quiet torzlink && docker compose -f packaging/docker/docker-compose.yml run --rm -it torzlink"
+    "docker:run": "docker compose -f packaging/docker/docker-compose.yml build --quiet torzlink && docker compose -f packaging/docker/docker-compose.yml run --rm -it torzlink",
+    "deploy:nas": "bash tools/deploy-nas.sh"
   },
   "keywords": [
     "torrent",

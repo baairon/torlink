@@ -33,4 +33,11 @@ describe("parseCliArgs", () => {
   it("rejects a non-hash bareword", () => {
     expect(parseCliArgs(["hello"])).toEqual({ kind: "invalid", arg: "hello" });
   });
+  it("parses serve mode", () => {
+    expect(parseCliArgs(["serve", "--host=0.0.0.0", "--port=8787"])).toEqual({
+      kind: "serve",
+      host: "0.0.0.0",
+      port: 8787,
+    });
+  });
 });

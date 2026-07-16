@@ -1,0 +1,52 @@
+# TorZlink NAS deploy — Traefik v3 + switch direct|vpn
+#
+# Usage (via tools/deploy-nas.sh or manually):
+#   TORZLINK_NETWORK_MODE=direct  → docker compose --profile direct up -d
+#   TORZLINK_NETWORK_MODE=vpn     → docker compose --profile vpn up -d
+#
+# vpn mode shares Gluetun's network namespace (like qBittorrent). Add Traefik
+# labels from traefik-gluetun-torzlink.labels.md onto the gluetun service.
+
+x-torzlink-common: &torzlink-common
+  image: ghcr.io/tiizss/torzlink:${TORZLINK_IMAGE_TAG:-latest}
+  container_name: torzlink
+  restart: unless-stopped
+  command: ["serve", "--host", "0.0.0.0", "--port", "8787"]
+  environment:
+    TZ: ${TZ:-Europe/Madrid}
+    TORZLINK_STATE_DIR: /data
+    TORZLINK_DOWNLOAD_DIR: /downloads
+    TORZLINK_DISABLE_NAT: "1"
+    TORZLINK_SKIP_UPDATE: "1"
+    TELEGRAM_ENABLED: ${TELEGRAM_ENABLED:-}
+    TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+    TELEGRAM_CHANNEL_ID: ${TELEGRAM_CHANNEL_ID:-}
+    TORZLINK_SERVE_TOKEN: ${TORZLINK_SERVE_TOKEN:-}
+  volumes:
+    - ${DOCKER_CONFIG_ROOT}/torzlink:/data
+    - ${MEDIA_ROOT}/media/torzlink:/downloads
+
+services:
+  torzlink:
+    <<: *torzlink-common
+    profiles: ["direct"]
+    networks:
+      - proxy_net
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.torzlink.entrypoints=web
+      - traefik.http.routers.torzlink.rule=Host(`torzlink.lan`)
+      - traefik.http.routers.torzlink.service=torzlink-service
+      - traefik.http.services.torzlink-service.loadbalancer.server.port=8787
+
+  torzlink-vpn:
+    <<: *torzlink-common
+    profiles: ["vpn"]
+    network_mode: container:${GLUETUN_CONTAINER_NAME:-gluetun}
+    # Traefik cannot attach labels here — paste the vpn snippet onto gluetun.
+
+networks:
+  proxy_net:
+    external: true
+    # Required for profile `direct`. For `vpn` set any existing name or your real proxy_net.
+    name: ${PROXY_NET_NAME:-proxy_net}

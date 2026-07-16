@@ -1,6 +1,6 @@
 'use strict';
 
-const { chmodSync, copyFileSync } = require('node:fs');
+const { chmodSync, copyFileSync, cpSync, existsSync, mkdirSync } = require('node:fs');
 const { resolve } = require('node:path');
 
 const root = resolve(__dirname, '..');
@@ -8,9 +8,17 @@ const src = resolve(root, 'scripts/cli-entry.cjs');
 const dest = resolve(root, 'dist/cli.cjs');
 const ensureSrc = resolve(root, 'scripts/ensure.cjs');
 const ensureDest = resolve(root, 'dist/ensure.cjs');
+const webSrc = resolve(root, 'web');
+const webDest = resolve(root, 'dist/web');
 
 copyFileSync(src, dest);
 copyFileSync(ensureSrc, ensureDest);
+
+if (existsSync(webSrc)) {
+  mkdirSync(resolve(root, 'dist'), { recursive: true });
+  cpSync(webSrc, webDest, { recursive: true });
+  console.log('postbuild: copied web/ → dist/web/');
+}
 
 // On Windows chmod is effectively a no-op, and npm re-applies bin permissions on install anyway, so a failure
 // here shouldn't fail the build, but warn rather than swallow the error.

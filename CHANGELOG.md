@@ -6,11 +6,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.7.0] — 2026-07-16
+
+Web UI + NAS/Traefik deploy: LAN search and download queue in the browser, with optional Gluetun VPN mode.
+
+**Verified:** 162 tests; `npm run typecheck`; `npm run build`; security + bugbot review on uncommitted changes.
+
 ### Added
 
+- **Web UI + API** — `torzlink serve [--host] [--port]`: search all sources and manage the download queue in the browser (`web/`, `GET /api/search`, `/api/downloads`); optional `TORZLINK_SERVE_TOKEN` Bearer auth on `/api/*`
+- **NAS deploy** — [packaging/docker/docker-compose.nas.yml](packaging/docker/docker-compose.nas.yml) for Traefik v3; `TORZLINK_NETWORK_MODE=direct|vpn`; [tools/deploy-nas.sh](tools/deploy-nas.sh); Gluetun label snippet
+- **Shared runtime bootstrap** — `createTorzlinkRuntime()` for TUI and serve
 - **Agent workflow** — [docs/agent-workflow.md](docs/agent-workflow.md): proactive skill routing, security/bugbot gates before tags, `npm run pre-release`, CI monitoring guidance
 - **`tools/pre-release-check.sh`** — lockfile/Docker/SBOM invariants + test/build/docker smoke
 - **Cursor rule templates** — [docs/cursor-rules/](docs/cursor-rules/); install with `npm run cursor:rules`
+
+### Changed
+
+- **ADR-001** — trust model documents LAN HTTP admin API and optional Gluetun VPN mode (no longer TTY-only)
 
 ## [1.6.0] — 2026-07-11
 

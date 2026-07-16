@@ -16,6 +16,7 @@ RUN npm ci --ignore-scripts --loglevel=error
 COPY tsconfig.json tsup.config.ts ./
 COPY src ./src
 COPY scripts ./scripts
+COPY web ./web
 RUN npm run build
 
 # ── runtime: minimal image with clipboard helper ────────────────────────────
@@ -41,5 +42,6 @@ COPY --from=deps --chown=torzlink:torzlink /app/node_modules ./node_modules
 COPY --chown=torzlink:torzlink package.json ./
 USER torzlink
 VOLUME ["/data", "/downloads"]
+EXPOSE 8787
 ENTRYPOINT ["/sbin/tini", "--", "node", "dist/cli.cjs"]
 CMD []
