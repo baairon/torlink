@@ -42,7 +42,7 @@ In progress after **v1.7.1**: web UI parity (download-to…, upload `.torrent`);
 
 | Priority | Area | Item | Notes |
 | --- | --- | --- | --- |
-| 1 | Ops | NAS redeploy + smoke VPN toggle | `deploy-from-dev` con imagen nueva; clic VPN ON/OFF → recreate sin SSH |
+| 1 | Ops | Traefik labels on Gluetun (vpn UI) | Switch aplica `network_mode:container:gluetun`; sin labels en Gluetun, `torzlink.lan` no responde en VPN |
 | 2 | Product | Web remaining parity | download-to…, upload `.torrent` (config downloadDir/trackers OK) |
 | 3 | QA | Manual TUI download smoke test in Docker (Windows host) | Validate end-to-end on the primary dev machine |
 | 4 | Docs | Windows-specific Docker volume docs | `%cd%`, WSL2, Desktop bind-mount quirks |
