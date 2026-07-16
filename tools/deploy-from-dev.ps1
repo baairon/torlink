@@ -302,22 +302,53 @@ function Copy-FromNas([string]$RemotePath, [string]$LocalPath) {
 }
 
 function Set-EnvFileKey([string]$Path, [string]$Key, [string]$Value) {
-  $lines = @(Get-Content $Path -ErrorAction SilentlyContinue)
+  # Cap line length: a corrupted NAS .env once grew comment lines to multi-MB and
+  # PowerShell -match threw ArgumentOutOfRangeException (requiredLength).
+  $maxLine = 4096
+  $rawLines = @(Get-Content $Path -ErrorAction SilentlyContinue)
   $found = $false
-  $out = foreach ($line in $lines) {
-    if ($line -match "^\s*$Key=") {
+  $out = New-Object System.Collections.Generic.List[string]
+  foreach ($line in $rawLines) {
+    if ($null -eq $line) { continue }
+    $s = [string]$line
+    if ($s.Length -gt $maxLine) {
+      Info "dropping oversized .env line ($($s.Length) chars) while setting $Key"
+      continue
+    }
+    $s = $s -replace "`r$", ""
+    if ($s -match ("^\s*" + [regex]::Escape($Key) + "=")) {
       $found = $true
-      "$Key=$Value"
+      $out.Add("$Key=$Value")
     } else {
-      $line
+      $out.Add($s)
     }
   }
-  if (-not $found) { $out += "$Key=$Value" }
+  if (-not $found) { $out.Add("$Key=$Value") }
   # UTF-8 without BOM + LF — Windows PowerShell 5.1 "utf8" writes a BOM that
   # breaks docker compose --env-file on Linux (first key / values with \r).
-  $text = (($out | ForEach-Object { $_ -replace "`r$", "" }) -join "`n") + "`n"
+  $text = ($out -join "`n") + "`n"
   $utf8NoBom = New-Object System.Text.UTF8Encoding $false
   [System.IO.File]::WriteAllText($Path, $text, $utf8NoBom)
+}
+
+function Repair-EnvFileIfBloated([string]$Path, [string]$ExamplePath) {
+  if (-not (Test-Path $Path)) { return }
+  $len = (Get-Item $Path).Length
+  if ($len -lt 65536) { return }
+  Info "remote .env is bloated ($len bytes) - rebuilding from example and preserving short keys"
+  $keep = @{}
+  foreach ($line in Get-Content $Path -ErrorAction SilentlyContinue) {
+    if ($null -eq $line -or $line.Length -gt 4096) { continue }
+    if ($line -match '^\s*([A-Za-z_][A-Za-z0-9_]*)=(.*)$') {
+      $k = $Matches[1]
+      $v = $Matches[2]
+      if ($v.Length -le 2048) { $keep[$k] = $v }
+    }
+  }
+  Copy-Item $ExamplePath $Path -Force
+  foreach ($k in $keep.Keys) {
+    Set-EnvFileKey $Path $k $keep[$k]
+  }
 }
 
 $tmpEnv = $null
@@ -383,6 +414,7 @@ try {
   } else {
     Info "fetch existing remote .env"
     Copy-FromNas "$DeployDir/.env" $tmpEnv
+    Repair-EnvFileIfBloated $tmpEnv $EnvExample
   }
 
   Set-EnvFileKey $tmpEnv "TORZLINK_IMAGE" $ImageRef
@@ -395,11 +427,12 @@ try {
   Set-EnvFileKey $tmpEnv "TZ" "Europe/Madrid"
   Set-EnvFileKey $tmpEnv "PROXY_NET_NAME" $ProxyNetName
 
-  $dockerGidRaw = Invoke-NasCapture "stat -c '%g' /var/run/docker.sock 2>/dev/null || echo 999"
-  $dockerGid = ([string]$dockerGidRaw).Trim() -replace "[^\d].*", ""
-  if (-not $dockerGid) { $dockerGid = "999" }
+  # Prefer existing .env / local override. Remote sock probe via plink was flaky on Windows.
+  $dockerGid = Coalesce (Read-DotEnvValue $tmpEnv "DOCKER_GID") (
+    Coalesce (Read-DotEnvValue $LocalEnv "DOCKER_GID") "999"
+  )
   Set-EnvFileKey $tmpEnv "DOCKER_GID" $dockerGid
-  Info "DOCKER_GID=$dockerGid (web VPN switch socket access)"
+  Info "DOCKER_GID=$dockerGid (web VPN switch socket access; override in .env if needed)"
 
   $token = Read-DotEnvValue $LocalEnv "TORZLINK_SERVE_TOKEN"
   if (-not $token) { $token = Read-DotEnvValue $tmpEnv "TORZLINK_SERVE_TOKEN" }

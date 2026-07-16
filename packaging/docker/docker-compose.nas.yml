@@ -7,6 +7,8 @@
 # vpn mode shares Gluetun's network namespace (like qBittorrent). Add Traefik
 # labels from traefik-gluetun-torzlink.labels.md onto the gluetun service.
 
+name: torzlink
+
 x-torzlink-common: &torzlink-common
   # Full image ref. Examples:
   #   TORZLINK_IMAGE=torzlink:v1.7.1                    (deploy-from-dev)
@@ -38,6 +40,7 @@ x-torzlink-common: &torzlink-common
     # Apply VPN ON/OFF from the web UI without a manual redeploy
     TORZLINK_DEPLOY_DIR: /deploy
     TORZLINK_COMPOSE_FILE: /deploy/docker-compose.nas.yml
+    COMPOSE_PROJECT_NAME: torzlink
     # Explicit sh — Alpine image has no bash; script is POSIX.
     TORZLINK_NETWORK_SWITCH_CMD: sh /opt/torzlink/torzlink-network-switch.sh
   volumes:

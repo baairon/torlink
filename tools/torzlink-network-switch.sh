@@ -2,14 +2,23 @@
 # Apply TorZlink network mode (direct|vpn) by recreating the compose profile.
 # Invoked from the container via TORZLINK_NETWORK_SWITCH_CMD (detached).
 # POSIX sh — Alpine runtime has no bash.
-# Requires: docker CLI + compose v2, Docker socket, deploy dir with .env + compose.
+#
+# Usage:
+#   torzlink-network-switch.sh direct|vpn           # hand-off to sibling (safe from inside torzlink)
+#   torzlink-network-switch.sh --apply direct|vpn   # actually down/rm/up (run in sibling)
 set -eu
+
+APPLY=0
+if [ "${1:-}" = "--apply" ]; then
+  APPLY=1
+  shift
+fi
 
 mode="${1:-}"
 case "${mode}" in
   direct|vpn) ;;
   *)
-    echo "usage: $(basename "$0") direct|vpn" >&2
+    echo "usage: $(basename "$0") [--apply] direct|vpn" >&2
     exit 1
     ;;
 esac
@@ -40,8 +49,8 @@ if ! docker compose version >/dev/null 2>&1; then
   die "docker compose not found (need Compose v2)"
 fi
 
-# Let the HTTP handler finish before we recreate this container.
-sleep "${TORZLINK_NETWORK_SWITCH_DELAY:-1}"
+COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-torzlink}"
+export COMPOSE_PROJECT_NAME
 
 # Patch .env (idempotent with server-side TORZLINK_DEPLOY_ENV_FILE patch)
 if grep -qE '^[[:space:]]*TORZLINK_NETWORK_MODE=' "${ENV_FILE}"; then
@@ -57,6 +66,34 @@ set -a
 . "${ENV_FILE}"
 set +a
 
+if [ "${APPLY}" -eq 0 ]; then
+  # Hand off to a sibling so `docker rm -f torzlink` does not kill the apply steps.
+  img="${TORZLINK_IMAGE:-}"
+  if [ -z "${img}" ]; then
+    img="$(docker inspect -f '{{.Config.Image}}' torzlink 2>/dev/null || true)"
+  fi
+  [ -n "${img}" ] || die "TORZLINK_IMAGE unset and could not inspect running torzlink"
+
+  info "scheduling network switch to ${mode} via sibling (${img})"
+  docker rm -f torzlink-netswitch 2>/dev/null || true
+  # --user root: reliable docker.sock access; --rm cleans up after apply
+  docker run -d --rm --user root \
+    --name "torzlink-netswitch" \
+    -v /var/run/docker.sock:/var/run/docker.sock \
+    -v "${DEPLOY_DIR}:/deploy" \
+    -e TORZLINK_DEPLOY_DIR=/deploy \
+    -e TORZLINK_COMPOSE_FILE=/deploy/docker-compose.nas.yml \
+    -e COMPOSE_PROJECT_NAME=torzlink \
+    -e TORZLINK_IMAGE="${img}" \
+    --entrypoint sh \
+    "${img}" \
+    /deploy/torzlink-network-switch.sh --apply "${mode}" >/dev/null
+  exit 0
+fi
+
+# --- --apply path (sibling container) ---
+sleep "${TORZLINK_NETWORK_SWITCH_DELAY:-2}"
+
 if [ "${mode}" = "direct" ]; then
   [ -n "${PROXY_NET_NAME:-}" ] || die "PROXY_NET_NAME is required for direct mode"
 fi
@@ -70,12 +107,13 @@ compose() {
   docker compose --env-file "${ENV_FILE}" --profile "${mode}" -f "${COMPOSE_FILE}" "$@"
 }
 
-info "switching TorZlink to profile=${mode}"
+info "applying TorZlink profile=${mode} (project=${COMPOSE_PROJECT_NAME})"
 if [ "${mode}" = "direct" ]; then
   docker compose --env-file "${ENV_FILE}" --profile vpn -f "${COMPOSE_FILE}" down 2>/dev/null || true
 else
   docker compose --env-file "${ENV_FILE}" --profile direct -f "${COMPOSE_FILE}" down 2>/dev/null || true
 fi
+docker rm -f torzlink 2>/dev/null || true
 
 compose up -d
 info "TorZlink up (profile=${mode})"
