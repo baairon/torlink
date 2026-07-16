@@ -22,12 +22,21 @@ Both scripts must behave the same for:
 | Fatal error | Clear message + `exit 1` (no PowerShell stack trace) |
 | Docker path | `docker compose -f packaging/docker/docker-compose.yml build --quiet torzlink` then `run --rm -it torzlink` — **no npm** |
 | Missing `.env` | Explain (Telegram optional); prompt to create empty file; then continue |
-| Bypass flags | `--native` / `--docker` (and ps1 `-Native` / `-Docker`) skip menu |
+| Bypass flags | `--native` / `--docker` / `--web` (and ps1 `-Native` / `-Docker` / `-Web`) skip menu |
 | No TTY | Require explicit bypass flags |
+| Menu modes | **native** (TUI), **docker** (TUI in container), **web** (`torzlink serve` — UI HTTP) |
 
 When editing one launcher file, check the other and update this table if behavior changes.
 
 ## Checklist — next session
+
+### Product — include web UI in launcher
+
+- [x] Add **web** as a third menu option in `torzlink.sh`, `torzlink.ps1`, and `torzlink.cmd` (alongside native / Docker)
+- [x] Native web path: `npm run serve` → `tsx src/app/entry.tsx serve` (same ensure flow as launch)
+- [x] Bypass flag: `--web` / `-Web` / menu key `3` (keep `1` native, `2` docker)
+- [x] Keep bash ↔ PowerShell ↔ `.cmd` in sync; update smoke tests for the new mode
+- [x] Document the new option in README (launcher section)
 
 ### Tests & CI (do when launchers change again)
 
@@ -78,11 +87,12 @@ When editing one launcher file, check the other and update this table if behavio
 - Root launchers with interactive menu
 - `Stop-Launcher` / clean errors in PowerShell (no `throw` stack traces for users)
 - Bash menu loop aligned with PowerShell
-- `Ensure-DockerEnvFile` before compose
+- `Initialize-DockerEnvFile` before compose
 - Docker calls `docker compose` directly (`build --quiet` + `run`)
 - `debug-*.log` in `.gitignore`; debug telemetry removed from scripts
 
 ## Out of scope (unless explicitly requested)
 
 - Installer `.msi` / `.dmg`
-- Menu options beyond native vs Docker (build, test, etc.)
+- Menu options beyond native / Docker / **web** (build, test, etc.)
+- Dockerized web serve as a separate launcher mode (unless product asks for it; default web path is native `serve`)

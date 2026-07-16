@@ -2,7 +2,8 @@
 # Keep in sync with torzlink.sh — see docs/follow-ups-launchers.md
 param(
     [switch]$Native,
-    [switch]$Docker
+    [switch]$Docker,
+    [switch]$Web
 )
 
 $ErrorActionPreference = 'Stop'
@@ -21,21 +22,23 @@ function Stop-Launcher {
 
 function Show-Menu {
     Write-Host 'TorZlink — launcher'
-    Write-Host '  1) Native (Node.js, local development)'
-    Write-Host '  2) Docker (interactive container)'
+    Write-Host '  1) Native (Node.js TUI, local development)'
+    Write-Host '  2) Docker (interactive TUI container)'
+    Write-Host '  3) Web UI (torzlink serve)'
     Write-Host '  q) Exit'
 }
 
 function Resolve-ModeFromMenu {
     while ($true) {
         Show-Menu
-        $pick = Read-Host 'Choose [1/2/q]'
+        $pick = Read-Host 'Choose [1/2/3/q]'
         switch ($pick) {
             '1' { return 'native' }
             '2' { return 'docker' }
+            '3' { return 'web' }
             { $_ -in 'q', 'Q' } { exit 0 }
             default {
-                Write-Host 'Invalid option. Use 1, 2, or q.' -ForegroundColor Yellow
+                Write-Host 'Invalid option. Use 1, 2, 3, or q.' -ForegroundColor Yellow
             }
         }
     }
@@ -46,11 +49,13 @@ function Resolve-ModeFromArgs {
 
     if ($Native) { return 'native' }
     if ($Docker) { return 'docker' }
+    if ($Web) { return 'web' }
 
     foreach ($arg in $ArgsList) {
         switch ($arg) {
             { $_ -in '--native', '-Native', '-n', '1' } { return 'native' }
             { $_ -in '--docker', '-Docker', '-d', '2' } { return 'docker' }
+            { $_ -in '--web', '-Web', '-w', '3' } { return 'web' }
         }
     }
 
@@ -64,7 +69,7 @@ if (-not $mode) {
         $mode = Resolve-ModeFromMenu
     }
     else {
-        Stop-Launcher 'No TTY. Use -Native or -Docker.'
+        Stop-Launcher 'No TTY. Use -Native, -Docker, or -Web.'
     }
 }
 
@@ -72,7 +77,7 @@ if (-not $mode) {
     Stop-Launcher 'No launch mode selected.'
 }
 
-function Require-Command {
+function Assert-Command {
     param(
         [string]$Name,
         [string]$Message
@@ -83,7 +88,7 @@ function Require-Command {
     }
 }
 
-function Warn-EnvPlaceholders {
+function Write-EnvPlaceholderWarning {
     $envPath = Join-Path $PSScriptRoot '.env'
     if (-not (Test-Path -LiteralPath $envPath)) {
         return
@@ -99,13 +104,20 @@ function Warn-EnvPlaceholders {
 }
 
 function Invoke-Native {
-    Require-Command -Name 'node' -Message 'Node.js not found. Install Node 22+ (see README).'
-    Require-Command -Name 'npm' -Message 'npm not found. Install Node 22+ (see README).'
-    Warn-EnvPlaceholders
+    Assert-Command -Name 'node' -Message 'Node.js not found. Install Node 22+ (see README).'
+    Assert-Command -Name 'npm' -Message 'npm not found. Install Node 22+ (see README).'
+    Write-EnvPlaceholderWarning
     npm run launch
 }
 
-function Ensure-DockerEnvFile {
+function Invoke-Web {
+    Assert-Command -Name 'node' -Message 'Node.js not found. Install Node 22+ (see README).'
+    Assert-Command -Name 'npm' -Message 'npm not found. Install Node 22+ (see README).'
+    Write-EnvPlaceholderWarning
+    npm run serve
+}
+
+function Initialize-DockerEnvFile {
     $envPath = Join-Path $PSScriptRoot '.env'
     if (Test-Path -LiteralPath $envPath) {
         return
@@ -136,21 +148,20 @@ function Ensure-DockerEnvFile {
 }
 
 function Invoke-Docker {
-    Require-Command -Name 'docker' -Message 'Docker not found. Install Docker Desktop (see README).'
+    Assert-Command -Name 'docker' -Message 'Docker not found. Install Docker Desktop (see README).'
     & docker compose version 2>$null | Out-Null
     if ($LASTEXITCODE -ne 0) {
         Stop-Launcher 'docker compose not found. Install Docker Compose v2 (see README).'
     }
-    Ensure-DockerEnvFile
-    Warn-EnvPlaceholders
+    Initialize-DockerEnvFile
+    Write-EnvPlaceholderWarning
     $composeFile = Join-Path $PSScriptRoot 'packaging/docker/docker-compose.yml'
     & docker compose -f $composeFile build --quiet torzlink
     & docker compose -f $composeFile run --rm -it torzlink
 }
 
-if ($mode -eq 'docker') {
-    Invoke-Docker
-}
-else {
-    Invoke-Native
+switch ($mode) {
+    'docker' { Invoke-Docker }
+    'web' { Invoke-Web }
+    default { Invoke-Native }
 }
