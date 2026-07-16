@@ -25,6 +25,14 @@ load_env() {
     source "${ENV_FILE}"
     set +a
   fi
+  # Migrate v1.7.0-style TORZLINK_IMAGE_TAG → TORZLINK_IMAGE (persist for --env-file)
+  if [[ -z "${TORZLINK_IMAGE:-}" && -n "${TORZLINK_IMAGE_TAG:-}" ]]; then
+    export TORZLINK_IMAGE="ghcr.io/tiizss/torzlink:${TORZLINK_IMAGE_TAG}"
+    if [[ -f "${ENV_FILE}" ]] && ! grep -qE '^[[:space:]]*TORZLINK_IMAGE=' "${ENV_FILE}"; then
+      printf '\nTORZLINK_IMAGE=%s\n' "${TORZLINK_IMAGE}" >> "${ENV_FILE}"
+    fi
+    info "derived TORZLINK_IMAGE=${TORZLINK_IMAGE} from TORZLINK_IMAGE_TAG"
+  fi
 }
 
 mode_profile() {
@@ -54,9 +62,12 @@ cmd_install() {
   fi
   load_env
   local data_dir="${DOCKER_CONFIG_ROOT:-/volume2/Docker_Configs}/torzlink"
-  local dl_dir="${MEDIA_ROOT:-/volume1/data}/media/torzlink"
+  local dl_dir="${TORZLINK_DOWNLOADS_HOST:-${MEDIA_ROOT:-/volume1/data}/media/descargas/torrents}"
+  local puid="${PUID:-1000}"
+  local pgid="${PGID:-1000}"
   mkdir -p "${data_dir}" "${dl_dir}"
-  info "data: ${data_dir}"
+  chown -R "${puid}:${pgid}" "${data_dir}" 2>/dev/null || true
+  info "data: ${data_dir} (owner ${puid}:${pgid})"
   info "downloads: ${dl_dir}"
   info "mode: ${TORZLINK_NETWORK_MODE:-direct}"
   if [[ "${TORZLINK_NETWORK_MODE:-direct}" == "direct" && -z "${PROXY_NET_NAME:-}" ]]; then
@@ -89,7 +100,13 @@ cmd_up() {
   else
     docker compose --env-file "${ENV_FILE}" --profile direct -f "${COMPOSE_FILE}" down 2>/dev/null || true
   fi
-  compose pull
+  local img="${TORZLINK_IMAGE:-ghcr.io/tiizss/torzlink:latest}"
+  # Local tags from deploy-from-dev (no slash) are not in a registry — skip pull.
+  if [[ "${img}" == */* ]]; then
+    compose pull
+  else
+    info "skip registry pull for local image: ${img}"
+  fi
   compose up -d
   info "TorZlink up (profile=${profile}). Open http://torzlink.lan"
 }

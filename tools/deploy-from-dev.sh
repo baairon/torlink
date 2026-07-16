@@ -106,7 +106,7 @@ else
 fi
 
 info "create remote dirs"
-ssh_nas "mkdir -p '${DEPLOY_DIR}' /volume2/Docker_Configs/torzlink /volume1/data/media/torzlink"
+ssh_nas "mkdir -p '${DEPLOY_DIR}' /volume2/Docker_Configs/torzlink /volume1/data/media/descargas/torrents && chown -R 1000:1000 /volume2/Docker_Configs/torzlink 2>/dev/null || true"
 
 TAR="$(mktemp -t torzlink-XXXXXX.tar)"
 trap 'rm -f "${TAR}" "${TMP_ENV:-}"' EXIT
@@ -133,6 +133,9 @@ set_env_key "${TMP_ENV}" TORZLINK_IMAGE "${IMAGE_REF}"
 set_env_key "${TMP_ENV}" TORZLINK_NETWORK_MODE "${NETWORK_MODE}"
 set_env_key "${TMP_ENV}" DOCKER_CONFIG_ROOT "/volume2/Docker_Configs"
 set_env_key "${TMP_ENV}" MEDIA_ROOT "/volume1/data"
+set_env_key "${TMP_ENV}" TORZLINK_DOWNLOADS_HOST "/volume1/data/media/descargas/torrents"
+set_env_key "${TMP_ENV}" PUID "1000"
+set_env_key "${TMP_ENV}" PGID "1000"
 set_env_key "${TMP_ENV}" TZ "Europe/Madrid"
 
 if [[ -n "${PROXY_NET_NAME}" ]]; then

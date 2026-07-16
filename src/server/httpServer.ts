@@ -130,6 +130,144 @@ export async function startHttpServer(opts: HttpServerOptions): Promise<Server> 
   return server;
 }
 
+type DownloadCandidate = {
+  id: string;
+  name: string;
+  magnet: string;
+  source?: SourceId;
+  sizeBytes?: number;
+};
+
+function downloadCandidateFromBody(body: Record<string, unknown>): DownloadCandidate {
+  const rawInput = typeof body.input === "string" ? body.input : null;
+  const fromMagnet = rawInput ? sanitizeMagnetInput(rawInput) : null;
+  if (fromMagnet) {
+    return {
+      id: fromMagnet.infoHash,
+      name: fromMagnet.name,
+      magnet: fromMagnet.magnet,
+    };
+  }
+  return {
+    id: typeof body.id === "string" ? body.id : "",
+    name: typeof body.name === "string" ? body.name : "",
+    magnet: typeof body.magnet === "string" ? body.magnet : "",
+    source: typeof body.source === "string" ? (body.source as SourceId) : undefined,
+    sizeBytes: typeof body.sizeBytes === "number" ? body.sizeBytes : undefined,
+  };
+}
+
+async function readJsonBody(
+  req: IncomingMessage,
+  res: ServerResponse,
+): Promise<Record<string, unknown> | null> {
+  try {
+    return JSON.parse(await readBody(req)) as Record<string, unknown>;
+  } catch {
+    sendJson(res, 400, { error: "invalid JSON body" });
+    return null;
+  }
+}
+
+async function handlePostDownloads(
+  req: IncomingMessage,
+  res: ServerResponse,
+  runtime: TorzlinkRuntime,
+): Promise<void> {
+  const body = await readJsonBody(req, res);
+  if (!body) return;
+
+  const safe = sanitizeDownloadInput(downloadCandidateFromBody(body));
+  if (!safe) {
+    sendJson(res, 400, { error: "invalid magnet or infohash" });
+    return;
+  }
+
+  const existing = runtime.queue.getItems().find((it) => it.id === safe.id);
+  if (existing && existing.status !== "failed") {
+    sendJson(res, 409, {
+      ok: false,
+      error: "already in queue",
+      id: safe.id,
+      status: existing.status,
+    });
+    return;
+  }
+
+  await fs.mkdir(runtime.config.downloadDir, { recursive: true }).catch(() => {});
+  runtime.queue.add(safe, runtime.config.downloadDir);
+  runtime.queue.emit("web-added", safe);
+  sendJson(res, 201, { ok: true, id: safe.id });
+}
+
+const DOWNLOAD_ACTION_RE = /^\/api\/downloads\/([^/]+)\/(pause|resume|cancel)$/;
+
+function handleDownloadAction(
+  res: ServerResponse,
+  runtime: TorzlinkRuntime,
+  pathname: string,
+): boolean {
+  const actionMatch = DOWNLOAD_ACTION_RE.exec(pathname);
+  if (!actionMatch) return false;
+
+  const id = decodeURIComponent(actionMatch[1]!);
+  const action = actionMatch[2]!;
+  if (!runtime.queue.has(id)) {
+    sendJson(res, 404, { error: "download not found" });
+    return true;
+  }
+  if (action === "pause") runtime.queue.pause(id);
+  else if (action === "resume") runtime.queue.resume(id);
+  else runtime.queue.cancel(id);
+  sendJson(res, 200, { ok: true, id, action });
+  return true;
+}
+
+async function handleApiRoute(
+  req: IncomingMessage,
+  res: ServerResponse,
+  runtime: TorzlinkRuntime,
+  method: string,
+  url: URL,
+): Promise<boolean> {
+  if (!requireApiAuth(req, res)) return true;
+
+  if (method === "GET" && url.pathname === "/api/search") {
+    const q = url.searchParams.get("q") ?? "";
+    sendJson(res, 200, await searchAll(q));
+    return true;
+  }
+
+  if (method === "GET" && url.pathname === "/api/downloads") {
+    sendJson(res, 200, { items: runtime.queue.getItems().map(serializeDownload) });
+    return true;
+  }
+
+  if (method === "POST" && url.pathname === "/api/downloads") {
+    await handlePostDownloads(req, res, runtime);
+    return true;
+  }
+
+  if (method === "POST" && handleDownloadAction(res, runtime, url.pathname)) {
+    return true;
+  }
+
+  return false;
+}
+
+function handleUnauthenticatedGet(res: ServerResponse, method: string, pathname: string): boolean {
+  if (method !== "GET") return false;
+  if (pathname === "/health") {
+    sendJson(res, 200, { ok: true, service: "torzlink", mode: "serve" });
+    return true;
+  }
+  if (pathname === "/api/auth") {
+    sendJson(res, 200, { required: Boolean(serveToken()) });
+    return true;
+  }
+  return false;
+}
+
 export async function handleRequest(
   req: IncomingMessage,
   res: ServerResponse,
@@ -139,86 +277,10 @@ export async function handleRequest(
   const method = req.method ?? "GET";
   const url = new URL(req.url ?? "/", "http://127.0.0.1");
 
-  if (method === "GET" && url.pathname === "/health") {
-    sendJson(res, 200, { ok: true, service: "torzlink", mode: "serve" });
-    return;
-  }
-
-  if (method === "GET" && url.pathname === "/api/auth") {
-    sendJson(res, 200, { required: Boolean(serveToken()) });
-    return;
-  }
+  if (handleUnauthenticatedGet(res, method, url.pathname)) return;
 
   if (url.pathname.startsWith("/api/")) {
-    if (!requireApiAuth(req, res)) return;
-  }
-
-  if (method === "GET" && url.pathname === "/api/search") {
-    const q = url.searchParams.get("q") ?? "";
-    const out = await searchAll(q);
-    sendJson(res, 200, out);
-    return;
-  }
-
-  if (method === "GET" && url.pathname === "/api/downloads") {
-    sendJson(res, 200, { items: runtime.queue.getItems().map(serializeDownload) });
-    return;
-  }
-
-  if (method === "POST" && url.pathname === "/api/downloads") {
-    let body: Record<string, unknown>;
-    try {
-      body = JSON.parse(await readBody(req)) as Record<string, unknown>;
-    } catch {
-      sendJson(res, 400, { error: "invalid JSON body" });
-      return;
-    }
-
-    const rawInput = typeof body.input === "string" ? body.input : null;
-    const fromMagnet = rawInput ? sanitizeMagnetInput(rawInput) : null;
-    const candidate = fromMagnet
-      ? {
-          id: fromMagnet.infoHash,
-          name: fromMagnet.name,
-          magnet: fromMagnet.magnet,
-        }
-      : {
-          id: typeof body.id === "string" ? body.id : "",
-          name: typeof body.name === "string" ? body.name : "",
-          magnet: typeof body.magnet === "string" ? body.magnet : "",
-          source: typeof body.source === "string" ? (body.source as SourceId) : undefined,
-          sizeBytes: typeof body.sizeBytes === "number" ? body.sizeBytes : undefined,
-        };
-
-    const safe = sanitizeDownloadInput(candidate);
-    if (!safe) {
-      sendJson(res, 400, { error: "invalid magnet or infohash" });
-      return;
-    }
-
-    const existed = runtime.queue.has(safe.id);
-    await fs.mkdir(runtime.config.downloadDir, { recursive: true }).catch(() => {});
-    runtime.queue.add(safe, runtime.config.downloadDir);
-    if (!existed) {
-      runtime.queue.emit("web-added", safe);
-    }
-    sendJson(res, existed ? 200 : 201, { ok: true, id: safe.id, existed });
-    return;
-  }
-
-  const actionMatch = url.pathname.match(/^\/api\/downloads\/([^/]+)\/(pause|resume|cancel)$/);
-  if (method === "POST" && actionMatch) {
-    const id = decodeURIComponent(actionMatch[1]!);
-    const action = actionMatch[2]!;
-    if (!runtime.queue.has(id)) {
-      sendJson(res, 404, { error: "download not found" });
-      return;
-    }
-    if (action === "pause") runtime.queue.pause(id);
-    else if (action === "resume") runtime.queue.resume(id);
-    else runtime.queue.cancel(id);
-    sendJson(res, 200, { ok: true, id, action });
-    return;
+    if (await handleApiRoute(req, res, runtime, method, url)) return;
   }
 
   if (method === "GET") {

@@ -208,8 +208,6 @@ function Invoke-Nas([string]$RemoteCmd) {
 function Copy-ToNas([string]$LocalPath, [string]$RemotePath) {
   if ($usePassword) {
     # Stream via plink+cat — more reliable than pscp for absolute Linux paths on Windows
-    $remoteShell = "cat > $(ConvertTo-QuotedWinArg $RemotePath)"
-    # ConvertTo-QuotedWinArg adds Windows quotes; for remote bash use single quotes
     $remoteShell = "cat > '$RemotePath'"
     $arg = "$(Get-PlinkPrefix $true) $(ConvertTo-QuotedWinArg $remoteShell)"
     $psi = New-Object System.Diagnostics.ProcessStartInfo
@@ -247,10 +245,36 @@ function Copy-ToNas([string]$LocalPath, [string]$RemotePath) {
 
 function Copy-FromNas([string]$RemotePath, [string]$LocalPath) {
   if ($usePassword) {
-    $src = $Remote + ":" + $RemotePath
-    $arg = "$(Get-PscpPrefix $true) $(ConvertTo-QuotedWinArg $src) $(ConvertTo-QuotedWinArg $LocalPath)"
-    $res = Invoke-PuttyProcess -FilePath $pscp -Arguments $arg
-    if ($res.Code -ne 0) { Die "pscp failed (exit $($res.Code)): $RemotePath -> $LocalPath" }
+    # Stream via plink+cat — pscp fails on absolute Linux paths from Windows
+    $remoteShell = "cat -- '$RemotePath'"
+    $arg = "$(Get-PlinkPrefix $true) $(ConvertTo-QuotedWinArg $remoteShell)"
+    $psi = New-Object System.Diagnostics.ProcessStartInfo
+    $psi.FileName = $plink
+    $psi.Arguments = $arg
+    $psi.UseShellExecute = $false
+    $psi.RedirectStandardInput = $true
+    $psi.RedirectStandardOutput = $true
+    $psi.RedirectStandardError = $true
+    $proc = [Diagnostics.Process]::Start($psi)
+    try { $proc.StandardInput.Close() } catch {}
+    $errTask = $proc.StandardError.ReadToEndAsync()
+    $fs = [System.IO.File]::Create($LocalPath)
+    try {
+      $proc.StandardOutput.BaseStream.CopyTo($fs)
+      $fs.Flush()
+    } finally {
+      $fs.Close()
+    }
+    $proc.WaitForExit()
+    $stderr = $errTask.Result
+    if ($stderr) { Write-Host $stderr.TrimEnd() }
+    if ($proc.ExitCode -ne 0) {
+      Remove-Item $LocalPath -Force -ErrorAction SilentlyContinue
+      Die "plink download failed (exit $($proc.ExitCode)): $RemotePath -> $LocalPath"
+    }
+    if (-not (Test-Path $LocalPath) -or (Get-Item $LocalPath).Length -eq 0) {
+      # empty remote .env is unusual; still allow and let caller proceed
+    }
     return
   }
   $sshArgs = @()
@@ -272,9 +296,14 @@ function Set-EnvFileKey([string]$Path, [string]$Key, [string]$Value) {
     }
   }
   if (-not $found) { $out += "$Key=$Value" }
-  $out | Set-Content -Path $Path -Encoding utf8
+  # UTF-8 without BOM + LF — Windows PowerShell 5.1 "utf8" writes a BOM that
+  # breaks docker compose --env-file on Linux (first key / values with \r).
+  $text = (($out | ForEach-Object { $_ -replace "`r$", "" }) -join "`n") + "`n"
+  $utf8NoBom = New-Object System.Text.UTF8Encoding $false
+  [System.IO.File]::WriteAllText($Path, $text, $utf8NoBom)
 }
 
+$tmpEnv = $null
 try {
   if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
     Die "missing command: docker"
@@ -302,7 +331,8 @@ try {
   }
 
   Info "create remote dirs"
-  Invoke-Nas "mkdir -p '$DeployDir' /volume2/Docker_Configs/torzlink /volume1/data/media/torzlink && ls -ld '$DeployDir'"
+  # chown data dir to PUID/PGID so upgrades from image uid 100 can persist queue.json
+  Invoke-Nas "mkdir -p '$DeployDir' /volume2/Docker_Configs/torzlink /volume1/data/media/descargas/torrents && chown -R 1000:1000 /volume2/Docker_Configs/torzlink 2>/dev/null || true && ls -ld '$DeployDir' /volume1/data/media/descargas/torrents /volume2/Docker_Configs/torzlink"
 
   Info "transfer image to NAS - may take a while"
   $tar = Join-Path $env:TEMP ("torzlink-" + $ImageTag + ".tar")
@@ -325,10 +355,8 @@ try {
     Copy-ToNas $LabelsSrc "$DeployDir/traefik-gluetun-torzlink.labels.md"
   }
 
-  $remoteEnvExists = Test-Nas "test -f '$DeployDir/.env'"
-
   $tmpEnv = Join-Path $env:TEMP "torzlink-nas.env"
-  if (-not $remoteEnvExists) {
+  if (-not (Test-Nas "test -f '$DeployDir/.env'")) {
     Info "create remote .env from example"
     Copy-Item $EnvExample $tmpEnv -Force
   } else {
@@ -340,6 +368,9 @@ try {
   Set-EnvFileKey $tmpEnv "TORZLINK_NETWORK_MODE" $NetworkMode
   Set-EnvFileKey $tmpEnv "DOCKER_CONFIG_ROOT" "/volume2/Docker_Configs"
   Set-EnvFileKey $tmpEnv "MEDIA_ROOT" "/volume1/data"
+  Set-EnvFileKey $tmpEnv "TORZLINK_DOWNLOADS_HOST" "/volume1/data/media/descargas/torrents"
+  Set-EnvFileKey $tmpEnv "PUID" "1000"
+  Set-EnvFileKey $tmpEnv "PGID" "1000"
   Set-EnvFileKey $tmpEnv "TZ" "Europe/Madrid"
   Set-EnvFileKey $tmpEnv "PROXY_NET_NAME" $ProxyNetName
 
@@ -375,14 +406,16 @@ try {
     "docker compose --env-file .env --profile direct -f docker-compose.nas.yml down 2>/dev/null || true; " +
     "docker compose --env-file .env --profile vpn -f docker-compose.nas.yml down 2>/dev/null || true; "
   if ($NetworkMode -eq "vpn") {
+    # Use bash if/then/fi (not `{ ... }`) so PowerShell tooling never treats
+    # remote-shell braces as script-block delimiters.
     $composeCmd += (
-      "docker inspect -f '{{.State.Running}}' '$gluetunName' 2>/dev/null | grep -qx true " +
-      "|| { echo `"gluetun '$gluetunName' not running`"; exit 1; }; "
+      "if ! docker inspect -f '{{.State.Running}}' '$gluetunName' 2>/dev/null | grep -qx true; then " +
+      "echo `"gluetun $gluetunName not running`"; exit 1; fi; "
     )
   }
   $composeCmd += (
     "docker compose --env-file .env --profile '$NetworkMode' -f docker-compose.nas.yml up -d; " +
-    "docker ps --filter name=torzlink --format `"$fmt`""
+    "docker ps --filter name=torzlink --format '$fmt'"
   )
   Invoke-Nas $composeCmd
 
@@ -391,6 +424,9 @@ try {
     Info "vpn mode: ensure Traefik labels from traefik-gluetun-torzlink.labels.md are on gluetun"
   }
 } finally {
+  if ($tmpEnv -and (Test-Path $tmpEnv)) {
+    Remove-Item $tmpEnv -Force -ErrorAction SilentlyContinue
+  }
   if ($askPassCmd -and (Test-Path $askPassCmd)) {
     Remove-Item $askPassCmd -Force -ErrorAction SilentlyContinue
   }

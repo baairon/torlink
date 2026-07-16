@@ -6,6 +6,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.7.1] — 2026-07-16
+
+NAS download path + ownership fix, deploy-from-dev hardening, and stricter duplicate-download API.
+
+### Fixed
+
+- **NAS downloads mount** — bind to `TORZLINK_DOWNLOADS_HOST` (default `/volume1/data/media/descargas/torrents`) instead of a separate `media/torzlink` tree
+- **Container UID** — compose runs as `PUID:PGID` (default `1000:1000`) so the process can write shared media mounts (image default uid 100 caused `EACCES`)
+- **`deploy-from-dev.ps1`** — fetch remote `.env` via `plink`+`cat` (pscp fails on absolute Linux paths); Gluetun check uses bash `if/fi` so PowerShell never parses remote braces; safer `docker ps` format quoting; write `.env` as UTF-8 without BOM/LF; wipe temp `.env` in `finally`
+- **`deploy-nas.sh up`** — skip `compose pull` for local image tags (`torzlink:vX`); migrate legacy `TORZLINK_IMAGE_TAG` → `TORZLINK_IMAGE`; `chown` data dir to `PUID:PGID` on install
+- **POST `/api/downloads`** — returns **409** when the infohash is already in the queue (non-failed), instead of silently re-adding
+
+### Changed
+
+- **`.env.nas.example` / deploy scripts** — set `TORZLINK_DOWNLOADS_HOST`, `PUID=1000`, `PGID=1000`; chown `/data` on deploy so upgrades from image uid 100 keep queue persistence
+- **README** — NAS path table + Traefik Docker API compatibility note (`DOCKER_API_VERSION` / `traefik:v3.6`) after Engine upgrades that break the Docker provider
+
 ## [1.7.0] — 2026-07-16
 
 Web UI + NAS/Traefik deploy: LAN search and download queue in the browser, with optional Gluetun VPN mode.

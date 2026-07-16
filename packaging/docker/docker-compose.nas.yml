@@ -9,11 +9,15 @@
 
 x-torzlink-common: &torzlink-common
   # Full image ref. Examples:
-  #   TORZLINK_IMAGE=torzlink:v1.7.0                    (deploy-from-dev)
-  #   TORZLINK_IMAGE=ghcr.io/tiizss/torzlink:v1.7.0     (GHCR)
+  #   TORZLINK_IMAGE=torzlink:v1.7.1                    (deploy-from-dev)
+  #   TORZLINK_IMAGE=ghcr.io/tiizss/torzlink:v1.7.1     (GHCR)
+  # Legacy .env with only TORZLINK_IMAGE_TAG: run deploy-nas.sh (migrates) or set TORZLINK_IMAGE.
   image: ${TORZLINK_IMAGE:-ghcr.io/tiizss/torzlink:latest}
   container_name: torzlink
   restart: unless-stopped
+  # Match NAS media ownership (Ugreen media dirs are typically UID 1000).
+  # Image default USER torzlink (uid 100) cannot write those mounts (EACCES).
+  user: "${PUID:-1000}:${PGID:-1000}"
   command: ["serve", "--host", "0.0.0.0", "--port", "8787"]
   environment:
     TZ: ${TZ:-Europe/Madrid}
@@ -27,7 +31,8 @@ x-torzlink-common: &torzlink-common
     TORZLINK_SERVE_TOKEN: ${TORZLINK_SERVE_TOKEN:-}
   volumes:
     - ${DOCKER_CONFIG_ROOT}/torzlink:/data
-    - ${MEDIA_ROOT}/media/torzlink:/downloads
+    # Host path for completed/active downloads (same tree as qBittorrent media)
+    - ${TORZLINK_DOWNLOADS_HOST:-/volume1/data/media/descargas/torrents}:/downloads
 
 services:
   torzlink:
