@@ -1,6 +1,6 @@
 # Next session — TorZlink backlog
 
-In progress after **v1.7.1**: web UI parity (download-to…, upload `.torrent`); NAS redeploy for the VPN auto-switch stack.
+Session wrap-up **2026-07-16**: VPN ON/OFF sin redeploy desplegado en NAS (`switchable=true`; runtime `direct`↔`container:gluetun` verificado). Pendiente: Traefik labels en Gluetun para UI en VPN; paridad web (download-to…, upload `.torrent`).
 
 ## Product invariant — Web ≡ TUI
 
