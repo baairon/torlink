@@ -85,6 +85,7 @@
     "utp-native@2.5.3": true
   },
   "overrides": {
-    "esbuild": "^0.28.1"
+    "esbuild": "^0.28.1",
+    "ip": "^2.0.1"
   }
 }

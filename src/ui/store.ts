@@ -69,6 +69,7 @@ export interface Store {
   }) => void;
   copyMagnet: (input: { name: string; magnet: string }) => void;
   openDownloadFolder: (dir: string) => void;
+  requestConfirm: (message: string, onConfirm: () => void) => void;
   toggleThrottle: () => void;
   // Copies the cached .torrent metadata into the item's download folder and
   // reports the outcome through the notice line.

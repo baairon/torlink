@@ -31,7 +31,7 @@ function statusCell(seed: SeedItem | undefined): { text: string; color?: string;
 }
 
 export function Seeding() {
-  const { queue, region, contentWidth, listRows, openDownloadFolder, setSeedFocus, setInspectingId, setInspectingPeersId, inspectingId, inspectingPeersId, setNotice } =
+  const { queue, region, contentWidth, listRows, openDownloadFolder, setSeedFocus, setInspectingId, setInspectingPeersId, inspectingId, inspectingPeersId, setNotice, requestConfirm } =
     useStore();
   const history = useQueueHistory(queue);
   const seeds = useSeeds(queue);
@@ -65,7 +65,9 @@ export function Seeding() {
         if (h) queue.removeSeed(h.id);
       } else if (input === "c") {
         const h = activeHistory[clamped];
-        if (h) queue.removeHistory(h.id);
+        if (h) {
+          requestConfirm(`Remove and delete '${truncate(cleanText(h.name), 40)}'?`, () => queue.removeHistory(h.id));
+        }
       } else if (input === "e") {
         const h = activeHistory[clamped];
         if (h) openDownloadFolder(getSeedingDir(h.dir));

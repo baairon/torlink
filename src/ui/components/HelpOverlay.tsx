@@ -6,7 +6,7 @@ import { COLOR, ICON, RULE, lerpHex } from "../theme";
 
 const CARD_BORDER = lerpHex(COLOR.accent, RULE, 0.55);
 
-const FOOT_FULL = "Your downloaded files always stay on disk.";
+const FOOT_FULL = "Removing a torrent also deletes its files from disk.";
 
 export function HelpOverlay() {
   const { cols, rows } = useStore();
@@ -64,7 +64,7 @@ export function HelpOverlay() {
       </Box>
       {short ? (
         <Text dimColor wrap="truncate-end">
-          {`? or esc closes ${ICON.dot} files stay on disk`}
+          {`? or esc closes ${ICON.dot} remove deletes files`}
         </Text>
       ) : (
         <Box marginTop={1} flexDirection="column">

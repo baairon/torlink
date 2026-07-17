@@ -5,14 +5,14 @@ import { Panel } from "./Panel";
 import { wrapStep, windowStart } from "../move";
 import { COLOR, ICON, sourceStyle } from "../theme";
 import { getCompletedDir } from "../../config/folder";
-import { cleanText, formatBytes } from "../../util/format";
+import { cleanText, formatBytes, truncate } from "../../util/format";
 
 const MARK = 2;
 const SIZE_W = 10;
 const SRC_W = 4;
 
 export function Completed() {
-  const { queue, region, contentWidth, listRows, openDownloadFolder, setInspectingId, inspectingId, inspectingPeersId } =
+  const { queue, region, contentWidth, listRows, openDownloadFolder, setInspectingId, inspectingId, inspectingPeersId, requestConfirm } =
     useStore();
   const history = useQueueHistory(queue);
   const seeds = useSeeds(queue);
@@ -30,9 +30,11 @@ export function Completed() {
       else if (key.downArrow || input === "j") setCursor(wrapStep(clamped, 1, total));
       else if (input === "c") {
         const h = completedHistory[clamped];
-        if (h) queue.removeHistory(h.id);
+        if (h) {
+          requestConfirm(`Remove and delete '${truncate(cleanText(h.name), 40)}'?`, () => queue.removeHistory(h.id));
+        }
       } else if (input === "x") {
-        queue.clearHistory();
+        requestConfirm("Clear completed downloads history? Files will be deleted.", () => queue.clearHistory());
       } else if (input === "e") {
         const h = completedHistory[clamped];
         if (h) openDownloadFolder(getCompletedDir(h.dir));
@@ -64,7 +66,7 @@ export function Completed() {
       width={contentWidth}
       focused={focused}
       height={panelH}
-      badges={[{ text: String(total), color: focused ? COLOR.accent : COLOR.alt }]}
+      count={String(total)}
     >
       <Box flexDirection="column" width="100%">
         <Box marginBottom={1} paddingRight={1}>
@@ -91,7 +93,7 @@ export function Completed() {
                 <Box width={MARK} flexShrink={0}>
                   {here ? (
                     <Text color={COLOR.accent} bold>
-                      {ICON.right}
+                      {ICON.pointer}
                     </Text>
                   ) : null}
                 </Box>

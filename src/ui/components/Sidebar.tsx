@@ -18,7 +18,7 @@ const LIBRARY: NavItem[] = [
   { key: "completed", label: "Completed" },
 ];
 
-const BADGED = (key: Section): boolean => key === "downloads" || key === "seeding";
+const BADGED = (key: Section): boolean => key === "downloads" || key === "seeding" || key === "completed";
 
 const GROUPS: NavItem[][] = [FILTERS, LIBRARY];
 
@@ -36,6 +36,7 @@ export function Sidebar() {
   useQueueItems(queue);
   const active = queue.activeCount;
   const seeding = queue.seedingCount;
+  const completed = queue.completedCount;
 
   useInput(
     (input, key) => {
@@ -69,7 +70,7 @@ export function Sidebar() {
                   {item.label}
                 </Text>
                 {(() => {
-                  const n = item.key === "downloads" ? active : item.key === "seeding" ? seeding : 0;
+                  const n = item.key === "downloads" ? active : item.key === "seeding" ? seeding : item.key === "completed" ? completed : 0;
                   return n > 0 ? (
                     <Box flexShrink={0}>
                       <Text dimColor>{` (${n})`}</Text>

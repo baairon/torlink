@@ -431,13 +431,15 @@ export class DownloadQueue extends EventEmitter {
   }
 
   cancel(id: string): void {
-    if (!this.items.has(id)) return;
+    const it = this.items.get(id);
+    if (!it) return;
     this.engine.remove(id);
     this.items.delete(id);
     deleteTorrentMeta(id);
     this.changed();
     void this.persist();
     this.maybeStopPoll();
+    void this.deleteFiles(it.dir, it.name, "Downloads");
   }
 
   retry(id: string): void {
@@ -469,6 +471,10 @@ export class DownloadQueue extends EventEmitter {
     let n = 0;
     for (const s of this.seeds.values()) if (s.status === "seeding") n++;
     return n;
+  }
+
+  get completedCount(): number {
+    return this.history.filter((h) => !this.seeds.has(h.id)).length;
   }
 
   startSeeding(h: HistoryItem): void {
@@ -622,10 +628,16 @@ export class DownloadQueue extends EventEmitter {
   }
 
   removeHistory(id: string): void {
-    const next = this.history.filter((h) => h.id !== id);
+    const h = this.history.find((x) => x.id === id);
+    if (!h) return;
+    const next = this.history.filter((x) => x.id !== id);
     if (next.length === this.history.length) return;
+    
+    let phase: "Downloads" | "Seeding" | "Completed" = "Completed";
     this.history = next;
+    
     if (this.seeds.has(id)) {
+      phase = "Seeding";
       this.engine.remove(id);
       this.seeds.delete(id);
       this.strayHits.delete(id);
@@ -636,10 +648,14 @@ export class DownloadQueue extends EventEmitter {
     deleteTorrentMeta(id);
     void saveHistory(this.history).catch(() => {});
     this.changed();
+    void this.deleteFiles(h.dir, h.name, phase);
   }
 
   clearHistory(): void {
     if (this.history.length === 0) return;
+    const toDelete = [...this.history];
+    const seedingIds = new Set(this.seeds.keys());
+    
     for (const h of this.history) deleteTorrentMeta(h.id);
     this.history = [];
     if (this.seeds.size > 0) {
@@ -652,6 +668,22 @@ export class DownloadQueue extends EventEmitter {
     }
     void saveHistory(this.history).catch(() => {});
     this.changed();
+
+    for (const h of toDelete) {
+      const phase = seedingIds.has(h.id) ? "Seeding" : "Completed";
+      void this.deleteFiles(h.dir, h.name, phase);
+    }
+  }
+
+  private async deleteFiles(dir: string, name: string, phase: "Downloads" | "Seeding" | "Completed"): Promise<void> {
+    if (!name) return;
+    const base = phase === "Downloads" ? getDownloadsDir(dir) : phase === "Seeding" ? getSeedingDir(dir) : getCompletedDir(dir);
+    const fullPath = path.join(base, name);
+    try {
+      await fs.rm(fullPath, { recursive: true, force: true });
+    } catch (err) {
+      // Ignore if it's already gone
+    }
   }
 
   private changed(): void {

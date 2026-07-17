@@ -58,6 +58,7 @@ export function Downloads() {
     setInspectingId,
     inspectingPeersId,
     setInspectingPeersId,
+    requestConfirm,
   } = useStore();
   const active = useQueueItems(queue);
   const recent = useQueueHistory(queue);
@@ -74,7 +75,9 @@ export function Downloads() {
       if (key.upArrow || input === "k") setCursor(wrapStep(clamped, -1, total));
       else if (key.downArrow || input === "j") setCursor(wrapStep(clamped, 1, total));
       else if (input === "f") queue.retryFailed();
-      else if (input === "x") queue.clearHistory();
+      else if (input === "x") {
+        requestConfirm("Clear recent downloads history? Files will be deleted.", () => queue.clearHistory());
+      }
       else if (input === "e") {
         if (inActive) {
           const it = active[clamped];
@@ -95,7 +98,9 @@ export function Downloads() {
       } else if (inActive) {
         const it = active[clamped];
         if (!it) return;
-        if (input === "c") queue.cancel(it.id);
+        if (input === "c") {
+          requestConfirm(`Cancel and delete '${truncate(cleanText(it.name), 40)}'?`, () => queue.cancel(it.id));
+        }
         else if (input === "p") queue.togglePause(it.id);
         else if (input === "w") setInspectingPeersId(it.id);
         else if (input === "i" || input === "Enter" || input === " ") setInspectingId(it.id);
@@ -110,7 +115,9 @@ export function Downloads() {
             source: h.source,
             sizeBytes: h.sizeBytes,
           });
-        else if (input === "c") queue.removeHistory(h.id);
+        else if (input === "c") {
+          requestConfirm(`Remove and delete '${truncate(cleanText(h.name), 40)}'?`, () => queue.removeHistory(h.id));
+        }
         else if (input === "i") setInspectingId(h.id);
       }
     },
