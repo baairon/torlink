@@ -38,6 +38,13 @@ const SEED_GRACE_MS = 10_000;
 const POLL_MS = 500;
 const HISTORY_MAX = 500;
 
+// Max torrents allowed to actively download at once. Overflow waits as "queued"
+// and starts automatically when a slot frees. 0 / unset = unlimited (default).
+function readMaxDownloads(): number {
+  const v = Number(process.env.TORLINK_MAX_DOWNLOADS);
+  return Number.isFinite(v) && v > 0 ? Math.floor(v) : 0;
+}
+
 export interface AddInput {
   id: string;
   name: string;
@@ -55,6 +62,14 @@ export class DownloadQueue extends EventEmitter {
   private strayHits = new Map<string, number>();
   private seedStartedAt = new Map<string, number>();
   private trackers: string[] = [];
+
+  // Max torrents allowed to download at once; overflow waits as "queued".
+  private readonly maxDownloads: number;
+
+  constructor(opts?: { maxDownloads?: number }) {
+    super();
+    this.maxDownloads = opts?.maxDownloads ?? readMaxDownloads();
+  }
 
   // Extra announce URLs appended to every torrent added from now on.
   // Existing running torrents aren't retro-updated — the change takes effect
@@ -115,15 +130,46 @@ export class DownloadQueue extends EventEmitter {
           peers: 0,
           addedAt: Date.now(),
         };
+    // Respect the concurrent-download cap: start now if a slot is free, else
+    // hold the torrent as "queued" until one frees (see promote()).
+    const start = this.maxDownloads === 0 || this.activeCount < this.maxDownloads;
+    item.status = start ? "downloading" : "queued";
     this.items.set(item.id, item);
-    this.startEngine(item);
-    this.ensurePoll();
+    if (start) {
+      this.startEngine(item);
+      this.ensurePoll();
+    }
     this.changed();
     void this.persist();
   }
 
   private startEngine(item: QueueItem): void {
     this.engine.add(item.id, item.magnet, item.dir, this.engineHandlers(item.id), this.trackers);
+  }
+
+  /**
+   * Start queued torrents (oldest first) while download slots are free. Called
+   * whenever a slot opens up — a download finishes, fails, is paused, or is
+   * cancelled. No-op when unlimited (this.maxDownloads === 0), since nothing queues.
+   */
+  private promote(): void {
+    if (this.maxDownloads === 0) return;
+    let started = false;
+    while (this.activeCount < this.maxDownloads) {
+      const next = [...this.items.values()]
+        .filter((it) => it.status === "queued")
+        .sort((a, b) => a.addedAt - b.addedAt)[0];
+      if (!next) break;
+      next.status = "downloading";
+      next.speed = 0;
+      this.startEngine(next);
+      started = true;
+    }
+    if (started) {
+      this.ensurePoll();
+      this.changed();
+      void this.persist();
+    }
   }
 
   // One torrent serves an item across its whole life (download -> seed ->
@@ -169,6 +215,7 @@ export class DownloadQueue extends EventEmitter {
           it.peers = 0;
           this.changed();
           void this.persist();
+          this.promote(); // a slot just freed
           this.maybeStopPoll();
           return;
         }
@@ -195,6 +242,7 @@ export class DownloadQueue extends EventEmitter {
     this.emit("completed", it.name);
     this.changed();
     void this.persist();
+    this.promote(); // a slot just freed
     this.maybeStopPoll();
   }
 
@@ -291,23 +339,33 @@ export class DownloadQueue extends EventEmitter {
 
   pause(id: string): void {
     const it = this.items.get(id);
-    if (!it || it.status !== "downloading") return;
+    // A queued (not-yet-started) item can be paused too; only a downloading one
+    // holds a live engine + frees a slot on pause.
+    if (!it || (it.status !== "downloading" && it.status !== "queued")) return;
+    const wasDownloading = it.status === "downloading";
     it.status = "paused";
     it.speed = 0;
     it.peers = 0;
     it.eta = undefined;
-    this.engine.remove(id);
+    if (wasDownloading) this.engine.remove(id);
     this.changed();
     void this.persist();
-    this.maybeStopPoll();
+    if (wasDownloading) {
+      this.promote(); // a slot just freed
+      this.maybeStopPoll();
+    }
   }
 
   resume(id: string): void {
     const it = this.items.get(id);
     if (!it || it.status !== "paused") return;
-    it.status = "downloading";
-    this.startEngine(it);
-    this.ensurePoll();
+    // Respect the cap on manual resume: start if a slot is free, else re-queue.
+    const start = this.maxDownloads === 0 || this.activeCount < this.maxDownloads;
+    it.status = start ? "downloading" : "queued";
+    if (start) {
+      this.startEngine(it);
+      this.ensurePoll();
+    }
     this.changed();
     void this.persist();
   }
@@ -315,7 +373,7 @@ export class DownloadQueue extends EventEmitter {
   togglePause(id: string): void {
     const it = this.items.get(id);
     if (!it) return;
-    if (it.status === "downloading") this.pause(id);
+    if (it.status === "downloading" || it.status === "queued") this.pause(id);
     else if (it.status === "paused") this.resume(id);
   }
 
@@ -332,16 +390,21 @@ export class DownloadQueue extends EventEmitter {
     deleteTorrentMeta(id);
     this.changed();
     void this.persist();
+    this.promote(); // a slot may have freed
     this.maybeStopPoll();
   }
 
   retry(id: string): void {
     const it = this.items.get(id);
     if (!it || it.status !== "failed") return;
-    it.status = "downloading";
     it.error = undefined;
-    this.startEngine(it);
-    this.ensurePoll();
+    // Respect the cap on retry: start if a slot is free, else queue.
+    const start = this.maxDownloads === 0 || this.activeCount < this.maxDownloads;
+    it.status = start ? "downloading" : "queued";
+    if (start) {
+      this.startEngine(it);
+      this.ensurePoll();
+    }
     this.changed();
     void this.persist();
   }
@@ -472,12 +535,22 @@ export class DownloadQueue extends EventEmitter {
   }
 
   restore(items: QueueItem[]): void {
+    let active = 0;
     for (const raw of items) {
       this.items.set(raw.id, raw);
-      if (raw.status === "downloading") this.startEngine(raw);
+      if (raw.status !== "downloading") continue;
+      if (this.maxDownloads === 0 || active < this.maxDownloads) {
+        this.startEngine(raw);
+        active++;
+      } else {
+        // Over the cap on boot → hold as queued (promoted as slots free).
+        raw.status = "queued";
+      }
     }
-    if (this.activeCount > 0) this.ensurePoll();
+    if (active > 0) this.ensurePoll();
     this.changed();
+    // Fill any remaining slots from persisted "queued" items.
+    this.promote();
   }
 
   restoreHistory(items: HistoryItem[]): void {

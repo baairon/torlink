@@ -8,7 +8,13 @@ export function reconcileQueue(items: QueueItem[]): QueueItem[] {
     seen.add(it.id);
     if (it.status === "completed") continue;
     const status =
-      it.status === "failed" ? "failed" : it.status === "paused" ? "paused" : "downloading";
+      it.status === "failed"
+        ? "failed"
+        : it.status === "paused"
+          ? "paused"
+          : it.status === "queued"
+            ? "queued"
+            : "downloading";
     out.push({ ...it, status, speed: 0, peers: 0, eta: undefined });
   }
   return out;

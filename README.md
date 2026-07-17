@@ -60,6 +60,8 @@ torlink also runs without the TUI, for servers and seedboxes:
 
 Add `--daemon` to keep watch, serve, or files running after you log out; `torlnk --help` has the full list of modes and flags.
 
+Set `TORLINK_MAX_DOWNLOADS=N` to cap how many torrents download at once — handy on a bandwidth-limited seedbox so each active download gets a fair share instead of splitting the pipe across everything. Extra torrents wait as `queued` and start automatically as slots free (oldest first). Unset or `0` means unlimited (the default). Seeding is unaffected.
+
 ## Contributing
 
 To run or work on torlink locally:
