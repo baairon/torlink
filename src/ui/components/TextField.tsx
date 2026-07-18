@@ -92,11 +92,11 @@ export function TextField({
 
   useInput(
     (input, key) => {
-      if (key.downArrow) {
+      if (key.downArrow || key.tab) {
         onExitDown?.();
         return;
       }
-      if (key.upArrow || key.tab || (key.ctrl && input === "c")) return;
+      if (key.upArrow || (key.ctrl && input === "c")) return;
 
       if (key.return) {
         onSubmit?.(value);
