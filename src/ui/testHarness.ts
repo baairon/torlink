@@ -162,6 +162,7 @@ export function makeTestStore(overrides: Partial<Store> = {}): Store {
     copyMagnet: noop,
     openDownloadFolder: noop,
     exportTorrent: noop,
+    playTorrent: noop,
     notice: null,
     setNotice: noop,
     quitAll: noop,

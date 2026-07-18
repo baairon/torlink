@@ -55,6 +55,7 @@ export function Downloads() {
     openDownloadFolder,
     setDownloadFocus,
     exportTorrent,
+    playTorrent,
   } = useStore();
   const active = useQueueItems(queue);
   const recent = useQueueHistory(queue);
@@ -77,6 +78,9 @@ export function Downloads() {
       } else if (input === "s") {
         const item = inActive ? active[clamped] : recent[recentCursor];
         if (item) exportTorrent({ id: item.id, name: item.name });
+      } else if (input === "v") {
+        const item = inActive ? active[clamped] : recent[recentCursor];
+        if (item) playTorrent({ id: item.id, name: item.name });
       } else if (inActive) {
         const it = active[clamped];
         if (!it) return;

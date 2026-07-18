@@ -1,10 +1,17 @@
 declare module "webtorrent" {
   import type { EventEmitter } from "node:events";
+  import type { Server } from "node:http";
 
   interface TorrentFile {
     name: string;
     path: string;
     length: number;
+  }
+
+  // What `client.createServer()` hands back.
+  interface TorrentServer {
+    server: Server;
+    close(cb?: () => void): void;
   }
 
   interface Torrent extends EventEmitter {
@@ -64,9 +71,10 @@ declare module "webtorrent" {
     ): Torrent;
     get(torrentId: string): Torrent | null;
     remove(torrentId: string, cb?: (err?: Error) => void): void;
+    createServer(opts?: { hostname?: string; pathname?: string }): TorrentServer;
     destroy(cb?: (err?: Error) => void): void;
   }
 
   export default WebTorrent;
-  export type { Torrent, TorrentFile };
+  export type { Torrent, TorrentFile, TorrentServer };
 }

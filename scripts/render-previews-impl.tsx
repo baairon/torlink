@@ -101,6 +101,7 @@ function makeStore(
     copyMagnet: noop,
     openDownloadFolder: noop,
     exportTorrent: noop,
+    playTorrent: noop,
     notice: null,
     setNotice: noop,
     quitAll: noop,

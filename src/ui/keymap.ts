@@ -44,6 +44,7 @@ export const HELP_GROUPS: HelpGroup[] = [
       { keys: "d", label: "Download again" },
       { keys: "e", label: "Open folder" },
       { keys: "s", label: "Export torrent file" },
+      { keys: "v", label: "Stream to a media player" },
     ],
   },
   {
@@ -69,6 +70,8 @@ const FOLDER: Hint = { keys: "e", label: "Folder" };
 
 const TORRENT: Hint = { keys: "s", label: "Export" };
 
+const PLAY: Hint = { keys: "v", label: "Play" };
+
 export function footerHints(
   region: Region,
   section: Section,
@@ -91,7 +94,7 @@ export function footerHints(
   }
   if (section === "downloads") {
     if (downloadFocus === "paused") {
-      return [{ keys: "p", label: "Resume" }, { keys: "c", label: "Cancel" }, FOLDER, TORRENT, SWITCH, ALWAYS];
+      return [{ keys: "p", label: "Resume" }, { keys: "c", label: "Cancel" }, PLAY, FOLDER, TORRENT, SWITCH, ALWAYS];
     }
     if (downloadFocus === "failed") {
       return [{ keys: "f", label: "Retry" }, { keys: "c", label: "Remove" }, FOLDER, TORRENT, SWITCH, ALWAYS];
@@ -108,7 +111,7 @@ export function footerHints(
         ALWAYS,
       ];
     }
-    return [{ keys: "p", label: "Pause" }, { keys: "c", label: "Cancel" }, FOLDER, TORRENT, SWITCH, ALWAYS];
+    return [{ keys: "p", label: "Pause" }, { keys: "c", label: "Cancel" }, PLAY, FOLDER, TORRENT, SWITCH, ALWAYS];
   }
   return [
     NAVIGATE,

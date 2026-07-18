@@ -11,6 +11,7 @@ import { parseInput } from "../sources/magnet";
 import { magnetFromTorrentFile } from "../sources/torrentFile";
 import { readClipboard, writeClipboard } from "../util/clipboard";
 import { openFolder } from "../util/openFolder";
+import { playMedia } from "../util/playMedia";
 import { cleanText, formatBytes, truncate } from "../util/format";
 import {
   StoreContext,
@@ -339,6 +340,26 @@ export function App({
     [queue],
   );
 
+  const playTorrent = useCallback(
+    (input: { id: string; name: string }) => {
+      if (!queue) return;
+      void (async () => {
+        const url = await queue.getStreamUrl(input.id);
+        if (!url) {
+          setNotice(`Nothing to stream yet for ${truncate(cleanText(input.name), 32)}.`);
+          return;
+        }
+        const ok = await playMedia(url);
+        setNotice(
+          ok
+            ? `${ICON.play} Streaming ${truncate(cleanText(input.name), 40)}`
+            : `Couldn't launch a media player. Set TORLINK_MEDIA_PLAYER?`,
+        );
+      })();
+    },
+    [queue],
+  );
+
   const submitQuery = useCallback(
     (raw: string) => {
       const q = raw.trim();
@@ -422,6 +443,7 @@ export function App({
       copyMagnet,
       openDownloadFolder,
       exportTorrent,
+      playTorrent,
       notice,
       setNotice,
       quitAll,
@@ -451,6 +473,7 @@ export function App({
     copyMagnet,
     openDownloadFolder,
     exportTorrent,
+    playTorrent,
     notice,
     listRows,
     compact,

@@ -385,6 +385,10 @@ export class DownloadQueue extends EventEmitter {
     return exportTorrentMeta(it.id, it.name, it.dir);
   }
 
+  getStreamUrl(id: string, fileIndex?: number): Promise<string | null> {
+    return this.engine.getStreamUrl(id, fileIndex);
+  }
+
   cancel(id: string): void {
     if (!this.items.has(id)) return;
     this.engine.remove(id);

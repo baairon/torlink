@@ -1,4 +1,22 @@
-import WebTorrent, { type Torrent } from "webtorrent";
+import { extname } from "node:path";
+import WebTorrent, { type Torrent, type TorrentFile, type TorrentServer } from "webtorrent";
+
+const MEDIA_EXT = new Set([
+  ".mp4", ".mkv", ".avi", ".mov", ".webm", ".m4v", ".mpg", ".mpeg", ".flv",
+  ".wmv", ".m2ts", ".ts", ".mp3", ".flac", ".m4a", ".aac", ".ogg", ".opus", ".wav",
+]);
+
+// The largest media file in a multi-file torrent, else the largest file of any
+// kind. Exported for testing.
+export function pickBestFile(files: TorrentFile[]): TorrentFile | null {
+  const media = files.filter((f) => MEDIA_EXT.has(extname(f.name).toLowerCase()));
+  const pool = media.length > 0 ? media : files;
+  let best: TorrentFile | null = null;
+  for (const f of pool) {
+    if (!best || f.length > best.length) best = f;
+  }
+  return best;
+}
 
 export interface TorrentProgress {
   progress: number;
@@ -35,6 +53,10 @@ function message(e: unknown): string {
 export class TorrentEngine {
   private client: WebTorrent | null = null;
   private torrents = new Map<string, Torrent>();
+  private streamServer: TorrentServer | null = null;
+  // Started lazily on first stream so an ordinary session never opens the port;
+  // resolves to the bound port and is reused thereafter.
+  private streamServerReady: Promise<number> | null = null;
 
   private ensureClient(): WebTorrent {
     if (!this.client) {
@@ -110,6 +132,43 @@ export class TorrentEngine {
     return this.client?.torrentPort ?? null;
   }
 
+  // Loopback-only, so a partially-downloaded file is never exposed on the network.
+  private ensureStreamServer(): Promise<number> {
+    if (this.streamServerReady) return this.streamServerReady;
+    const client = this.ensureClient();
+    const instance = client.createServer();
+    this.streamServer = instance;
+    this.streamServerReady = new Promise<number>((resolve, reject) => {
+      const wanted = Number(process.env.TORLINK_STREAM_PORT) || 0;
+      instance.server.once("error", reject);
+      instance.server.listen(wanted, "127.0.0.1", () => {
+        const addr = instance.server.address();
+        if (addr && typeof addr === "object") resolve(addr.port);
+        else reject(new Error("stream server did not bind a port"));
+      });
+    });
+    return this.streamServerReady;
+  }
+
+  // Playable URL for a file in a (possibly still-downloading) torrent, or null
+  // before metadata arrives. Defaults to the largest media file.
+  async getStreamUrl(id: string, fileIndex?: number): Promise<string | null> {
+    const t = this.torrents.get(id);
+    const files = t?.files;
+    if (!files || files.length === 0) return null;
+    const file = fileIndex != null ? files[fileIndex] : pickBestFile(files);
+    if (!file) return null;
+    try {
+      const port = await this.ensureStreamServer();
+      // webtorrent's own `file.streamURL` is only a path, so build the absolute
+      // URL. The server matches on decodeURI(path.replace(/\\/g, "/")).
+      const path = encodeURI(file.path.replace(/\\/g, "/"));
+      return `http://127.0.0.1:${port}/webtorrent/${t.infoHash}/${path}`;
+    } catch {
+      return null;
+    }
+  }
+
   stats(id: string): TorrentProgress | null {
     const t = this.torrents.get(id);
     if (!t) return null;
@@ -151,6 +210,14 @@ export class TorrentEngine {
 
   destroy(): void {
     this.torrents.clear();
+    const server = this.streamServer;
+    this.streamServer = null;
+    this.streamServerReady = null;
+    if (server) {
+      try {
+        server.close();
+      } catch {}
+    }
     // Never block shutdown on webtorrent's async teardown: hand off the client
     // destroy to a later tick and let the OS reclaim sockets if we exit first.
     const client = this.client;
