@@ -7,9 +7,11 @@
 // The clock is the download's completion time (history.completedAt), not when
 // this process started, so a restart doesn't reset every torrent's timer.
 
-import { rm } from "node:fs/promises";
-import path from "node:path";
 import type { DownloadQueue } from "../download/queue";
+import { deleteSeedData } from "../download/delete-data";
+
+// Re-exported for backwards compatibility (the reaper's original home for it).
+export { deleteSeedData } from "../download/delete-data";
 
 const DEFAULT_CHECK_MS = 30_000;
 
@@ -36,17 +38,6 @@ export function dueSeeds(queue: ReapableQueue, seedTimeMs: number, now: number):
     if (now - since >= seedTimeMs) out.push({ id: s.id, name: s.name, dir: s.dir });
   }
   return out;
-}
-
-// Best-effort delete of a torrent's on-disk data: only the torrent's own entry
-// directly under its download dir (a file, or the folder named after it). Never
-// walks outside that dir, never throws.
-export async function deleteSeedData(dir: string, name: string): Promise<string | null> {
-  const base = path.basename(name.trim());
-  if (!base || base === "." || base === "..") return null;
-  const target = path.join(dir, base);
-  await rm(target, { recursive: true, force: true }).catch(() => {});
-  return target;
 }
 
 export interface SeedReaperOptions {
