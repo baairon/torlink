@@ -66,6 +66,7 @@ export interface Store {
     sizeBytes?: number;
   }) => void;
   copyMagnet: (input: { name: string; magnet: string }) => void;
+  openMagnetLink: (input: { name: string; magnet: string }) => void;
   openDownloadFolder: (dir: string) => void;
   // Copies the cached .torrent metadata into the item's download folder and
   // reports the outcome through the notice line.
