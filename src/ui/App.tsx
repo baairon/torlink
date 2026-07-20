@@ -11,6 +11,7 @@ import { parseInput } from "../sources/magnet";
 import { magnetFromTorrentFile } from "../sources/torrentFile";
 import { readClipboard, writeClipboard } from "../util/clipboard";
 import { openFolder } from "../util/openFolder";
+import { openMagnet } from "../util/openMagnet";
 import { cleanText, formatBytes, truncate } from "../util/format";
 import {
   StoreContext,
@@ -313,6 +314,17 @@ export function App({
     })();
   }, []);
 
+  const openMagnetLink = useCallback((input: { name: string; magnet: string }) => {
+    void (async () => {
+      const ok = await openMagnet(input.magnet);
+      if (ok) {
+        setNotice(`Opened magnet: ${truncate(cleanText(input.name), 40)}`);
+        return;
+      }
+      setNotice(`Couldn't open magnet for ${truncate(cleanText(input.name), 32)}.`);
+    })();
+  }, []);
+
   const openDownloadFolder = useCallback((dir: string) => {
     void (async () => {
       const ok = await openFolder(dir);
@@ -420,6 +432,7 @@ export function App({
       startDownload,
       requestDownloadTo,
       copyMagnet,
+      openMagnetLink,
       openDownloadFolder,
       exportTorrent,
       notice,
@@ -449,6 +462,7 @@ export function App({
     startDownload,
     requestDownloadTo,
     copyMagnet,
+    openMagnetLink,
     openDownloadFolder,
     exportTorrent,
     notice,
