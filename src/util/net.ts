@@ -20,6 +20,19 @@ export class HttpError extends Error {
   }
 }
 
+// The fetch every source uses unless a call passes its own `fetchImpl`. Startup
+// can swap it (see installTorProxy) to route all scouting through a different
+// transport — a Tor SOCKS dispatcher, say — without any source knowing about it.
+let defaultFetch: FetchImpl = fetch as FetchImpl;
+
+export function setDefaultFetch(impl: FetchImpl): void {
+  defaultFetch = impl;
+}
+
+export function getDefaultFetch(): FetchImpl {
+  return defaultFetch;
+}
+
 export const RETRY_STATUS = new Set([408, 425, 429, 500, 502, 503, 504]);
 
 const DEFAULT_RETRIES = 5;
@@ -86,7 +99,7 @@ export async function fetchResilient(
     retries = DEFAULT_RETRIES,
     baseMs = DEFAULT_BASE_MS,
     capMs = DEFAULT_CAP_MS,
-    fetchImpl = fetch as FetchImpl,
+    fetchImpl = defaultFetch,
     sleepImpl = realSleep,
     signal,
     ...init
