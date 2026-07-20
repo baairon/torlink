@@ -2,6 +2,7 @@ import { render } from "ink";
 import { parseCliArgs, HELP_TEXT } from "./cli/args";
 import { daemonize } from "./daemon/daemonize";
 import { runAttach } from "./daemon/attach";
+import { installTorProxy, probeSocksPort } from "./util/proxy";
 import { VERSION } from "./version";
 import { App } from "./ui/App";
 
@@ -21,6 +22,30 @@ if (cmd.kind === "invalid") {
   console.error(`error: unknown argument '${cmd.arg}'\n`);
   console.error(HELP_TEXT);
   process.exit(1);
+}
+
+// Route source searches ("scouting") through Tor when the user opts in with
+// TORLINK_TOR. Downloads still go direct — the swarm sees your IP regardless —
+// so this only anonymises the search traffic to the indexers. It fails closed:
+// a misconfigured proxy stops us here rather than searching over a direct,
+// de-anonymising connection.
+const tor = installTorProxy();
+if (tor.error) {
+  console.error(`torlnk: ${tor.error}`);
+  process.exit(1);
+}
+if (tor.enabled && tor.proxy) {
+  const { host, port } = tor.proxy;
+  console.error(`torlnk: routing search through Tor at ${host}:${port}`);
+  // Best-effort heads-up; searches fail closed whether or not this warns.
+  void probeSocksPort(tor.proxy).then((up) => {
+    if (!up) {
+      console.error(
+        `torlnk: no SOCKS proxy answering at ${host}:${port} — is Tor running? ` +
+          `Searches will fail until it is (they will not fall back to a direct connection).`,
+      );
+    }
+  });
 }
 
 // Run/reattach the TUI inside a persistent tmux session (execs tmux, then exits).

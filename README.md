@@ -85,6 +85,14 @@ Before opening a PR, skim [CONTRIBUTING.md](CONTRIBUTING.md); it lays out the ba
 
 Your files stay on your disk, and nothing routes through a central server; torlink only talks to the torrent network directly. Once a download finishes it keeps seeding by default, sharing it back so the next person can find it just as easily. The network only works because people pass things along, and even a few minutes makes a real difference. If you'd rather not, opt out anytime: open the Seeding tab, press `p` to pause or stop any item, and press it again to pick it back up. Always your call.
 
+### Search over Tor
+
+Set `TORLINK_TOR=1` before launching and every source search goes through a local Tor SOCKS proxy (`127.0.0.1:9050`), so the indexers see Tor's address instead of yours, and their `.onion` mirrors just work. Running Tor Browser instead of the daemon? Point it at that port: `TORLINK_TOR=socks5h://127.0.0.1:9150`.
+
+    TORLINK_TOR=1 npx torlnk
+
+This covers **search only**. Downloads still connect straight to the swarm, so peers still see your real IP — Tor can't safely carry BitTorrent, and no toggle here changes that. For the download side, use a VPN with a kill switch or a seedbox. And it fails closed: if Tor isn't running, searches error out rather than quietly falling back to a direct, de-anonymising connection.
+
 ## Star History
 
 <a href="https://www.star-history.com/?repos=baairon%2Ftorlink&type=date&legend=top-left">

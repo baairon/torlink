@@ -171,4 +171,9 @@ folder, so finished files stream to a browser or media player.
 flags: --port <n> (default 9160), --host <addr> (default 127.0.0.1),
 --token <secret> (required to bind a public --host; or TORLINK_FILES_TOKEN),
 --dir <dir> (folder to serve; defaults to your downloads folder).
+
+tor (search only): set TORLINK_TOR=1 to route source searches through a local
+Tor SOCKS proxy (127.0.0.1:9050; set TORLINK_TOR=socks5h://host:port for another,
+e.g. :9150 for Tor Browser). Hides your IP from the indexers and reaches their
+.onion mirrors. Downloads still go direct — the swarm sees your IP regardless.
 `;
