@@ -1,5 +1,5 @@
 import { fetchResilient, HttpError, USER_AGENT } from "../util/net";
-import { unescapeEntities } from "./rss";
+import { unescapeEntities, normalizeInfoHash } from "./rss";
 import { parseSize } from "../util/format";
 import type { SearchOptions, Source, SourceId, TorrentResult } from "./types";
 
@@ -59,6 +59,7 @@ export function parseUploadDate(html: string): number | undefined {
   const month = MONTHS[m[1]!.toLowerCase()];
   if (month === undefined) return undefined;
   const day = Number(m[2]);
+  if (!Number.isFinite(day) || day < 1 || day > 31) return undefined;
   const year = 2000 + Number(m[3]);
   const secs = Math.floor(Date.UTC(year, month, day) / 1000);
   return Number.isNaN(secs) ? undefined : secs;
@@ -68,12 +69,16 @@ async function detailInfo(
   base: string,
   path: string,
   opts: SearchOptions,
-): Promise<{ magnet: string; added?: number } | null> {
+): Promise<{ magnet: string; infoHash: string; added?: number } | null> {
   try {
     const html = await fetchText(`${base}${path}`, opts, 1);
     const raw = html.match(/magnet:\?xt=urn:btih:[^"'<>\s]+/i)?.[0];
     if (!raw) return null;
-    return { magnet: unescapeEntities(raw), added: parseUploadDate(html) };
+    const magnet = unescapeEntities(raw);
+    const rawHash = magnet.match(/urn:btih:([a-fA-F0-9]+)/)?.[1] ?? "";
+    const infoHash = normalizeInfoHash(rawHash);
+    if (!infoHash) return null;
+    return { magnet, infoHash, added: parseUploadDate(html) };
   } catch {
     return null;
   }
@@ -124,10 +129,9 @@ async function search(
   const settled = await Promise.all(
     rows.map(async (row): Promise<TorrentResult | null> => {
       const detail = await detailInfo(base, row.path, opts);
-      const infoHash = detail?.magnet?.match(/urn:btih:([a-zA-Z0-9]+)/i)?.[1]?.toLowerCase();
-      if (!detail || !infoHash) return null;
+      if (!detail) return null;
       return {
-        infoHash,
+        infoHash: detail.infoHash,
         name: row.name,
         sizeBytes: row.sizeBytes,
         seeders: row.seeders,

@@ -55,6 +55,7 @@ describe("handleApi", () => {
         getSeeds: () => [],
       } as unknown as Runtime["queue"],
       downloadDir: dir,
+      shuttingDown: false,
     };
   });
   afterEach(async () => {
@@ -151,24 +152,29 @@ describe("parseControl", () => {
 
 describe("applyControl", () => {
   const mkRuntime = (queue: Partial<Record<string, unknown>>): Runtime =>
-    ({ queue: queue as unknown as Runtime["queue"], downloadDir: "/tmp" });
+    ({ queue: queue as unknown as Runtime["queue"], downloadDir: "/tmp", shuttingDown: false });
 
   it("resumes a paused download", async () => {
-    const resume = vi.fn();
+    const resume = vi.fn().mockReturnValue(true);
     const rt = mkRuntime({ has: (id: string) => id === "x", resume });
     expect(await applyControl(rt, { id: "x", action: "resume", deleteFiles: false })).toBe("ok");
     expect(resume).toHaveBeenCalledWith("x");
   });
 
+  it("reports noop when the queue says nothing changed", async () => {
+    const rt = mkRuntime({ has: () => true, resume: vi.fn().mockReturnValue(false) });
+    expect(await applyControl(rt, { id: "x", action: "resume", deleteFiles: false })).toBe("noop");
+  });
+
   it("stops seeding but keeps files", async () => {
-    const stopSeeding = vi.fn();
+    const stopSeeding = vi.fn().mockReturnValue(true);
     const rt = mkRuntime({ getSeed: (id: string) => (id === "s" ? { id } : undefined), stopSeeding });
     expect(await applyControl(rt, { id: "s", action: "stop-seed", deleteFiles: false })).toBe("ok");
     expect(stopSeeding).toHaveBeenCalledWith("s");
   });
 
   it("starts seeding from a history entry", async () => {
-    const startSeeding = vi.fn();
+    const startSeeding = vi.fn().mockReturnValue(true);
     const hist = { id: "h", name: "H", magnet: "m", dir: "/d", sizeBytes: 1, completedAt: 0 };
     const rt = mkRuntime({ getHistory: () => [hist], startSeeding });
     expect(await applyControl(rt, { id: "h", action: "start-seed", deleteFiles: false })).toBe("ok");
@@ -176,18 +182,32 @@ describe("applyControl", () => {
   });
 
   it("delete forces deleteFiles:true; remove keeps files", async () => {
-    const remove = vi.fn().mockResolvedValue(true);
+    const remove = vi.fn().mockResolvedValue({ deleted: true });
     const rt = mkRuntime({ remove });
     expect(await applyControl(rt, { id: "z", action: "delete", deleteFiles: false })).toBe("ok");
     expect(remove).toHaveBeenCalledWith("z", { deleteFiles: true });
     remove.mockClear();
+    remove.mockResolvedValue({ deleted: null });
     await applyControl(rt, { id: "z", action: "remove", deleteFiles: false });
     expect(remove).toHaveBeenCalledWith("z", { deleteFiles: false });
+  });
+
+  it("reports delete-failed when the files survive a delete request", async () => {
+    const rt = mkRuntime({ remove: vi.fn().mockResolvedValue({ deleted: false }) });
+    expect(await applyControl(rt, { id: "z", action: "delete", deleteFiles: false })).toBe("delete-failed");
+    // …but only when deletion was actually requested.
+    expect(await applyControl(rt, { id: "z", action: "remove", deleteFiles: false })).toBe("ok");
   });
 
   it("reports not-found when remove finds nothing and unknown-action otherwise", async () => {
     const rt = mkRuntime({ remove: vi.fn().mockResolvedValue(false) });
     expect(await applyControl(rt, { id: "z", action: "remove", deleteFiles: false })).toBe("not-found");
     expect(await applyControl(mkRuntime({}), { id: "z", action: "nope", deleteFiles: false })).toBe("unknown-action");
+  });
+
+  it("refuses every action while shutting down", async () => {
+    const rt = mkRuntime({ has: () => true, pause: vi.fn().mockReturnValue(true) });
+    rt.shuttingDown = true;
+    expect(await applyControl(rt, { id: "x", action: "pause", deleteFiles: false })).toBe("shutting-down");
   });
 });

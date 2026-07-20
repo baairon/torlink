@@ -3,12 +3,25 @@ import type { SearchOptions, SourceId, TorrentResult } from "./types";
 
 export function unescapeEntities(s: string): string {
   return s
-    .replace(/&#0?38;|&amp;/g, "&")
     .replace(/&#8211;|&#8212;/g, "-")
-    .replace(/&#8217;|&#0?39;|&apos;/g, "'")
-    .replace(/&#8220;|&#8221;|&quot;/g, '"')
+    .replace(/&#8217;|&#0?39;/g, "'")
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) =>
+      String.fromCodePoint(parseInt(hex, 16)),
+    )
+    .replace(/&#0?(\d+);/g, (_, dec) => String.fromCodePoint(parseInt(dec, 10)))
+    .replace(/&amp;/g, "&")
     .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">");
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&nbsp;/g, " ");
+}
+
+export function normalizeInfoHash(raw: string): string {
+  const hex = raw.toLowerCase();
+  if (/^[a-f0-9]{40}$/.test(hex)) return hex;
+  if (/^[a-f0-9]{32}$/.test(hex)) return hex.padStart(40, "0");
+  return "";
 }
 
 function parseRssItems(xml: string, source: SourceId): TorrentResult[] {
@@ -18,10 +31,13 @@ function parseRssItems(xml: string, source: SourceId): TorrentResult[] {
     const magnetMatch = item.match(/href="(magnet:\?xt=urn:btih:[^"]+)"/i);
     if (!magnetMatch) continue;
     const magnet = unescapeEntities(magnetMatch[1]!);
-    const infoHash = magnet.match(/urn:btih:([a-zA-Z0-9]+)/)?.[1]?.toLowerCase() ?? "";
+    const rawHash = magnet.match(/urn:btih:([a-fA-F0-9]+)/)?.[1] ?? "";
+    const infoHash = normalizeInfoHash(rawHash);
     if (!infoHash) continue;
 
-    const name = unescapeEntities(item.match(/<title>(.*?)<\/title>/)?.[1] ?? "Unknown Title");
+    const name = unescapeEntities(
+      (item.match(/<title>([\s\S]*?)<\/title>/)?.[1] ?? "Unknown Title").replace(/\s+/g, " ").trim(),
+    );
     const addedStr = item.match(/<pubDate>(.*?)<\/pubDate>/)?.[1] ?? "";
     const added = addedStr ? new Date(addedStr).getTime() / 1000 : 0;
 

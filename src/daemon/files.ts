@@ -12,6 +12,7 @@ import { createReadStream } from "node:fs";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { loadConfig } from "../config/config";
+import { acquireInstanceLock, releaseInstanceLock, removeRunDescriptor } from "./daemonize";
 import { LOOPBACK_HOSTS, isAuthorized, hostHeaderOk } from "./auth";
 
 export const DEFAULT_FILES_PORT = 9160;
@@ -185,6 +186,12 @@ export async function runFiles(options: FilesOptions = {}): Promise<void> {
     return;
   }
 
+  if (!acquireInstanceLock("files")) {
+    console.error("error: another torlnk files is already running. Stop it first.");
+    process.exit(1);
+    return;
+  }
+
   const root = path.resolve(
     options.dir && options.dir.trim() ? options.dir.trim() : (await loadConfig()).downloadDir,
   );
@@ -217,10 +224,18 @@ export async function runFiles(options: FilesOptions = {}): Promise<void> {
         res.end(JSON.stringify({ error: "forbidden" }));
         return;
       }
-      const stat = await fs.stat(full).catch(() => null);
+      // lstat, not stat: safeResolve is lexical, so a symlink inside the root
+      // could point anywhere on disk. Never follow one. And only regular
+      // files may stream — a FIFO/socket/device would block the request.
+      const stat = await fs.lstat(full).catch(() => null);
       if (!stat) {
         res.writeHead(404, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ error: "not found" }));
+        return;
+      }
+      if (stat.isSymbolicLink() || (!stat.isDirectory() && !stat.isFile())) {
+        res.writeHead(403, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "forbidden" }));
         return;
       }
       try {
@@ -235,17 +250,31 @@ export async function runFiles(options: FilesOptions = {}): Promise<void> {
     })();
   });
 
-  await new Promise<void>((resolve) => {
+  await new Promise<void>((resolve, reject) => {
+    // See runServe: listen failures must not surface as an uncaught exception.
+    server.once("error", reject);
     server.listen(port, host, () => {
       log(`serving ${root} on http://${host}:${port}`);
       log(token ? "auth: token required" : "auth: none (loopback only)");
       resolve();
     });
+  }).catch((err: unknown) => {
+    const e = err as NodeJS.ErrnoException;
+    console.error(
+      e.code === "EADDRINUSE"
+        ? `error: ${host}:${port} is already in use — is another torlnk files running? Pass --port to pick a different one.`
+        : `error: cannot listen on ${host}:${port}: ${e.message ?? String(e)}`,
+    );
+    releaseInstanceLock("files");
+    process.exit(1);
   });
 
   await new Promise<void>((resolve) => {
     const shutdown = (): void => {
       server.close();
+      // If we are the recorded --daemon instance, drop its stale records.
+      removeRunDescriptor("files", process.pid);
+      releaseInstanceLock("files");
       resolve();
     };
     process.on("SIGINT", shutdown);

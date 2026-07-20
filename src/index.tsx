@@ -127,4 +127,10 @@ process.on("uncaughtException", (err) => {
   process.exit(1);
 });
 
+process.on("unhandledRejection", (reason) => {
+  restoreTerminal();
+  console.error(reason instanceof Error ? reason : String(reason));
+  process.exit(1);
+});
+
 }

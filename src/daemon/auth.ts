@@ -2,15 +2,16 @@
 // speak plain node:http on a local port, so they share the same two doors:
 // a bearer token and, when tokenless, a loopback-only Host header.
 
+import { createHash, timingSafeEqual } from "node:crypto";
+
 export const LOOPBACK_HOSTS = new Set(["127.0.0.1", "::1", "localhost"]);
 
-// Constant-ish comparison — the token isn't a password hash, but don't leak
-// length via early exit on the common prefix.
+// Hash both sides so the comparison is constant-time AND length-independent:
+// an early exit on length mismatch would leak the token's length via timing.
 function tokenMatches(expected: string, provided: string): boolean {
-  if (expected.length !== provided.length) return false;
-  let diff = 0;
-  for (let i = 0; i < expected.length; i++) diff |= expected.charCodeAt(i) ^ provided.charCodeAt(i);
-  return diff === 0;
+  const a = createHash("sha256").update(expected).digest();
+  const b = createHash("sha256").update(provided).digest();
+  return timingSafeEqual(a, b);
 }
 
 export function isAuthorized(token: string | null, authHeader: string | undefined): boolean {

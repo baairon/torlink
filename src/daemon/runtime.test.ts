@@ -13,6 +13,7 @@ function fakeRuntime(dir: string, has = false): { runtime: Runtime; add: ReturnT
   const runtime = {
     queue: { has: () => has, add } as unknown as Runtime["queue"],
     downloadDir: dir,
+    shuttingDown: false,
   };
   return { runtime, add };
 }
@@ -60,5 +61,22 @@ describe("addInput", () => {
     expect(add).not.toHaveBeenCalled();
     // Opted in (the watch folder), a bad file still fails soft as invalid.
     expect(await addInput(runtime, file, { allowTorrentPath: true })).toBe("invalid");
+  });
+
+  it("treats a magnet whose dn= name ends in .torrent as a magnet, not a path", async () => {
+    const { runtime, add } = fakeRuntime(dir);
+    const tricky = `magnet:?xt=urn:btih:${HASH}&dn=Ubuntu.Release.torrent`;
+    expect(await addInput(runtime, tricky)).toBe("added");
+    expect(add).toHaveBeenCalledWith(
+      { id: HASH, name: "Ubuntu.Release.torrent", magnet: tricky },
+      dir,
+    );
+  });
+
+  it("refuses adds while the runtime is shutting down", async () => {
+    const { runtime, add } = fakeRuntime(dir);
+    runtime.shuttingDown = true;
+    expect(await addInput(runtime, MAGNET)).toBe("shutting-down");
+    expect(add).not.toHaveBeenCalled();
   });
 });

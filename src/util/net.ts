@@ -7,6 +7,7 @@ export interface FetchResilientOptions extends RequestInit {
   retries?: number;
   baseMs?: number;
   capMs?: number;
+  timeoutMs?: number;
   fetchImpl?: FetchImpl;
   sleepImpl?: SleepImpl;
 }
@@ -25,6 +26,24 @@ export const RETRY_STATUS = new Set([408, 425, 429, 500, 502, 503, 504]);
 const DEFAULT_RETRIES = 5;
 const DEFAULT_BASE_MS = 500;
 const DEFAULT_CAP_MS = 20000;
+const DEFAULT_TIMEOUT_MS = 15_000;
+
+export function abortError(): Error {
+  const e = new Error("The operation was aborted");
+  e.name = "AbortError";
+  return e;
+}
+
+export async function readBodyText(
+  res: Response,
+  maxBytes = 8 * 1024 * 1024,
+): Promise<string> {
+  const ab = await res.arrayBuffer();
+  if (ab.byteLength > maxBytes) {
+    throw new HttpError(0, `response body too large (>${maxBytes} bytes)`);
+  }
+  return new TextDecoder().decode(ab);
+}
 
 // Resolves early on abort so a cancelled search never sits out a backoff wait;
 // the retry loop re-checks the signal and bails right after.
@@ -74,7 +93,7 @@ export function backoffDelay(
 ): number {
   const exp = Math.min(capMs, baseMs * 2 ** attempt);
   const jittered = Math.floor(rand() * exp);
-  if (retryAfterMs !== undefined) return Math.max(jittered, retryAfterMs);
+  if (retryAfterMs !== undefined) return Math.max(jittered, Math.min(retryAfterMs, capMs));
   return jittered;
 }
 
@@ -86,23 +105,28 @@ export async function fetchResilient(
     retries = DEFAULT_RETRIES,
     baseMs = DEFAULT_BASE_MS,
     capMs = DEFAULT_CAP_MS,
+    timeoutMs = DEFAULT_TIMEOUT_MS,
     fetchImpl = fetch as FetchImpl,
     sleepImpl = realSleep,
     signal,
     ...init
   } = opts;
 
-  const fetchInit: RequestInit = signal ? { ...init, signal } : init;
-
   let lastError: unknown;
   for (let attempt = 0; attempt <= retries; attempt++) {
-    if (signal?.aborted) throw new HttpError(0, "aborted");
+    if (signal?.aborted) throw abortError();
+
+    // Per-attempt timeout so a black-holed connection can't hang forever.
+    const timeout = AbortSignal.timeout(timeoutMs);
+    const attemptSignal = signal ? AbortSignal.any([signal, timeout]) : timeout;
 
     let res: Response | undefined;
     try {
-      res = await fetchImpl(url, fetchInit);
+      res = await fetchImpl(url, { ...init, signal: attemptSignal });
     } catch (e) {
-      if (isAbortError(e) || signal?.aborted) throw e;
+      // User-initiated abort: always propagate immediately.
+      if (signal?.aborted) throw e;
+      // Timeout or other transient error: retryable.
       lastError = e;
       if (attempt < retries) {
         await sleepImpl(backoffDelay(attempt, baseMs, capMs), signal ?? undefined);
@@ -127,6 +151,9 @@ export async function fetchResilient(
         `Request to ${url} failed after ${retries} retries (HTTP ${res.status}).`,
       );
     }
+
+    // Drain leftover body so the underlying socket can be reused.
+    try { await res.body?.cancel(); } catch { /* ignore */ }
 
     const retryAfterMs = parseRetryAfter(res.headers.get("retry-after"));
     await sleepImpl(backoffDelay(attempt, baseMs, capMs, retryAfterMs), signal ?? undefined);

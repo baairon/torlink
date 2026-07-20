@@ -27,6 +27,11 @@ async function search(query: string, opts: SearchOptions = {}): Promise<TorrentR
     const seeders = Number(tag(item, "nyaa:seeders"));
     const leechers = Number(tag(item, "nyaa:leechers"));
     const dateStr = tag(item, "pubDate");
+    let added: number | undefined;
+    if (dateStr) {
+      const ts = new Date(dateStr).getTime() / 1000;
+      added = Number.isFinite(ts) ? ts : undefined;
+    }
     out.push({
       infoHash,
       name,
@@ -35,7 +40,7 @@ async function search(query: string, opts: SearchOptions = {}): Promise<TorrentR
       leechers: Number.isFinite(leechers) ? leechers : 0,
       source: "nyaa",
       magnet: buildMagnet(infoHash, name),
-      added: dateStr ? new Date(dateStr).getTime() / 1000 : undefined,
+      added,
     });
   }
   return out;

@@ -68,6 +68,10 @@ export function Downloads() {
 
   useInput(
     (input, key) => {
+      // Ink broadcasts every keypress to all active handlers; without this
+      // guard ctrl+c (and other ctrl+letter chords) would match the plain
+      // letter bindings below on the way to App's quit handler.
+      if (key.ctrl || key.meta) return;
       if (key.upArrow || input === "k") setCursor(wrapStep(clamped, -1, total));
       else if (key.downArrow || input === "j") setCursor(wrapStep(clamped, 1, total));
       else if (input === "f") queue.retryFailed();

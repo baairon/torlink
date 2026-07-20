@@ -10,9 +10,10 @@ import {
   torrentMetaExists,
   exportTorrentMeta,
   deleteTorrentMeta,
+  flushPersistWrites,
   type SeedRecord,
 } from "./persist";
-import { saveHistory, saveHistorySync, type HistoryItem } from "./history";
+import { saveHistory, saveHistorySync, flushHistoryWrites, type HistoryItem } from "./history";
 import { deleteSeedData } from "./delete-data";
 import type { QueueItem, SeedItem } from "./types";
 import type { SourceId } from "../sources/types";
@@ -23,9 +24,14 @@ import type { SourceId } from "../sources/types";
  * sustained network download on a "seed" means its files are gone or partial.
  * Size-agnostic (a 50 GB verify never trips it) and cross-platform (webtorrent
  * owns the real on-disk paths, so we never guess sanitized filenames).
+ *
+ * The bar is progress < 0.9, i.e. *substantial* loss: a seed re-fetching a few
+ * corrupt pieces (progress ≈ 1) is a repair that heals itself and completes —
+ * tearing it down and flagging "missing" would just make the user re-seed and
+ * re-trip the detector. Only real file loss deserves the flag.
  */
 export function strayDownload(s: { total: number; progress: number; speed: number }): boolean {
-  return s.total > 0 && s.progress < 1 && s.speed > 0;
+  return s.total > 0 && s.progress < 0.9 && s.speed > 0;
 }
 
 const STRAY_TICKS = 2; // consecutive stray polls before flagging missing (~1s)
@@ -340,11 +346,13 @@ export class DownloadQueue extends EventEmitter {
     }
   }
 
-  pause(id: string): void {
+  // Returns true when the pause actually changed state (false for an unknown
+  // id or an item that isn't active), so the control API can say "noop".
+  pause(id: string): boolean {
     const it = this.items.get(id);
     // A queued (not-yet-started) item can be paused too; only a downloading one
     // holds a live engine + frees a slot on pause.
-    if (!it || (it.status !== "downloading" && it.status !== "queued")) return;
+    if (!it || (it.status !== "downloading" && it.status !== "queued")) return false;
     const wasDownloading = it.status === "downloading";
     it.status = "paused";
     it.speed = 0;
@@ -357,11 +365,13 @@ export class DownloadQueue extends EventEmitter {
       this.promote(); // a slot just freed
       this.maybeStopPoll();
     }
+    return true;
   }
 
-  resume(id: string): void {
+  // Returns true when the resume actually changed state.
+  resume(id: string): boolean {
     const it = this.items.get(id);
-    if (!it || it.status !== "paused") return;
+    if (!it || it.status !== "paused") return false;
     // Respect the cap on manual resume: start if a slot is free, else re-queue.
     const start = this.maxDownloads === 0 || this.activeCount < this.maxDownloads;
     it.status = start ? "downloading" : "queued";
@@ -371,6 +381,7 @@ export class DownloadQueue extends EventEmitter {
     }
     this.changed();
     void this.persist();
+    return true;
   }
 
   togglePause(id: string): void {
@@ -401,8 +412,12 @@ export class DownloadQueue extends EventEmitter {
   // download, seed, or just history), and optionally delete its on-disk data.
   // Unlike cancel() (downloads only) or stopSeeding() (which leaves a paused
   // seed record behind), this forgets the torrent completely. Returns false if
-  // the id is unknown.
-  async remove(id: string, opts: { deleteFiles?: boolean } = {}): Promise<boolean> {
+  // the id is unknown; otherwise the outcome, including whether a requested
+  // file deletion actually happened (null when none was requested).
+  async remove(
+    id: string,
+    opts: { deleteFiles?: boolean } = {},
+  ): Promise<{ deleted: boolean | null } | false> {
     const it = this.items.get(id);
     const seed = this.seeds.get(id);
     const hist = this.history.find((h) => h.id === id);
@@ -422,16 +437,23 @@ export class DownloadQueue extends EventEmitter {
     deleteTorrentMeta(id);
     this.removeHistory(id); // persists history
 
-    if (opts.deleteFiles && dir && name) {
-      await deleteSeedData(dir, name);
-    }
-
+    // Persist and promote BEFORE the (potentially long) file deletion: the
+    // state files must already reflect the removal if we crash mid-delete —
+    // otherwise the torrent resurrects on restart over a half-deleted tree —
+    // and a freed download slot shouldn't idle while the filesystem works.
     this.changed();
     void this.persist();
     void this.persistSeeds();
     if (it) this.promote(); // a download slot may have freed
+
+    let deleted: boolean | null = null;
+    if (opts.deleteFiles && dir && name) {
+      const res = await deleteSeedData(dir, name);
+      deleted = res?.deleted ?? false;
+    }
+
     this.maybeStopPoll();
-    return true;
+    return { deleted };
   }
 
   retry(id: string): void {
@@ -469,9 +491,12 @@ export class DownloadQueue extends EventEmitter {
     return n;
   }
 
-  startSeeding(h: HistoryItem): void {
-    if (this.seeds.get(h.id)?.status === "seeding") return;
-    if (this.items.has(h.id)) return; // don't seed a file that's downloading
+  // Returns true when a seed actually (re)started or was (re)recorded —
+  // false when it's already seeding or the torrent is mid-download, so the
+  // control API can say "noop" instead of pretending something changed.
+  startSeeding(h: HistoryItem): boolean {
+    if (this.seeds.get(h.id)?.status === "seeding") return false;
+    if (this.items.has(h.id)) return false; // don't seed a file that's downloading
 
     const base: SeedItem = {
       id: h.id,
@@ -493,7 +518,7 @@ export class DownloadQueue extends EventEmitter {
       this.seeds.set(h.id, { ...base, status: "missing" });
       this.changed();
       void this.persistSeeds();
-      return;
+      return true;
     }
 
     this.seeds.set(h.id, base);
@@ -506,11 +531,13 @@ export class DownloadQueue extends EventEmitter {
     this.ensurePoll();
     this.changed();
     void this.persistSeeds();
+    return true;
   }
 
-  stopSeeding(id: string): void {
+  // Returns true when a seed was actually stopped (false for an unknown id).
+  stopSeeding(id: string): boolean {
     const s = this.seeds.get(id);
-    if (!s) return;
+    if (!s) return false;
     this.engine.remove(id);
     this.strayHits.delete(id);
     this.seedStartedAt.delete(id);
@@ -522,6 +549,7 @@ export class DownloadQueue extends EventEmitter {
     this.changed();
     void this.persistSeeds();
     this.maybeStopPoll();
+    return true;
   }
 
   toggleSeeding(h: HistoryItem): void {
@@ -664,6 +692,14 @@ export class DownloadQueue extends EventEmitter {
     saveQueueSync(this.getItems());
     saveHistorySync(this.history);
     saveSeedsSync(this.seedRecords());
+  }
+
+  // Wait for every in-flight async save to land (or fail). A daemon shutdown
+  // awaits this before persistSync(): otherwise an older snapshot still pending
+  // in the write chain could rename itself over the fresher sync write and
+  // rewind the state files by a few seconds on next boot.
+  async flushPendingWrites(): Promise<void> {
+    await Promise.all([flushPersistWrites(), flushHistoryWrites()]);
   }
 
   suspend(): void {

@@ -11,6 +11,7 @@ import { VERSION } from "../version";
 import { fetchLatestVersion, isNewer } from "./version";
 import { readManifest } from "./manifest";
 import { isAlive, listRunDescriptors, restartDaemon } from "../daemon/restart";
+import { removeRunDescriptor } from "../daemon/daemonize";
 
 // git is a real binary everywhere and spawns without a shell, so paths with
 // spaces survive as plain argv entries. npm is npm.cmd on Windows and a .cmd
@@ -65,12 +66,14 @@ async function npmGlobalUpdate(name: string): Promise<boolean> {
 }
 
 async function restartDaemons(): Promise<void> {
-  const running = listRunDescriptors().filter((d) => isAlive(d.pid));
-  if (running.length === 0) {
-    console.log("No running daemon to restart.");
-    return;
-  }
-  for (const d of running) {
+  let running = 0;
+  for (const d of listRunDescriptors()) {
+    if (!isAlive(d.pid)) {
+      // Dead daemon: prune the stale record so later updates don't re-check it.
+      removeRunDescriptor(d.name);
+      continue;
+    }
+    running++;
     process.stdout.write(`Restarting ${d.name} daemon (pid ${d.pid})… `);
     const res = await restartDaemon(d);
     console.log(
@@ -80,6 +83,9 @@ async function restartDaemons(): Promise<void> {
           ? `now pid ${res.newPid}.`
           : "it had already stopped.",
     );
+  }
+  if (running === 0) {
+    console.log("No running daemon to restart.");
   }
 }
 

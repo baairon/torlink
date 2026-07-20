@@ -8,6 +8,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { startRuntime, addInput, type Runtime, type AddOutcome } from "./runtime";
 import { startSeedReaper } from "./seed-reaper";
+import { acquireInstanceLock, releaseInstanceLock, removeRunDescriptor } from "./daemonize";
 
 // Subfolders the watcher moves handled files into, so each is processed once and
 // the drop folder stays tidy. Leading dots keep them out of the way and out of
@@ -39,13 +40,21 @@ function log(message: string): void {
   console.log(`[torlnk watch] ${stamp} ${message}`);
 }
 
-async function moveInto(dir: string, sub: string, name: string): Promise<void> {
+// Archive a handled file. Returns false when the rename fails (typically a
+// locked/open file on Windows); the caller leaves the file in place and the
+// next poll retries, instead of silently looping with no trace.
+async function moveInto(dir: string, sub: string, name: string): Promise<boolean> {
   const destDir = path.join(dir, sub);
   await fs.mkdir(destDir, { recursive: true }).catch(() => {});
   // Prefix with a timestamp so re-dropping a same-named file never clobbers a
   // previous one in the archive folder.
   const dest = path.join(destDir, `${Date.now()}-${name}`);
-  await fs.rename(path.join(dir, name), dest).catch(() => {});
+  try {
+    await fs.rename(path.join(dir, name), dest);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 async function resolveInput(dir: string, name: string): Promise<string | null> {
@@ -65,9 +74,16 @@ export async function processFile(runtime: Runtime, dir: string, name: string): 
   } catch {
     outcome = "invalid";
   }
-  await moveInto(dir, outcome === "invalid" ? FAILED_DIR : PROCESSED_DIR, name);
+  const moved = await moveInto(dir, outcome === "invalid" ? FAILED_DIR : PROCESSED_DIR, name);
+  if (!moved) log(`warning: couldn't archive ${name} (locked?); will retry next poll`);
   return outcome;
 }
+
+// Size-stability tracking: a file still being copied into the drop folder
+// changes size between polls, and consuming it mid-write parses a truncated
+// magnet (or archives a half-written .torrent to .failed while the writer is
+// still going). Only a file whose size held steady across two polls is taken.
+const seenSizes = new Map<string, number>();
 
 async function scanOnce(runtime: Runtime, dir: string): Promise<void> {
   const entries = await fs.readdir(dir).catch(() => [] as string[]);
@@ -75,8 +91,17 @@ async function scanOnce(runtime: Runtime, dir: string): Promise<void> {
     if (!isWatchCandidate(name)) continue;
     const stat = await fs.stat(path.join(dir, name)).catch(() => null);
     if (!stat || !stat.isFile() || stat.size === 0) continue; // skip dirs / in-flight writes
+    const prevSize = seenSizes.get(name);
+    seenSizes.set(name, stat.size);
+    if (prevSize !== stat.size) continue; // first sight, or still being written
+    seenSizes.delete(name);
     const outcome = await processFile(runtime, dir, name);
     log(`${outcome}: ${name}`);
+  }
+  // Forget files that vanished between polls so the map can't grow unbounded.
+  if (seenSizes.size > 0) {
+    const live = new Set(entries);
+    for (const key of [...seenSizes.keys()]) if (!live.has(key)) seenSizes.delete(key);
   }
 }
 
@@ -95,7 +120,17 @@ export async function runWatch(
   options: WatchOptions = {},
 ): Promise<void> {
   const dir = path.resolve(watchDir);
+  // Two watchers share the state dir and clobber each other's persisted queue.
+  if (!acquireInstanceLock("watch")) {
+    console.error("error: another torlnk watch is already running. Stop it first.");
+    process.exit(1);
+    return;
+  }
   await fs.mkdir(dir, { recursive: true }).catch(() => {});
+  // A watch dir we can't read looks healthy but picks nothing up forever.
+  if ((await fs.readdir(dir).catch(() => null)) === null) {
+    log(`error: cannot create or read ${dir} — check permissions; nothing will be picked up.`);
+  }
 
   const runtime = await startRuntime(downloadDir);
   runtime.queue.on("completed", (name: string) => log(`done, now seeding: ${name}`));
@@ -120,9 +155,17 @@ export async function runWatch(
 
   await new Promise<void>((resolve) => {
     const shutdown = (): void => {
-      clearInterval(timer);
-      runtime.queue.suspend();
-      resolve();
+      void (async () => {
+        clearInterval(timer);
+        runtime.shuttingDown = true;
+        // Let pending async saves land before the sync flush (see runServe).
+        await runtime.queue.flushPendingWrites();
+        runtime.queue.suspend();
+        // If we are the recorded --daemon instance, drop its stale records.
+        removeRunDescriptor("watch", process.pid);
+        releaseInstanceLock("watch");
+        resolve();
+      })();
     };
     process.on("SIGINT", shutdown);
     process.on("SIGTERM", shutdown);

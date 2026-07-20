@@ -18,6 +18,11 @@ export interface HistoryItem {
 
 const write = serializeWrites();
 
+// See flushPersistWrites in persist.ts.
+export function flushHistoryWrites(): Promise<void> {
+  return write.flush();
+}
+
 export function saveHistory(items: HistoryItem[]): Promise<void> {
   return write(() => writeJsonAtomic(historyFile, items.slice(0, HISTORY_CAP)));
 }

@@ -35,6 +35,11 @@ function message(e: unknown): string {
 export class TorrentEngine {
   private client: WebTorrent | null = null;
   private torrents = new Map<string, Torrent>();
+  private handlers = new Map<string, AddHandlers>();
+  // Set by destroy(): an add() racing shutdown must not lazily build a fresh
+  // client that nothing will ever destroy (its sockets would hold the event
+  // loop open and hang the exit).
+  private destroyed = false;
 
   private ensureClient(): WebTorrent {
     if (!this.client) {
@@ -46,8 +51,34 @@ export class TorrentEngine {
       // on macOS because the port is permanently taken, so disable it
       // and let UPnP handle NAT traversal instead.
       const opts = process.platform === "darwin" ? { natPmp: false } : {};
-      this.client = new WebTorrent(opts);
-      this.client.on("error", () => {});
+      const client = new WebTorrent(opts);
+      // A client-level error (DHT/UDP socket failure, VPN flap, port
+      // conflict) is fatal in webtorrent: it destroys every torrent WITHOUT
+      // firing their per-torrent "error" events. Report the failure on each
+      // tracked torrent so items surface as failed (and queued ones promote)
+      // instead of freezing mid-download until a restart, then drop the
+      // client so the next add() lazily builds a fresh one.
+      client.on("error", (err: unknown) => {
+        // A stale client (already replaced after an earlier fatal error) must
+        // not fail torrents that live on its replacement.
+        if (this.client !== client) return;
+        this.client = null;
+        const msg = message(err);
+        const stalled = [...this.torrents.entries()];
+        this.torrents.clear();
+        for (const [id, t] of stalled) {
+          const h = this.handlers.get(id);
+          this.handlers.delete(id);
+          try {
+            t.destroy();
+          } catch {}
+          h?.onError?.(msg);
+        }
+        try {
+          client.destroy();
+        } catch {}
+      });
+      this.client = client;
     }
     return this.client;
   }
@@ -64,10 +95,15 @@ export class TorrentEngine {
     handlers: AddHandlers,
     announce?: string[],
   ): void {
+    if (this.destroyed) {
+      handlers.onError?.("engine is shut down");
+      return;
+    }
     const client = this.ensureClient();
     const existing = this.torrents.get(id);
     if (existing) {
       this.torrents.delete(id);
+      this.handlers.delete(id);
       try {
         existing.destroy();
       } catch {}
@@ -82,6 +118,7 @@ export class TorrentEngine {
       return;
     }
     this.torrents.set(id, torrent);
+    this.handlers.set(id, handlers);
 
     torrent.on("metadata", () => {
       handlers.onMetadata?.({
@@ -99,6 +136,7 @@ export class TorrentEngine {
     torrent.on("error", (err: unknown) => {
       handlers.onError?.(message(err));
       this.torrents.delete(id);
+      this.handlers.delete(id);
       try {
         torrent.destroy();
       } catch {}
@@ -142,6 +180,7 @@ export class TorrentEngine {
   remove(id: string): void {
     const t = this.torrents.get(id);
     this.torrents.delete(id);
+    this.handlers.delete(id);
     if (t) {
       try {
         t.destroy();
@@ -150,7 +189,9 @@ export class TorrentEngine {
   }
 
   destroy(): void {
+    this.destroyed = true;
     this.torrents.clear();
+    this.handlers.clear();
     // Never block shutdown on webtorrent's async teardown: hand off the client
     // destroy to a later tick and let the OS reclaim sockets if we exit first.
     const client = this.client;

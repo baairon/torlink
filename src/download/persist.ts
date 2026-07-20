@@ -6,6 +6,13 @@ import type { QueueItem } from "./types";
 
 const write = serializeWrites();
 
+// Resolves once every queued queue/seeds save has landed (or failed). Daemon
+// shutdown awaits this before persistSync() so an older in-flight snapshot
+// can't rename itself over the fresher sync write.
+export function flushPersistWrites(): Promise<void> {
+  return write.flush();
+}
+
 export function saveQueue(items: QueueItem[]): Promise<void> {
   return write(() => writeJsonAtomic(queueFile, items));
 }

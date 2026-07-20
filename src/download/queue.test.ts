@@ -80,6 +80,12 @@ describe("strayDownload (missing-file safety-net)", () => {
     expect(strayDownload({ total: 8e9, progress: 0.2, speed: 2e6 })).toBe(true);
   });
 
+  it("lets a small repair (a few corrupt pieces) heal instead of flagging missing", () => {
+    // 100 GB torrent re-downloading one 4 MB piece: progress ≈ 1 with speed > 0.
+    expect(strayDownload({ total: 100e9, progress: 0.9999, speed: 3e5 })).toBe(false);
+    expect(strayDownload({ total: 8e9, progress: 0.95, speed: 2e6 })).toBe(false);
+  });
+
   it("ignores a seed before metadata has arrived (total unknown)", () => {
     expect(strayDownload({ total: 0, progress: 0, speed: 0 })).toBe(false);
   });

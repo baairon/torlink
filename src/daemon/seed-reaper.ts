@@ -7,7 +7,6 @@
 // The clock is the download's completion time (history.completedAt), not when
 // this process started, so a restart doesn't reset every torrent's timer.
 
-import type { DownloadQueue } from "../download/queue";
 import { deleteSeedData } from "../download/delete-data";
 
 // Re-exported for backwards compatibility (the reaper's original home for it).
@@ -18,6 +17,7 @@ const DEFAULT_CHECK_MS = 30_000;
 // The slice of DownloadQueue the reaper needs — keeps it trivially testable.
 export interface ReapableQueue {
   getSeeds(): { id: string; name: string; dir: string; status: string }[];
+  getSeed(id: string): { status: string } | undefined;
   getHistory(): { id: string; completedAt: number }[];
   stopSeeding(id: string): void;
 }
@@ -47,25 +47,32 @@ export interface SeedReaperOptions {
 }
 
 export function startSeedReaper(
-  queue: DownloadQueue,
+  queue: ReapableQueue,
   seedTimeMs: number,
   options: SeedReaperOptions = {},
 ): () => void {
   const { deleteFiles = false, log = () => {}, intervalMs = DEFAULT_CHECK_MS } = options;
-  const tick = (): void => {
+  const tick = async (): Promise<void> => {
     for (const s of dueSeeds(queue, seedTimeMs, Date.now())) {
       queue.stopSeeding(s.id);
       if (deleteFiles) {
-        void deleteSeedData(s.dir, s.name).then((target) => {
-          log(`seed time reached, stopped seeding + deleted files: ${target ?? s.name}`);
-        });
+        // A start-seed landing between the stop and the delete must win:
+        // re-check before touching the files, or they'd be deleted from under
+        // a live seed.
+        if (queue.getSeed(s.id)?.status === "seeding") continue;
+        const res = await deleteSeedData(s.dir, s.name);
+        log(
+          res?.deleted
+            ? `seed time reached, stopped seeding + deleted files: ${res.target}`
+            : `seed time reached, stopped seeding; file deletion failed: ${s.name}`,
+        );
       } else {
         log(`seed time reached, stopped seeding (files kept): ${s.name}`);
       }
     }
   };
-  tick();
-  const timer = setInterval(tick, intervalMs);
+  void tick();
+  const timer = setInterval(() => void tick(), intervalMs);
   timer.unref?.();
   return () => clearInterval(timer);
 }

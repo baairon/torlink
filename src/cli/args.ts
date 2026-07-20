@@ -43,13 +43,16 @@ function splitBooleans(args: string[]): { bools: Set<string>; rest: string[] } {
 }
 
 // Minimal `--flag value` reader for the headless subcommands. Unknown tokens are
-// left in `rest` so the caller can decide what to do with them.
+// left in `rest` so the caller can decide what to do with them. A `--flag`
+// directly followed by another `--flag` has no value — swallowing that next
+// flag as the value would silently shift every later token (`--host --port 9`
+// must not yield host="--port").
 function readFlags(args: string[]): { flags: Record<string, string>; rest: string[] } {
   const flags: Record<string, string> = {};
   const rest: string[] = [];
   for (let i = 0; i < args.length; i++) {
     const arg = args[i]!;
-    if (arg.startsWith("--") && i + 1 < args.length) {
+    if (arg.startsWith("--") && i + 1 < args.length && !args[i + 1]!.startsWith("--")) {
       flags[arg.slice(2)] = args[++i]!;
     } else {
       rest.push(arg);
@@ -58,10 +61,12 @@ function readFlags(args: string[]): { flags: Record<string, string>; rest: strin
   return { flags, rest };
 }
 
+// Only a plain decimal in 1..65535 is a port; parseInt alone would accept
+// junk like "9161abc" and out-of-range values that only blow up at bind time.
 function parsePort(raw: string | undefined): number | undefined {
-  if (!raw) return undefined;
-  const n = Number.parseInt(raw, 10);
-  return Number.isFinite(n) && n > 0 ? n : undefined;
+  if (!raw || !/^\d+$/.test(raw)) return undefined;
+  const n = Number(raw);
+  return n >= 1 && n <= 65535 ? n : undefined;
 }
 
 function seedTimeFrom(raw: string | undefined): number | undefined {

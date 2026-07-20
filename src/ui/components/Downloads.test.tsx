@@ -118,6 +118,54 @@ describe("Downloads clear/remove keys", () => {
   });
 });
 
+describe("Downloads ctrl+letter chords", () => {
+  // Ink broadcasts every keypress to all active useInput handlers; plain-letter
+  // bindings must ignore ctrl chords or ctrl+c would cancel/remove on the way
+  // to the app's quit handler.
+  it("ctrl+c does not cancel the focused download", async () => {
+    const queue = fakeQueue(ACTIVE, RECENT);
+    let cancels = 0;
+    (queue as { cancel: (id: string) => void }).cancel = () => {
+      cancels++;
+    };
+    ui = renderUI(
+      <StoreContext.Provider value={makeTestStore({ queue, section: "downloads" })}>
+        <Downloads />
+      </StoreContext.Provider>,
+    );
+    await vi.waitFor(() => expect(ui!.frame()).toContain("fedora workstation"));
+
+    ui!.press("\x03"); // ctrl+c
+    await tick();
+    expect(cancels).toBe(0);
+    expect(ui!.frame()).toContain("fedora workstation");
+  });
+
+  it("ctrl+c does not remove the focused recent entry", async () => {
+    const u = mount();
+    await vi.waitFor(() => expect(u.frame()).toContain("Recently downloaded  (3)"));
+    u.press("j");
+    await vi.waitFor(() => expect(lineWith(u, "ubuntu 24.04")).toContain("❯"));
+
+    u.press("\x03"); // ctrl+c
+    await tick();
+    expect(u.frame()).toContain("Recently downloaded  (3)");
+    expect(u.frame()).toContain("ubuntu 24.04");
+  });
+
+  it("plain c still removes after a ctrl chord was ignored", async () => {
+    const u = mount();
+    await vi.waitFor(() => expect(u.frame()).toContain("Recently downloaded  (3)"));
+    u.press("j");
+    await vi.waitFor(() => expect(lineWith(u, "ubuntu 24.04")).toContain("❯"));
+
+    u.press("\x03");
+    await tick();
+    u.press("c");
+    await vi.waitFor(() => expect(u.frame()).toContain("Recently downloaded  (2)"));
+  });
+});
+
 describe("Downloads queued rows", () => {
   it("renders a waiting item as queued, not failed", async () => {
     const queued: QueueItem = {

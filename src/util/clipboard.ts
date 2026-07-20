@@ -50,6 +50,10 @@ function write(cmd: string, args: string[], text: string): Promise<boolean> {
       const onFinish = (code: number | null = 0): void => done(code === 0);
       proc.on("exit", onFinish);
       proc.on("close", onFinish);
+      // If the helper failed to spawn or exited before reading, the pipe's
+      // read end closes and stdin emits EPIPE — an unhandled stream "error"
+      // would take the whole process down over a copy action.
+      proc.stdin?.on("error", () => done(false));
       proc.stdin?.end(text);
     } catch {
       resolve(false);

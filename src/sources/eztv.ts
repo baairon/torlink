@@ -18,9 +18,10 @@ interface EztvResponse {
   torrents?: EztvTorrent[];
 }
 
+// The EZTV API has no keyword endpoint (only imdb_id lookups), so a typed
+// query is answered by filtering the latest releases client-side against
+// title and filename. Browse (empty query) returns the page as-is.
 async function search(query: string, opts: SearchOptions = {}): Promise<TorrentResult[]> {
-  if (query.trim()) return [];
-
   const res = await fetchResilient(`${API}?limit=100&page=1`, {
     headers: { "User-Agent": USER_AGENT },
     signal: opts.signal,
@@ -28,11 +29,16 @@ async function search(query: string, opts: SearchOptions = {}): Promise<TorrentR
   });
   if (!res.ok) throw new HttpError(res.status, `EZTV returned ${res.status}`);
 
+  const tokens = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
   const json = (await res.json()) as EztvResponse;
   const out: TorrentResult[] = [];
   for (const t of json.torrents ?? []) {
     const hash = (t.hash ?? "").toLowerCase();
     const name = t.title || t.filename || hash;
+    if (tokens.length > 0) {
+      const haystack = `${t.title ?? ""}\n${t.filename ?? ""}`.toLowerCase();
+      if (!tokens.every((tok) => haystack.includes(tok))) continue;
+    }
     const magnet = t.magnet_url || (hash ? buildMagnet(hash, name) : "");
     if (!magnet || !hash) continue;
     out.push({

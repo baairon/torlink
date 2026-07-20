@@ -202,6 +202,8 @@ export function Results() {
 
   useInput(
     (input, key) => {
+      // See Downloads.tsx: ctrl+letter chords must not match plain bindings.
+      if (key.ctrl || key.meta) return;
       if (input === "/") {
         setMode("search");
         return;
@@ -247,6 +249,7 @@ export function Results() {
 
   useInput(
     (input, key) => {
+      if (key.ctrl || key.meta) return;
       if (key.escape) {
         setMode("list");
         setDetail(null);

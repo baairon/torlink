@@ -12,17 +12,17 @@ describe("writeClipboard", () => {
     try {
       spawn.mockImplementation((cmd: string) => {
         const proc = new EventEmitter() as EventEmitter & {
-          stdin: { end: (value: string) => void };
+          stdin: EventEmitter & { end: (value: string) => void };
           stdout: EventEmitter;
           kill: () => void;
         };
         proc.stdout = new EventEmitter();
         proc.kill = vi.fn();
-        proc.stdin = {
+        proc.stdin = Object.assign(new EventEmitter(), {
           end: vi.fn(() => {
             queueMicrotask(() => proc.emit("exit", cmd === "wl-copy" ? 0 : 1));
           }),
-        };
+        });
         return proc;
       });
 
@@ -33,6 +33,36 @@ describe("writeClipboard", () => {
       expect(spawn.mock.results[0]?.value.stdin.end).toHaveBeenCalledWith(
         "magnet:?xt=urn:btih:abc",
       );
+    } finally {
+      Object.defineProperty(process, "platform", { value: originalPlatform });
+      vi.resetModules();
+      spawn.mockReset();
+    }
+  });
+
+  it("an EPIPE on the helper's stdin resolves false instead of throwing", async () => {
+    const originalPlatform = process.platform;
+    Object.defineProperty(process, "platform", { value: "darwin" });
+    try {
+      spawn.mockImplementation(() => {
+        const proc = new EventEmitter() as EventEmitter & {
+          stdin: EventEmitter & { end: (value: string) => void };
+          stdout: EventEmitter;
+          kill: () => void;
+        };
+        proc.stdout = new EventEmitter();
+        proc.kill = vi.fn();
+        proc.stdin = Object.assign(new EventEmitter(), {
+          end: vi.fn(() => {
+            // Helper died before reading: the write side reports EPIPE.
+            queueMicrotask(() => proc.stdin.emit("error", new Error("write EPIPE")));
+          }),
+        });
+        return proc;
+      });
+
+      const { writeClipboard } = await import("./clipboard");
+      await expect(writeClipboard("magnet:?xt=urn:btih:abc")).resolves.toBe(false);
     } finally {
       Object.defineProperty(process, "platform", { value: originalPlatform });
       vi.resetModules();

@@ -50,6 +50,7 @@ describe("processFile", () => {
     runtime = {
       queue: { has: () => false, add } as unknown as Runtime["queue"],
       downloadDir,
+      shuttingDown: false,
     };
   });
   afterEach(async () => {

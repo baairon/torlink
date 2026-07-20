@@ -49,6 +49,8 @@ export function Seeding() {
 
   useInput(
     (input, key) => {
+      // See Downloads.tsx: ctrl+letter chords must not match plain bindings.
+      if (key.ctrl || key.meta) return;
       if (key.upArrow || input === "k") setCursor(wrapStep(clamped, -1, total));
       else if (key.downArrow || input === "j") setCursor(wrapStep(clamped, 1, total));
       else if (input === "p") {

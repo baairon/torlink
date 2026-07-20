@@ -33,8 +33,14 @@ export function runAttach(): never {
     );
     process.exit(1);
   }
-  const inner = tuiCommand(process.execPath, process.argv[1] ?? "");
+  const script = process.argv[1];
+  if (!script) {
+    console.error("error: can't determine the torlink entry script; run `torlnk` directly.");
+    process.exit(1);
+  }
+  const inner = tuiCommand(process.execPath, script);
   // -A: attach if the session exists, otherwise create it and run the TUI.
   const r = spawnSync("tmux", ["new-session", "-A", "-s", SESSION, inner], { stdio: "inherit" });
-  process.exit(r.status ?? 0);
+  // status is null when tmux itself died to a signal — that's not success.
+  process.exit(r.status ?? 1);
 }

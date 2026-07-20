@@ -17,6 +17,9 @@ import { magnetFromTorrentFile } from "../sources/torrentFile";
 export interface Runtime {
   queue: DownloadQueue;
   downloadDir: string;
+  /** Set by the server shutdown path so an in-flight request can't mutate the
+   * queue (and re-create the engine's client) after suspend() has run. */
+  shuttingDown: boolean;
 }
 
 // Build a queue and restore persisted state, matching the TUI's boot order
@@ -30,10 +33,10 @@ export async function startRuntime(overrideDir?: string): Promise<Runtime> {
   queue.restoreHistory(await loadHistory());
   queue.restoreSeeds(await loadSeeds());
   const downloadDir = overrideDir && overrideDir.trim() ? overrideDir.trim() : cfg.downloadDir;
-  return { queue, downloadDir };
+  return { queue, downloadDir, shuttingDown: false };
 }
 
-export type AddOutcome = "added" | "duplicate" | "invalid";
+export type AddOutcome = "added" | "duplicate" | "invalid" | "shutting-down";
 
 // Turn a magnet URI, bare info hash, or a path to a .torrent file into a queued
 // download. Deduplicates by info hash (the queue's own id), so re-submitting the
@@ -51,13 +54,15 @@ export async function addInput(
   input: string,
   options: AddInputOptions = {},
 ): Promise<AddOutcome> {
+  if (runtime.shuttingDown) return "shutting-down";
   const trimmed = input.trim();
-  let parsed;
-  if (/\.torrent$/i.test(trimmed)) {
+  // A magnet is a magnet even when its last dn= name ends in ".torrent":
+  // parse it as one before giving the suffix its local-filesystem reading,
+  // otherwise a valid magnet gets readFile()'d as a path and lost.
+  let parsed = parseInput(trimmed);
+  if (!parsed && /\.torrent$/i.test(trimmed)) {
     if (!options.allowTorrentPath) return "invalid";
     parsed = await magnetFromTorrentFile(trimmed);
-  } else {
-    parsed = parseInput(trimmed);
   }
   if (!parsed) return "invalid";
   if (runtime.queue.has(parsed.infoHash)) return "duplicate";

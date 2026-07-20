@@ -10,6 +10,7 @@
 import http from "node:http";
 import { startRuntime, addInput, type Runtime } from "./runtime";
 import { startSeedReaper } from "./seed-reaper";
+import { acquireInstanceLock, releaseInstanceLock, removeRunDescriptor } from "./daemonize";
 import { LOOPBACK_HOSTS, isAuthorized, hostHeaderOk } from "./auth";
 import { VERSION } from "../version";
 
@@ -89,7 +90,13 @@ export function parseControl(bodyText: string): ControlRequest | null {
   return { id, action, deleteFiles: obj.deleteFiles === true };
 }
 
-export type ControlOutcome = "ok" | "not-found" | "unknown-action";
+export type ControlOutcome =
+  | "ok"
+  | "noop"
+  | "not-found"
+  | "unknown-action"
+  | "delete-failed"
+  | "shutting-down";
 
 // Apply a parsed control request to the queue. Pure over the runtime so it's
 // unit-testable with a fake queue.
@@ -97,31 +104,34 @@ export async function applyControl(
   runtime: Runtime,
   req: ControlRequest,
 ): Promise<ControlOutcome> {
+  if (runtime.shuttingDown) return "shutting-down";
   const q = runtime.queue;
   const { id, action, deleteFiles } = req;
   switch (action as ControlAction) {
     case "pause":
       if (!q.has(id)) return "not-found";
-      q.pause(id);
-      return "ok";
+      // pause() reports whether state actually changed (a failed/completed
+      // item can't be paused) so the API doesn't confirm a phantom action.
+      return q.pause(id) ? "ok" : "noop";
     case "resume":
       if (!q.has(id)) return "not-found";
-      q.resume(id);
-      return "ok";
+      return q.resume(id) ? "ok" : "noop";
     case "stop-seed":
       if (!q.getSeed(id)) return "not-found";
-      q.stopSeeding(id);
-      return "ok";
+      return q.stopSeeding(id) ? "ok" : "noop";
     case "start-seed": {
       const h = q.getHistory().find((x) => x.id === id);
       if (!h) return "not-found";
-      q.startSeeding(h);
-      return "ok";
+      return q.startSeeding(h) ? "ok" : "noop";
     }
     case "remove":
     case "delete": {
-      const found = await q.remove(id, { deleteFiles: action === "delete" || deleteFiles });
-      return found ? "ok" : "not-found";
+      const wantsDelete = action === "delete" || deleteFiles;
+      const res = await q.remove(id, { deleteFiles: wantsDelete });
+      if (!res) return "not-found";
+      // The torrent is gone either way; say so when its files couldn't be.
+      if (wantsDelete && res.deleted === false) return "delete-failed";
+      return "ok";
     }
     default:
       return "unknown-action";
@@ -170,6 +180,7 @@ export async function handleApi(
     if (!magnet) return { status: 400, body: { error: "missing magnet or info hash" } };
     const outcome = await addInput(runtime, magnet);
     if (outcome === "invalid") return { status: 400, body: { error: "invalid magnet or info hash" } };
+    if (outcome === "shutting-down") return { status: 503, body: { error: "shutting down" } };
     return { status: 200, body: { ok: true, outcome } };
   }
   if (method === "POST" && urlPath === "/control") {
@@ -180,7 +191,14 @@ export async function handleApi(
       return { status: 400, body: { error: `unknown action: ${req.action}` } };
     }
     if (outcome === "not-found") return { status: 404, body: { error: "no such torrent" } };
-    return { status: 200, body: { ok: true, id: req.id, action: req.action } };
+    if (outcome === "shutting-down") return { status: 503, body: { error: "shutting down" } };
+    if (outcome === "delete-failed") {
+      return {
+        status: 500,
+        body: { error: "torrent removed, but its files could not be deleted (still on disk)" },
+      };
+    }
+    return { status: 200, body: { ok: true, id: req.id, action: req.action, changed: outcome === "ok" } };
   }
   return { status: 404, body: { error: "not found" } };
 }
@@ -235,6 +253,13 @@ export async function runServe(options: ServeOptions = {}): Promise<void> {
     return;
   }
 
+  // Two instances would clobber each other's queue/seeds/history files.
+  if (!acquireInstanceLock("serve")) {
+    console.error("error: another torlnk serve is already running. Stop it first.");
+    process.exit(1);
+    return;
+  }
+
   const runtime = await startRuntime(options.downloadDir);
 
   if (options.seedTimeMs && options.seedTimeMs > 0) {
@@ -277,19 +302,44 @@ export async function runServe(options: ServeOptions = {}): Promise<void> {
     })();
   });
 
-  await new Promise<void>((resolve) => {
+  await new Promise<void>((resolve, reject) => {
+    // listen() failures (EADDRINUSE, EACCES, bad port) arrive as an async
+    // "error" event; with no listener the daemon would die on an uncaught
+    // exception and a raw stack. Surface a clean message instead.
+    server.once("error", reject);
     server.listen(port, host, () => {
       log(`listening on http://${host}:${port}  (downloads -> ${runtime.downloadDir})`);
       log(token ? "auth: token required" : "auth: none (loopback only)");
       resolve();
     });
+  }).catch((err: unknown) => {
+    const e = err as NodeJS.ErrnoException;
+    console.error(
+      e.code === "EADDRINUSE"
+        ? `error: ${host}:${port} is already in use — is another torlnk serve running? Pass --port to pick a different one.`
+        : `error: cannot listen on ${host}:${port}: ${e.message ?? String(e)}`,
+    );
+    releaseInstanceLock("serve");
+    process.exit(1);
   });
 
   await new Promise<void>((resolve) => {
     const shutdown = (): void => {
-      server.close();
-      runtime.queue.suspend();
-      resolve();
+      void (async () => {
+        // Block new work first: an in-flight /add or /control must not mutate
+        // the queue (and lazily re-create the engine's client) after suspend.
+        runtime.shuttingDown = true;
+        // Let pending async saves land before the sync flush, or an older
+        // snapshot could rename itself over the fresher one.
+        await runtime.queue.flushPendingWrites();
+        server.close();
+        runtime.queue.suspend();
+        // If we are the recorded --daemon instance, drop its records so a later
+        // `torlnk update` never restarts (or signals) a stale pid.
+        removeRunDescriptor("serve", process.pid);
+        releaseInstanceLock("serve");
+        resolve();
+      })();
     };
     process.on("SIGINT", shutdown);
     process.on("SIGTERM", shutdown);

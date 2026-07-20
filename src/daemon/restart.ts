@@ -2,21 +2,76 @@
 // went through daemonize (they leave a run descriptor next to their log); a
 // systemd unit or a foreground run manages its own lifecycle and is left alone.
 
+import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { logsDir } from "../config/paths";
-import { runPathFor, spawnDaemon, type RunDescriptor } from "./daemonize";
+import {
+  isAlive,
+  removeRunDescriptor,
+  runPathFor,
+  spawnDaemon,
+  type RunDescriptor,
+} from "./daemonize";
 
-// `kill -0` only checks whether we may signal the pid. ESRCH means it's gone;
-// EPERM means it's alive but owned by someone else, so still alive.
-export function isAlive(pid: number): boolean {
-  if (!Number.isInteger(pid) || pid <= 0) return false;
+export { isAlive } from "./daemonize";
+
+// Best-effort process start time (epoch ms). Used to confirm the pid recorded
+// in a run descriptor still belongs to the daemon it described: after an
+// unclean daemon death the OS can recycle the pid, and a bare kill(pid, 0)
+// would then SIGTERM an unrelated process. Returns null when the platform
+// gives no answer (caller treats that as unverifiable).
+export function processStartTime(pid: number): number | null {
+  if (!Number.isInteger(pid) || pid <= 0) return null;
   try {
-    process.kill(pid, 0);
-    return true;
-  } catch (e) {
-    return (e as NodeJS.ErrnoException).code === "EPERM";
+    if (process.platform === "linux") {
+      // /proc/<pid>/stat field 22 (starttime, clock ticks since boot) + the
+      // btime line of /proc/stat. comm is dropped first since it may contain
+      // spaces/parens; CLK_TCK is 100 on every mainstream Linux.
+      const stat = fs.readFileSync(`/proc/${pid}/stat`, "utf8");
+      const rest = stat.slice(stat.lastIndexOf(")") + 2);
+      const startTicks = Number(rest.split(" ")[19]);
+      const btime = /^btime (\d+)$/m.exec(fs.readFileSync("/proc/stat", "utf8"));
+      if (!Number.isFinite(startTicks) || !btime) return null;
+      return Number(btime[1]) * 1000 + startTicks * 10;
+    }
+    if (process.platform === "win32") {
+      const out = spawnSync(
+        "powershell",
+        [
+          "-NoProfile",
+          "-Command",
+          `(Get-Process -Id ${pid}).StartTime.ToUniversalTime().ToString("o")`,
+        ],
+        { encoding: "utf8", windowsHide: true, timeout: 5000 },
+      );
+      const t = Date.parse((out.stdout ?? "").trim());
+      return Number.isNaN(t) ? null : t;
+    }
+    // macOS and other POSIX with ps(1).
+    const out = spawnSync("ps", ["-p", String(pid), "-o", "lstart="], {
+      encoding: "utf8",
+      timeout: 5000,
+    });
+    const t = Date.parse((out.stdout ?? "").trim());
+    return Number.isNaN(t) ? null : t;
+  } catch {
+    return null;
   }
+}
+
+// True when the process currently owning desc.pid plausibly IS the daemon the
+// descriptor recorded. The daemon starts a moment before its descriptor is
+// written; a process handed the recycled pid starts after the daemon died —
+// i.e. after startedAt — so a start time past the window means "stranger".
+export function sameRecordedProcess(
+  desc: RunDescriptor,
+  startTimeImpl: (pid: number) => number | null = processStartTime,
+): boolean {
+  if (!desc.startedAt || desc.startedAt <= 0) return false;
+  const started = startTimeImpl(desc.pid);
+  if (started === null) return false;
+  return started >= desc.startedAt - 120_000 && started <= desc.startedAt + 5_000;
 }
 
 function readDescriptor(file: string): RunDescriptor | null {
@@ -77,6 +132,7 @@ export async function restartDaemon(
     waitMs?: number;
     graceMs?: number;
     isAliveImpl?: (pid: number) => boolean;
+    sameProcessImpl?: (desc: RunDescriptor) => boolean;
     killImpl?: (pid: number, signal: NodeJS.Signals) => void;
     spawnImpl?: (name: string, argv: string[], cwd: string) => number;
   } = {},
@@ -85,9 +141,20 @@ export async function restartDaemon(
   const waitMs = opts.waitMs ?? 100;
   const graceMs = opts.graceMs ?? 10_000;
   const alive = opts.isAliveImpl ?? isAlive;
+  const sameProcess = opts.sameProcessImpl ?? sameRecordedProcess;
   const kill = opts.killImpl ?? ((pid, signal) => process.kill(pid, signal));
   const spawnFn = opts.spawnImpl ?? spawnDaemon;
-  if (!alive(desc.pid)) return { newPid: null, stillRunning: false };
+  if (!alive(desc.pid)) {
+    // Dead daemon: prune the stale record so the next update doesn't re-check it.
+    removeRunDescriptor(desc.name);
+    return { newPid: null, stillRunning: false };
+  }
+  if (!sameProcess(desc)) {
+    // The recorded daemon is gone and its pid now belongs to a stranger we
+    // must not signal. Drop the stale record and leave that process alone.
+    removeRunDescriptor(desc.name);
+    return { newPid: null, stillRunning: false };
+  }
 
   try {
     kill(desc.pid, "SIGTERM");

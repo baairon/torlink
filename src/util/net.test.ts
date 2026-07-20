@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseRetryAfter, backoffDelay, fetchResilient, HttpError } from "./net";
+import { parseRetryAfter, backoffDelay, fetchResilient, HttpError, readBodyText } from "./net";
 
 function fakeRes(status: number, headers: Record<string, string> = {}): Response {
   return {
@@ -56,7 +56,7 @@ describe("fetchResilient", () => {
     ctrl.abort();
     await expect(
       fetchResilient("http://x", { ...opts, signal: ctrl.signal, fetchImpl: async () => fakeRes(200) }),
-    ).rejects.toBeInstanceOf(HttpError);
+    ).rejects.toSatisfy((e: Error) => e.name === "AbortError");
   });
 
   it("does not retry a non-retryable status", async () => {
@@ -88,8 +88,6 @@ describe("fetchResilient", () => {
   });
 
   it("cuts a backoff sleep short when the signal aborts", async () => {
-    // No sleepImpl: exercises the real sleep. Retry-After floors the backoff
-    // at 60s, so only an abort-aware sleep lets this settle quickly.
     const ctrl = new AbortController();
     setTimeout(() => ctrl.abort(), 20);
     const started = Date.now();
@@ -101,7 +99,20 @@ describe("fetchResilient", () => {
         signal: ctrl.signal,
         fetchImpl: async () => fakeRes(503, { "retry-after": "60" }),
       }),
-    ).rejects.toBeInstanceOf(HttpError);
+    ).rejects.toSatisfy((e: Error) => e.name === "AbortError");
     expect(Date.now() - started).toBeLessThan(5_000);
+  });
+});
+
+describe("readBodyText", () => {
+  it("returns text for a normal response body", async () => {
+    const res = new Response("hello world");
+    expect(await readBodyText(res)).toBe("hello world");
+  });
+
+  it("rejects when the body exceeds the byte cap", async () => {
+    const big = "x".repeat(100);
+    const res = new Response(big);
+    await expect(readBodyText(res, 50)).rejects.toThrow("too large");
   });
 });
