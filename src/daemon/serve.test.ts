@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import os from "node:os";
 import path from "node:path";
 import { promises as fs } from "node:fs";
-import { handleApi, isAuthorized, extractMagnet } from "./serve";
+import { handleApi, isAuthorized, extractMagnet, parseControl, applyControl } from "./serve";
 import type { Runtime } from "./runtime";
 
 const HASH = "abcdef0123456789abcdef0123456789abcdef01";
@@ -101,5 +101,93 @@ describe("handleApi", () => {
   it("404s an unknown route", async () => {
     const res = await handleApi(runtime, null, "GET", "/nope", undefined, "");
     expect(res.status).toBe(404);
+  });
+
+  it("400s POST /control with a malformed body", async () => {
+    const res = await handleApi(runtime, null, "POST", "/control", undefined, `{"id":"x"}`);
+    expect(res.status).toBe(400);
+  });
+
+  it("400s POST /control with an unknown action", async () => {
+    const res = await handleApi(runtime, null, "POST", "/control", undefined, `{"id":"${HASH}","action":"boom"}`);
+    expect(res.status).toBe(400);
+    expect(String(res.body.error)).toContain("unknown action");
+  });
+
+  it("404s POST /control for an unknown torrent", async () => {
+    const res = await handleApi(runtime, null, "POST", "/control", undefined, `{"id":"${HASH}","action":"pause"}`);
+    expect(res.status).toBe(404);
+  });
+
+  it("pauses a known download on POST /control", async () => {
+    const pause = vi.fn();
+    runtime.queue = { has: (id: string) => id === HASH, pause } as unknown as Runtime["queue"];
+    const res = await handleApi(runtime, null, "POST", "/control", undefined, `{"id":"${HASH}","action":"pause"}`);
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ ok: true, action: "pause" });
+    expect(pause).toHaveBeenCalledWith(HASH);
+  });
+});
+
+describe("parseControl", () => {
+  it("reads id + action from JSON", () => {
+    expect(parseControl(`{"id":"abc","action":"pause"}`)).toEqual({ id: "abc", action: "pause", deleteFiles: false });
+  });
+  it("reads the deleteFiles flag", () => {
+    expect(parseControl(`{"id":"abc","action":"delete","deleteFiles":true}`)).toEqual({
+      id: "abc",
+      action: "delete",
+      deleteFiles: true,
+    });
+  });
+  it("returns null when id or action is missing/blank or the body isn't JSON", () => {
+    expect(parseControl(`{"id":"abc"}`)).toBeNull();
+    expect(parseControl(`{"action":"pause"}`)).toBeNull();
+    expect(parseControl(`{"id":"  ","action":"pause"}`)).toBeNull();
+    expect(parseControl(`pause abc`)).toBeNull();
+    expect(parseControl("")).toBeNull();
+  });
+});
+
+describe("applyControl", () => {
+  const mkRuntime = (queue: Partial<Record<string, unknown>>): Runtime =>
+    ({ queue: queue as unknown as Runtime["queue"], downloadDir: "/tmp" });
+
+  it("resumes a paused download", async () => {
+    const resume = vi.fn();
+    const rt = mkRuntime({ has: (id: string) => id === "x", resume });
+    expect(await applyControl(rt, { id: "x", action: "resume", deleteFiles: false })).toBe("ok");
+    expect(resume).toHaveBeenCalledWith("x");
+  });
+
+  it("stops seeding but keeps files", async () => {
+    const stopSeeding = vi.fn();
+    const rt = mkRuntime({ getSeed: (id: string) => (id === "s" ? { id } : undefined), stopSeeding });
+    expect(await applyControl(rt, { id: "s", action: "stop-seed", deleteFiles: false })).toBe("ok");
+    expect(stopSeeding).toHaveBeenCalledWith("s");
+  });
+
+  it("starts seeding from a history entry", async () => {
+    const startSeeding = vi.fn();
+    const hist = { id: "h", name: "H", magnet: "m", dir: "/d", sizeBytes: 1, completedAt: 0 };
+    const rt = mkRuntime({ getHistory: () => [hist], startSeeding });
+    expect(await applyControl(rt, { id: "h", action: "start-seed", deleteFiles: false })).toBe("ok");
+    expect(startSeeding).toHaveBeenCalledWith(hist);
+  });
+
+  it("delete forces deleteFiles:true; remove keeps files", async () => {
+    const remove = vi.fn().mockResolvedValue(true);
+    const rt = mkRuntime({ remove });
+    expect(await applyControl(rt, { id: "z", action: "delete", deleteFiles: false })).toBe("ok");
+    expect(remove).toHaveBeenCalledWith("z", { deleteFiles: true });
+    remove.mockClear();
+    await applyControl(rt, { id: "z", action: "remove", deleteFiles: false });
+    expect(remove).toHaveBeenCalledWith("z", { deleteFiles: false });
+  });
+
+  it("reports not-found when remove finds nothing and unknown-action otherwise", async () => {
+    const rt = mkRuntime({ remove: vi.fn().mockResolvedValue(false) });
+    expect(await applyControl(rt, { id: "z", action: "remove", deleteFiles: false })).toBe("not-found");
+    expect(await applyControl(mkRuntime({}), { id: "z", action: "nope", deleteFiles: false })).toBe("unknown-action");
   });
 });

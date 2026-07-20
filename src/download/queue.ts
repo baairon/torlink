@@ -13,6 +13,7 @@ import {
   type SeedRecord,
 } from "./persist";
 import { saveHistory, saveHistorySync, type HistoryItem } from "./history";
+import { deleteSeedData } from "./delete-data";
 import type { QueueItem, SeedItem } from "./types";
 import type { SourceId } from "../sources/types";
 
@@ -394,6 +395,43 @@ export class DownloadQueue extends EventEmitter {
     void this.persist();
     this.promote(); // a slot may have freed
     this.maybeStopPoll();
+  }
+
+  // Remove a torrent from the daemon entirely, wherever it lives (active
+  // download, seed, or just history), and optionally delete its on-disk data.
+  // Unlike cancel() (downloads only) or stopSeeding() (which leaves a paused
+  // seed record behind), this forgets the torrent completely. Returns false if
+  // the id is unknown.
+  async remove(id: string, opts: { deleteFiles?: boolean } = {}): Promise<boolean> {
+    const it = this.items.get(id);
+    const seed = this.seeds.get(id);
+    const hist = this.history.find((h) => h.id === id);
+    if (!it && !seed && !hist) return false;
+
+    const dir = it?.dir ?? seed?.dir ?? hist?.dir;
+    const name = it?.name ?? seed?.name ?? hist?.name;
+
+    // Tear down any live engine handle + in-memory record.
+    if (it || seed) this.engine.remove(id);
+    if (it) this.items.delete(id);
+    if (seed) {
+      this.seeds.delete(id);
+      this.strayHits.delete(id);
+      this.seedStartedAt.delete(id);
+    }
+    deleteTorrentMeta(id);
+    this.removeHistory(id); // persists history
+
+    if (opts.deleteFiles && dir && name) {
+      await deleteSeedData(dir, name);
+    }
+
+    this.changed();
+    void this.persist();
+    void this.persistSeeds();
+    if (it) this.promote(); // a download slot may have freed
+    this.maybeStopPoll();
+    return true;
   }
 
   retry(id: string): void {

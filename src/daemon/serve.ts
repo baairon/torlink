@@ -53,6 +53,81 @@ export function extractMagnet(bodyText: string): string | null {
   return raw;
 }
 
+// Control actions the headless API accepts (POST /control). A seedbox web app
+// drives per-torrent buttons through these instead of the interactive keymap.
+export const CONTROL_ACTIONS = [
+  "pause", // pause an active/queued download
+  "resume", // resume a paused download
+  "start-seed", // (re)start seeding a finished torrent
+  "stop-seed", // stop seeding but keep the files
+  "remove", // forget the torrent, keep files on disk
+  "delete", // forget the torrent AND delete its files
+] as const;
+export type ControlAction = (typeof CONTROL_ACTIONS)[number];
+
+export interface ControlRequest {
+  id: string;
+  action: string;
+  deleteFiles: boolean;
+}
+
+// Parse a control request body: JSON { id, action, deleteFiles? }. Returns null
+// for anything missing the two required string fields; the action string itself
+// is validated later so an unknown action gets a precise error.
+export function parseControl(bodyText: string): ControlRequest | null {
+  const raw = bodyText.trim();
+  if (!raw.startsWith("{")) return null;
+  let obj: Record<string, unknown>;
+  try {
+    obj = JSON.parse(raw) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+  const id = typeof obj.id === "string" ? obj.id.trim() : "";
+  const action = typeof obj.action === "string" ? obj.action.trim() : "";
+  if (!id || !action) return null;
+  return { id, action, deleteFiles: obj.deleteFiles === true };
+}
+
+export type ControlOutcome = "ok" | "not-found" | "unknown-action";
+
+// Apply a parsed control request to the queue. Pure over the runtime so it's
+// unit-testable with a fake queue.
+export async function applyControl(
+  runtime: Runtime,
+  req: ControlRequest,
+): Promise<ControlOutcome> {
+  const q = runtime.queue;
+  const { id, action, deleteFiles } = req;
+  switch (action as ControlAction) {
+    case "pause":
+      if (!q.has(id)) return "not-found";
+      q.pause(id);
+      return "ok";
+    case "resume":
+      if (!q.has(id)) return "not-found";
+      q.resume(id);
+      return "ok";
+    case "stop-seed":
+      if (!q.getSeed(id)) return "not-found";
+      q.stopSeeding(id);
+      return "ok";
+    case "start-seed": {
+      const h = q.getHistory().find((x) => x.id === id);
+      if (!h) return "not-found";
+      q.startSeeding(h);
+      return "ok";
+    }
+    case "remove":
+    case "delete": {
+      const found = await q.remove(id, { deleteFiles: action === "delete" || deleteFiles });
+      return found ? "ok" : "not-found";
+    }
+    default:
+      return "unknown-action";
+  }
+}
+
 function statusPayload(runtime: Runtime): Record<string, unknown> {
   const downloads = runtime.queue.getItems().map((it) => ({
     id: it.id,
@@ -96,6 +171,16 @@ export async function handleApi(
     const outcome = await addInput(runtime, magnet);
     if (outcome === "invalid") return { status: 400, body: { error: "invalid magnet or info hash" } };
     return { status: 200, body: { ok: true, outcome } };
+  }
+  if (method === "POST" && urlPath === "/control") {
+    const req = parseControl(bodyText);
+    if (!req) return { status: 400, body: { error: "missing or invalid { id, action }" } };
+    const outcome = await applyControl(runtime, req);
+    if (outcome === "unknown-action") {
+      return { status: 400, body: { error: `unknown action: ${req.action}` } };
+    }
+    if (outcome === "not-found") return { status: 404, body: { error: "no such torrent" } };
+    return { status: 200, body: { ok: true, id: req.id, action: req.action } };
   }
   return { status: 404, body: { error: "not found" } };
 }
