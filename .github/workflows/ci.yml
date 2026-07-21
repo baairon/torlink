@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+# A new push to the same branch supersedes the run in flight.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: node ${{ matrix.node }} on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      # One platform failing should never hide the result on the others.
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        node: [22, 24]
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      # Install scripts stay enabled on purpose: the postinstall WebRTC
+      # fallback is itself a shipped code path, and a package-manager change
+      # to how install scripts run is what broke installs in v1.4.1.
+      - run: npm ci
+
+      - run: npm run typecheck
+
+      - run: npm test
+
+      # Builds what `npm publish` would build, so a broken publish path is
+      # caught here rather than at release time.
+      - run: npm run build
