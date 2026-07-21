@@ -84,4 +84,28 @@ describe("TorrentEngine macOS port-5350 fix (#22)", () => {
     expect(constructorCalls).toHaveLength(1);
     expect(constructorCalls[0]).not.toHaveProperty("natPmp", false);
   });
+
+  it("stats(id) ignores getter errors and returns safe defaults", async () => {
+    const { TorrentEngine } = await import("./engine");
+    const engine = new TorrentEngine();
+    const fakeTorrent = new EventEmitter();
+    Object.defineProperty(fakeTorrent, "progress", {
+      get() {
+        throw new Error("Metadata not ready");
+      },
+    });
+    Object.defineProperty(fakeTorrent, "length", {
+      get() {
+        throw new Error("Metadata not ready");
+      },
+    });
+    // Inject fakeTorrent directly into private torrents map
+    (engine as unknown as { torrents: Map<string, unknown> }).torrents.set("bad-id", fakeTorrent);
+
+    const result = engine.stats("bad-id");
+    expect(result).not.toBeNull();
+    expect(result?.progress).toBe(0);
+    expect(result?.total).toBe(0);
+    engine.destroy();
+  });
 });

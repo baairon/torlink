@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Box, Text, useApp, useInput, useStdout, useStdin } from "ink";
 import { promises as fs } from "node:fs";
-import { loadConfig, saveConfig, type Config } from "../config/config";
+import { loadConfig, saveConfig, defaultConfig, type Config } from "../config/config";
 import { normalizeDownloadDir } from "../config/folder";
 import { DownloadQueue } from "../download/queue";
 import { loadQueue, loadSeeds } from "../download/persist";
@@ -108,33 +108,46 @@ export function App({
     booting.current = true;
     let alive = true;
     void (async () => {
-      const cfg = await loadConfig();
+      let cfg: Config;
+      try {
+        cfg = await loadConfig();
+      } catch {
+        cfg = { ...defaultConfig, trackers: [] };
+      }
       const q = new DownloadQueue();
       q.setTrackers(cfg.trackers);
-      q.restore(reconcileQueue(await loadQueue()));
-      q.restoreHistory(await loadHistory());
-      q.restoreSeeds(await loadSeeds());
+      try {
+        q.restore(reconcileQueue(await loadQueue()));
+      } catch {}
+      try {
+        q.restoreHistory(await loadHistory());
+      } catch {}
+      try {
+        q.restoreSeeds(await loadSeeds());
+      } catch {}
       if (!alive) {
         q.suspend();
         return;
       }
       setConfigState(cfg);
       setQueue(q);
-      const launch = initialMagnet
-        ? parseInput(initialMagnet)
-        : initialTorrent
-          ? await magnetFromTorrentFile(initialTorrent)
-          : null;
-      if (launch) {
-        await fs.mkdir(cfg.downloadDir, { recursive: true }).catch(() => {});
-        q.add(
-          { id: launch.infoHash, name: launch.name, magnet: launch.magnet },
-          cfg.downloadDir,
-        );
-        setView("browser");
-        setSection("downloads");
-        setRegion("content");
-      }
+      try {
+        const launch = initialMagnet
+          ? parseInput(initialMagnet)
+          : initialTorrent
+            ? await magnetFromTorrentFile(initialTorrent)
+            : null;
+        if (launch) {
+          await fs.mkdir(cfg.downloadDir, { recursive: true }).catch(() => {});
+          q.add(
+            { id: launch.infoHash, name: launch.name, magnet: launch.magnet },
+            cfg.downloadDir,
+          );
+          setView("browser");
+          setSection("downloads");
+          setRegion("content");
+        }
+      } catch {}
     })();
     return () => {
       alive = false;

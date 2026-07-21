@@ -1,5 +1,5 @@
 import { EventEmitter } from "node:events";
-import { TorrentEngine, type AddHandlers } from "./engine";
+import { TorrentEngine, message, type AddHandlers } from "./engine";
 import {
   saveQueue,
   saveQueueSync,
@@ -145,7 +145,14 @@ export class DownloadQueue extends EventEmitter {
   }
 
   private startEngine(item: QueueItem): void {
-    this.engine.add(item.id, item.magnet, item.dir, this.engineHandlers(item.id), this.trackers);
+    try {
+      this.engine.add(item.id, item.magnet, item.dir, this.engineHandlers(item.id), this.trackers);
+    } catch (e) {
+      item.status = "failed";
+      item.error = message(e);
+      item.speed = 0;
+      item.peers = 0;
+    }
   }
 
   /**
@@ -502,7 +509,14 @@ export class DownloadQueue extends EventEmitter {
     // Seed from the stored .torrent metadata when we have it (verifies the local
     // file immediately, no swarm needed); fall back to the magnet otherwise.
     const source = torrentMetaExists(h.id) ? torrentMetaPath(h.id) : h.magnet;
-    this.engine.add(h.id, source, h.dir, this.engineHandlers(h.id), this.trackers);
+    try {
+      this.engine.add(h.id, source, h.dir, this.engineHandlers(h.id), this.trackers);
+    } catch (e) {
+      this.seeds.set(h.id, { ...base, status: "paused" });
+      this.changed();
+      void this.persistSeeds();
+      return;
+    }
     this.ensurePoll();
     this.changed();
     void this.persistSeeds();
@@ -531,12 +545,16 @@ export class DownloadQueue extends EventEmitter {
 
   restoreSeeds(records: SeedRecord[]): void {
     for (const r of records) {
-      const h = this.history.find((x) => x.id === r.id);
-      if (!h) continue;
-      // Respect the persisted choice: resume seeders, but leave a paused seed
-      // paused (and visibly so) instead of auto-starting it.
-      if (r.status === "seeding") this.startSeeding(h);
-      else this.restorePaused(h);
+      try {
+        const h = this.history.find((x) => x.id === r.id);
+        if (!h) continue;
+        // Respect the persisted choice: resume seeders, but leave a paused seed
+        // paused (and visibly so) instead of auto-starting it.
+        if (r.status === "seeding") this.startSeeding(h);
+        else this.restorePaused(h);
+      } catch (e) {
+        // If restoring a specific seed fails, ignore and proceed to the next record
+      }
     }
   }
 
@@ -577,20 +595,26 @@ export class DownloadQueue extends EventEmitter {
   restore(items: QueueItem[]): void {
     let active = 0;
     for (const raw of items) {
-      this.items.set(raw.id, raw);
-      if (raw.status !== "downloading") continue;
-      if (this.maxDownloads === 0 || active < this.maxDownloads) {
-        this.startEngine(raw);
-        active++;
-      } else {
-        // Over the cap on boot → hold as queued (promoted as slots free).
-        raw.status = "queued";
+      try {
+        this.items.set(raw.id, raw);
+        if (raw.status !== "downloading") continue;
+        if (this.maxDownloads === 0 || active < this.maxDownloads) {
+          this.startEngine(raw);
+          active++;
+        } else {
+          // Over the cap on boot → hold as queued (promoted as slots free).
+          raw.status = "queued";
+        }
+      } catch (e) {
+        // Ignore corrupted items during restore
       }
     }
     if (active > 0) this.ensurePoll();
     this.changed();
     // Fill any remaining slots from persisted "queued" items.
-    this.promote();
+    try {
+      this.promote();
+    } catch {}
   }
 
   restoreHistory(items: HistoryItem[]): void {
