@@ -99,10 +99,11 @@ describe("DownloadQueue error resilience on boot", () => {
         {
           id: "err1",
           name: "Broken Download",
-          source: "magnet",
+          source: undefined,
           magnet: "magnet:?xt=urn:btih:1111111111111111111111111111111111111111",
           dir: "/downloads",
           status: "downloading",
+          progress: 0,
           totalBytes: 100,
           downloadedBytes: 0,
           speed: 0,
@@ -112,8 +113,9 @@ describe("DownloadQueue error resilience on boot", () => {
       ])
     ).not.toThrow();
 
-    expect(q.items.get("err1")?.status).toBe("failed");
-    expect(q.items.get("err1")?.error).toContain("Disk error during add");
+    const errItem = q.getItems().find((i) => i.id === "err1");
+    expect(errItem?.status).toBe("failed");
+    expect(errItem?.error).toContain("Disk error during add");
     q.suspend();
   });
 
