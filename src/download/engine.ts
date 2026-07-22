@@ -1,4 +1,5 @@
 import WebTorrent, { type Torrent } from "webtorrent";
+import parseTorrent from "parse-torrent";
 
 export interface TorrentProgress {
   progress: number;
@@ -54,7 +55,8 @@ export class TorrentEngine {
 
   // `source` is a magnet URI, an infoHash, or a path to a .torrent file. Seeding
   // an existing file passes the stored .torrent path so webtorrent can verify it
-  // locally instead of re-fetching metadata from the swarm.
+  // locally instead of re-fetching metadata from the swarm (which a bare magnet
+  // would require).
   // `announce` supplements whatever trackers are already in the source URI;
   // webtorrent dedupes internally.
   add(
@@ -82,6 +84,38 @@ export class TorrentEngine {
       return;
     }
     this.torrents.set(id, torrent);
+
+    // Guard against the webtorrent bug in Torrent._onTorrentId (webtorrent
+    // ≤2.4.x): _onTorrentId is async and calls arr2hex(parsedTorrent.infoHash)
+    // without checking if infoHash is defined.  When parseTorrent resolves to a
+    // truthy object whose infoHash is undefined (e.g. malformed magnet from a
+    // corrupted queue file), arr2hex(undefined) throws a TypeError *inside* the
+    // async function, producing an unhandled promise rejection that crashes the
+    // process via Node's default unhandledRejection handler.
+    //
+    // We pre-validate the infoHash asynchronously: if parseTorrent cannot
+    // resolve it, we destroy the torrent and invoke onError before webtorrent
+    // can blow up. This runs concurrently with webtorrent's own _onTorrentId
+    // call but safely races it via the torrent.destroyed flag and the error
+    // listeners already attached below.
+    if (!source.endsWith(".torrent")) {
+      void parseTorrent(source)
+        .then((parsed) => {
+          if (torrent.destroyed) return;
+          if (!parsed?.infoHash) {
+            const err = `Invalid torrent source: infoHash could not be resolved (source: ${source.slice(0, 80)})`;
+            handlers.onError?.(err);
+            this.torrents.delete(id);
+            try { torrent.destroy(); } catch {}
+          }
+        })
+        .catch((e: unknown) => {
+          if (torrent.destroyed) return;
+          handlers.onError?.(message(e));
+          this.torrents.delete(id);
+          try { torrent.destroy(); } catch {}
+        });
+    }
 
     torrent.on("metadata", () => {
       handlers.onMetadata?.({

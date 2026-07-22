@@ -127,4 +127,18 @@ process.on("uncaughtException", (err) => {
   process.exit(1);
 });
 
+// Second safety net: webtorrent's _onTorrentId is an async method; when
+// parseTorrent returns a truthy object with infoHash === undefined the call to
+// arr2hex(undefined) throws *inside* that async function, producing an
+// unhandled promise rejection rather than an uncaughtException.  Our primary
+// guard in engine.ts pre-validates the infoHash before calling client.add(),
+// but this handler ensures any unexpected rejection from webtorrent internals
+// (or any other library) is logged rather than silently crashing the process
+// in Node 15+ (where unhandledRejection terminates by default).
+process.on("unhandledRejection", (reason) => {
+  // Log but do NOT exit — the TUI should remain alive for user-recoverable
+  // errors.  Fatal conditions already go through uncaughtException.
+  console.error("[torlnk] unhandled rejection (non-fatal):", reason);
+});
+
 }
