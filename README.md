@@ -60,6 +60,47 @@ torlink also runs without the TUI, for servers and seedboxes:
 
 Add `--daemon` to keep watch, serve, or files running after you log out; `torlnk --help` has the full list of modes and flags.
 
+## Container with Docker
+
+Build the image:
+
+```sh
+docker build -t torlink .
+```
+
+Run it with persistent state and downloads:
+
+```sh
+mkdir -p "$HOME/.local/share/torlink" "$HOME/Downloads/torlink"
+docker run --rm -it \
+  -v "$HOME/.local/share/torlink:/state" \
+  -v "$HOME/Downloads/torlink:/home/node/Downloads/torlink" \
+  torlink
+```
+
+The multi-stage image uses Node 24 LTS and runs torlink as an unprivileged user.
+
+## Container with Podman
+
+Build the image:
+
+```sh
+podman build -t torlink .
+```
+
+Run it with persistent state and downloads. `--userns=keep-id` makes files created in the bind mounts belong to your host user:
+
+```sh
+mkdir -p "$HOME/.local/share/torlink" "$HOME/Downloads/torlink"
+podman run --rm -it \
+  --userns=keep-id \
+  -v "$HOME/.local/share/torlink:/state:Z" \
+  -v "$HOME/Downloads/torlink:/home/node/Downloads/torlink:Z" \
+  torlink
+```
+
+The `:Z` suffix gives the bind mounts a private SELinux label. It can be omitted on systems without SELinux.
+
 ## Contributing
 
 To run or work on torlink locally:
