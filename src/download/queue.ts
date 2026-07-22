@@ -156,6 +156,10 @@ export class DownloadQueue extends EventEmitter {
     try {
       this.engine.add(item.id, item.magnet, item.dir, this.engineHandlers(item.id), this.trackers);
     } catch (e) {
+      // engine.add routes webtorrent's own synchronous failures through
+      // onError, so the only throw that reaches here is the client failing to
+      // construct at all (a broken native module, a hostile environment). Fail
+      // this one item instead of the caller, which is usually a whole restore.
       item.status = "failed";
       item.error = message(e);
       item.speed = 0;
@@ -519,7 +523,9 @@ export class DownloadQueue extends EventEmitter {
     const source = torrentMetaExists(h.id) ? torrentMetaPath(h.id) : h.magnet;
     try {
       this.engine.add(h.id, source, h.dir, this.engineHandlers(h.id), this.trackers);
-    } catch (e) {
+    } catch {
+      // Same narrow case as startEngine: only a client that won't construct
+      // lands here. Leave the seed paused so it stays visible and resumable.
       this.seeds.set(h.id, { ...base, status: "paused" });
       this.changed();
       void this.persistSeeds();
@@ -553,17 +559,13 @@ export class DownloadQueue extends EventEmitter {
 
   restoreSeeds(records: SeedRecord[], opts: RestoreOptions = {}): void {
     for (const r of records) {
-      try {
-        const h = this.history.find((x) => x.id === r.id);
-        if (!h) continue;
-        // Respect the persisted choice: resume seeders, but leave a paused seed
-        // paused (and visibly so) instead of auto-starting it. In safe mode
-        // even seeders come back paused, since re-seeding also feeds the engine.
-        if (r.status === "seeding" && !opts.safe) this.startSeeding(h);
-        else this.restorePaused(h);
-      } catch (e) {
-        // If restoring a specific seed fails, ignore and proceed to the next record
-      }
+      const h = this.history.find((x) => x.id === r.id);
+      if (!h) continue;
+      // Respect the persisted choice: resume seeders, but leave a paused seed
+      // paused (and visibly so) instead of auto-starting it. In safe mode even
+      // seeders come back paused, since re-seeding also feeds the engine.
+      if (r.status === "seeding" && !opts.safe) this.startSeeding(h);
+      else this.restorePaused(h);
     }
     if (opts.safe) void this.persistSeeds();
   }
@@ -616,26 +618,20 @@ export class DownloadQueue extends EventEmitter {
     }
     let active = 0;
     for (const raw of items) {
-      try {
-        this.items.set(raw.id, raw);
-        if (raw.status !== "downloading") continue;
-        if (this.maxDownloads === 0 || active < this.maxDownloads) {
-          this.startEngine(raw);
-          active++;
-        } else {
-          // Over the cap on boot → hold as queued (promoted as slots free).
-          raw.status = "queued";
-        }
-      } catch (e) {
-        // Ignore corrupted items during restore
+      this.items.set(raw.id, raw);
+      if (raw.status !== "downloading") continue;
+      if (this.maxDownloads === 0 || active < this.maxDownloads) {
+        this.startEngine(raw);
+        active++;
+      } else {
+        // Over the cap on boot → hold as queued (promoted as slots free).
+        raw.status = "queued";
       }
     }
     if (active > 0) this.ensurePoll();
     this.changed();
     // Fill any remaining slots from persisted "queued" items.
-    try {
-      this.promote();
-    } catch {}
+    this.promote();
   }
 
   restoreHistory(items: HistoryItem[]): void {

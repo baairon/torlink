@@ -134,8 +134,11 @@ export class TorrentEngine {
       peers = t.numPeers || 0;
       timeRemaining = t.timeRemaining;
       name = t.name || "";
-    } catch (err) {
-      // Ignore webtorrent getter errors that occur before metadata is fully parsed or on error
+    } catch {
+      // Every stat is read inside this try on purpose: webtorrent getters can
+      // throw before metadata parses and on a torrent in an error state, and
+      // stats() runs from the poll interval, where an escaping throw is an
+      // uncaught exception. Partial numbers beat a dead poller.
     }
 
     return {

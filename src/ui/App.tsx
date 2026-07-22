@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Box, Text, useApp, useInput, useStdout, useStdin } from "ink";
 import { promises as fs } from "node:fs";
-import { loadConfig, saveConfig, defaultConfig, type Config } from "../config/config";
+import { loadConfig, saveConfig, type Config } from "../config/config";
 import { normalizeDownloadDir } from "../config/folder";
 import { DownloadQueue } from "../download/queue";
 import { loadQueue, loadSeeds } from "../download/persist";
@@ -13,6 +13,7 @@ import {
   disarmBootMarker,
   wasBootInterrupted,
 } from "../download/bootguard";
+import { logCrash } from "../util/crashlog";
 import { parseInput } from "../sources/magnet";
 import { magnetFromTorrentFile } from "../sources/torrentFile";
 import { readClipboard, writeClipboard } from "../util/clipboard";
@@ -115,12 +116,7 @@ export function App({
     booting.current = true;
     let alive = true;
     void (async () => {
-      let cfg: Config;
-      try {
-        cfg = await loadConfig();
-      } catch {
-        cfg = { ...defaultConfig, trackers: [] };
-      }
+      const cfg = await loadConfig();
       const q = new DownloadQueue();
       q.setTrackers(cfg.trackers);
       // Crash-boot breaker: a marker left behind by the previous boot means it
@@ -128,15 +124,18 @@ export function App({
       // engine cold (safe mode) instead of walking into the same explosion.
       const safeBoot = wasBootInterrupted();
       armBootMarker();
+      // One fail-safe around the whole restore, holding a single invariant: the
+      // app always reaches a usable screen. Nothing below throws today (every
+      // loader falls back to empty state and the engine calls are guarded), but
+      // a future one that did would otherwise strand the boot on the loading
+      // spinner, which is the worst failure this app has.
       try {
         q.restore(reconcileQueue(await loadQueue()), { safe: safeBoot });
-      } catch {}
-      try {
         q.restoreHistory(await loadHistory());
-      } catch {}
-      try {
         q.restoreSeeds(await loadSeeds(), { safe: safeBoot });
-      } catch {}
+      } catch (e) {
+        logCrash("boot-restore", e);
+      }
       setTimeout(disarmBootMarker, BOOT_SETTLE_MS).unref();
       if (!alive) {
         q.suspend();
@@ -148,23 +147,21 @@ export function App({
         setRecovered(true);
         setNotice("Recovered from a crashed start · downloads paused");
       }
-      try {
-        const launch = initialMagnet
-          ? parseInput(initialMagnet)
-          : initialTorrent
-            ? await magnetFromTorrentFile(initialTorrent)
-            : null;
-        if (launch) {
-          await fs.mkdir(cfg.downloadDir, { recursive: true }).catch(() => {});
-          q.add(
-            { id: launch.infoHash, name: launch.name, magnet: launch.magnet },
-            cfg.downloadDir,
-          );
-          setView("browser");
-          setSection("downloads");
-          setRegion("content");
-        }
-      } catch {}
+      const launch = initialMagnet
+        ? parseInput(initialMagnet)
+        : initialTorrent
+          ? await magnetFromTorrentFile(initialTorrent)
+          : null;
+      if (launch) {
+        await fs.mkdir(cfg.downloadDir, { recursive: true }).catch(() => {});
+        q.add(
+          { id: launch.infoHash, name: launch.name, magnet: launch.magnet },
+          cfg.downloadDir,
+        );
+        setView("browser");
+        setSection("downloads");
+        setRegion("content");
+      }
     })();
     return () => {
       alive = false;
