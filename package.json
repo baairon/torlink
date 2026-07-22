@@ -1,6 +1,6 @@
 {
   "name": "torlnk",
-  "version": "1.5.0",
+  "version": "1.5.1",
   "description": "A sleek, zero-setup torrent finder and downloader that lives right in your terminal.",
   "type": "module",
   "bin": {
@@ -62,7 +62,11 @@
     "ink": "^7.0.5",
     "parse-torrent": "^11.0.21",
     "react": "^19.2.7",
+    "uint8-util": "2.2.6",
     "webtorrent": "^2.4.1"
+  },
+  "overrides": {
+    "uint8-util": "2.2.6"
   },
   "devDependencies": {
     "@types/node": "^25.9.2",

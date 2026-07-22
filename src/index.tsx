@@ -2,6 +2,7 @@ import { render } from "ink";
 import { parseCliArgs, HELP_TEXT } from "./cli/args";
 import { daemonize } from "./daemon/daemonize";
 import { runAttach } from "./daemon/attach";
+import { containUnhandledRejections, logCrash } from "./util/crashlog";
 import { VERSION } from "./version";
 import { App } from "./ui/App";
 
@@ -22,6 +23,14 @@ if (cmd.kind === "invalid") {
   console.error(HELP_TEXT);
   process.exit(1);
 }
+
+// An unhandled promise rejection must never take the whole app down: webtorrent
+// can produce one from inside its own async internals where no caller's
+// try/catch or error event can reach (see util/crashlog.ts). Contained and
+// logged for every mode; headless runs also echo one line to their log.
+containUnhandledRejections({
+  echo: cmd.kind === "update" || cmd.kind === "watch" || cmd.kind === "serve" || cmd.kind === "files",
+});
 
 // Run/reattach the TUI inside a persistent tmux session (execs tmux, then exits).
 if (cmd.kind === "attach") {
@@ -122,6 +131,7 @@ process.on("SIGTERM", () => forceExit(0));
 process.on("exit", restoreTerminal);
 
 process.on("uncaughtException", (err) => {
+  logCrash("uncaughtException", err);
   restoreTerminal();
   console.error(err);
   process.exit(1);

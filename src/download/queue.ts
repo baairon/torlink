@@ -14,6 +14,7 @@ import {
 } from "./persist";
 import { saveHistory, saveHistorySync, type HistoryItem } from "./history";
 import { deleteSeedData } from "./delete-data";
+import { disarmBootMarker } from "./bootguard";
 import type { QueueItem, SeedItem } from "./types";
 import type { SourceId } from "../sources/types";
 
@@ -52,6 +53,13 @@ export interface AddInput {
   magnet: string;
   source?: SourceId;
   sizeBytes?: number;
+}
+
+export interface RestoreOptions {
+  // Safe mode: the previous boot died while restoring (see bootguard.ts), so
+  // bring every item back paused and start no engines. The list stays intact
+  // and visible; the user resumes each item on their own terms.
+  safe?: boolean;
 }
 
 export class DownloadQueue extends EventEmitter {
@@ -543,19 +551,21 @@ export class DownloadQueue extends EventEmitter {
     else this.startSeeding(h);
   }
 
-  restoreSeeds(records: SeedRecord[]): void {
+  restoreSeeds(records: SeedRecord[], opts: RestoreOptions = {}): void {
     for (const r of records) {
       try {
         const h = this.history.find((x) => x.id === r.id);
         if (!h) continue;
         // Respect the persisted choice: resume seeders, but leave a paused seed
-        // paused (and visibly so) instead of auto-starting it.
-        if (r.status === "seeding") this.startSeeding(h);
+        // paused (and visibly so) instead of auto-starting it. In safe mode
+        // even seeders come back paused, since re-seeding also feeds the engine.
+        if (r.status === "seeding" && !opts.safe) this.startSeeding(h);
         else this.restorePaused(h);
       } catch (e) {
         // If restoring a specific seed fails, ignore and proceed to the next record
       }
     }
+    if (opts.safe) void this.persistSeeds();
   }
 
   // Rebuild a paused seed from history without touching the engine, so it shows
@@ -592,7 +602,18 @@ export class DownloadQueue extends EventEmitter {
     return saveSeeds(this.seedRecords()).catch(() => {});
   }
 
-  restore(items: QueueItem[]): void {
+  restore(items: QueueItem[], opts: RestoreOptions = {}): void {
+    if (opts.safe) {
+      // Engines stay cold: pause everything that would have started and keep
+      // the rest as saved, then persist so the paused state is the new truth.
+      for (const raw of items) {
+        if (raw.status === "downloading" || raw.status === "queued") raw.status = "paused";
+        this.items.set(raw.id, raw);
+      }
+      this.changed();
+      void this.persist();
+      return;
+    }
     let active = 0;
     for (const raw of items) {
       try {
@@ -688,6 +709,9 @@ export class DownloadQueue extends EventEmitter {
     saveQueueSync(this.getItems());
     saveHistorySync(this.history);
     saveSeedsSync(this.seedRecords());
+    // A clean flush doubles as proof this run did not die mid-restore, so the
+    // crash-boot breaker stands down (see bootguard.ts).
+    disarmBootMarker();
   }
 
   suspend(): void {

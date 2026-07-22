@@ -7,6 +7,12 @@ import { DownloadQueue } from "../download/queue";
 import { loadQueue, loadSeeds } from "../download/persist";
 import { loadHistory } from "../download/history";
 import { reconcileQueue } from "../download/reconcile";
+import {
+  BOOT_SETTLE_MS,
+  armBootMarker,
+  disarmBootMarker,
+  wasBootInterrupted,
+} from "../download/bootguard";
 import { parseInput } from "../sources/magnet";
 import { magnetFromTorrentFile } from "../sources/torrentFile";
 import { readClipboard, writeClipboard } from "../util/clipboard";
@@ -101,6 +107,7 @@ export function App({
   const [lastDownloadToDir, setLastDownloadToDir] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [updateVersion, setUpdateVersion] = useState<string | null>(null);
+  const [recovered, setRecovered] = useState(false);
   const booting = useRef(false);
 
   useEffect(() => {
@@ -116,21 +123,31 @@ export function App({
       }
       const q = new DownloadQueue();
       q.setTrackers(cfg.trackers);
+      // Crash-boot breaker: a marker left behind by the previous boot means it
+      // died mid-restore, so this one restores everything paused with the
+      // engine cold (safe mode) instead of walking into the same explosion.
+      const safeBoot = wasBootInterrupted();
+      armBootMarker();
       try {
-        q.restore(reconcileQueue(await loadQueue()));
+        q.restore(reconcileQueue(await loadQueue()), { safe: safeBoot });
       } catch {}
       try {
         q.restoreHistory(await loadHistory());
       } catch {}
       try {
-        q.restoreSeeds(await loadSeeds());
+        q.restoreSeeds(await loadSeeds(), { safe: safeBoot });
       } catch {}
+      setTimeout(disarmBootMarker, BOOT_SETTLE_MS).unref();
       if (!alive) {
         q.suspend();
         return;
       }
       setConfigState(cfg);
       setQueue(q);
+      if (safeBoot) {
+        setRecovered(true);
+        setNotice("Recovered from a crashed start · downloads paused");
+      }
       try {
         const launch = initialMagnet
           ? parseInput(initialMagnet)
@@ -545,7 +562,7 @@ export function App({
     return (
       <StoreContext.Provider value={store}>
         <TabTitle />
-        <Splash updateVersion={updateVersion} />
+        <Splash updateVersion={updateVersion} recovered={recovered} />
       </StoreContext.Provider>
     );
   }

@@ -11,12 +11,21 @@ import { DownloadQueue } from "../download/queue";
 import { loadQueue, loadSeeds } from "../download/persist";
 import { loadHistory } from "../download/history";
 import { reconcileQueue } from "../download/reconcile";
+import {
+  BOOT_SETTLE_MS,
+  armBootMarker,
+  disarmBootMarker,
+  wasBootInterrupted,
+} from "../download/bootguard";
 import { parseInput } from "../sources/magnet";
 import { magnetFromTorrentFile } from "../sources/torrentFile";
 
 export interface Runtime {
   queue: DownloadQueue;
   downloadDir: string;
+  // True when the previous run died mid-restore and this boot came up in safe
+  // mode: everything paused, no engines started (see download/bootguard.ts).
+  recovered?: boolean;
 }
 
 // Build a queue and restore persisted state, matching the TUI's boot order
@@ -26,11 +35,19 @@ export async function startRuntime(overrideDir?: string): Promise<Runtime> {
   const cfg = await loadConfig();
   const queue = new DownloadQueue();
   queue.setTrackers(cfg.trackers);
-  queue.restore(reconcileQueue(await loadQueue()));
+  // Crash-boot breaker, mirroring the TUI: a marker left by the previous run
+  // means it died mid-restore, so restore paused with the engine cold.
+  const safe = wasBootInterrupted();
+  armBootMarker();
+  queue.restore(reconcileQueue(await loadQueue()), { safe });
   queue.restoreHistory(await loadHistory());
-  queue.restoreSeeds(await loadSeeds());
+  queue.restoreSeeds(await loadSeeds(), { safe });
+  setTimeout(disarmBootMarker, BOOT_SETTLE_MS).unref();
+  if (safe) {
+    console.error("[torlnk] recovered from a crashed start: restored downloads are paused");
+  }
   const downloadDir = overrideDir && overrideDir.trim() ? overrideDir.trim() : cfg.downloadDir;
-  return { queue, downloadDir };
+  return { queue, downloadDir, recovered: safe };
 }
 
 export type AddOutcome = "added" | "duplicate" | "invalid";
