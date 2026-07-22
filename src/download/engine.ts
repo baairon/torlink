@@ -98,9 +98,9 @@ export class TorrentEngine {
     // can blow up. This runs concurrently with webtorrent's own _onTorrentId
     // call but safely races it via the torrent.destroyed flag and the error
     // listeners already attached below.
-    if (!source.endsWith(".torrent")) {
-      void parseTorrent(source)
-        .then((parsed) => {
+const isTorrentFilePath = !source.startsWith("magnet:") && source.toLowerCase().endsWith(".torrent");
+if (!isTorrentFilePath) {
+  void Promise.resolve().then(() => parseTorrent(source))
           if (torrent.destroyed) return;
           if (!parsed?.infoHash) {
             const err = `Invalid torrent source: infoHash could not be resolved (source: ${source.slice(0, 80)})`;
