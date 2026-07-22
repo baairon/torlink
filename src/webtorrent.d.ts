@@ -12,6 +12,7 @@ declare module "webtorrent" {
     magnetURI: string;
     torrentFile: Uint8Array;
     ready: boolean;
+    destroyed: boolean;
     name: string;
     length: number;
     downloaded: number;
