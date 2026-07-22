@@ -98,8 +98,11 @@ export class TorrentEngine {
     // can blow up. This runs concurrently with webtorrent's own _onTorrentId
     // call but safely races it via the torrent.destroyed flag and the error
     // listeners already attached below.
-    if (!source.endsWith(".torrent")) {
-      void parseTorrent(source)
+    const isTorrentFilePath =
+      (source.includes("/") || source.includes("\\")) && source.toLowerCase().endsWith(".torrent");
+    if (!isTorrentFilePath) {
+      void Promise.resolve()
+        .then(() => parseTorrent(source))
         .then((parsed) => {
           if (torrent.destroyed) return;
           if (!parsed?.infoHash) {
