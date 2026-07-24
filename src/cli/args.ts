@@ -1,5 +1,6 @@
 import { isInfoHash } from "../sources/magnet";
 import { parseDuration } from "../util/duration";
+import { setFlareSolverrUrl } from "../util/flaresolverr";
 
 export type CliCommand =
   | { kind: "version" }
@@ -70,6 +71,12 @@ function seedTimeFrom(raw: string | undefined): number | undefined {
 }
 
 export function parseCliArgs(argv: string[]): CliCommand {
+  const fsIdx = argv.findIndex((a) => a === "--flaresolverr");
+  if (fsIdx !== -1 && argv[fsIdx + 1]) {
+    setFlareSolverrUrl(argv[fsIdx + 1]);
+    argv = argv.filter((_, idx) => idx !== fsIdx && idx !== fsIdx + 1);
+  }
+
   const args = argv.filter((a) => a.trim() !== "");
   if (args.length === 0) return { kind: "run" };
   const a = args[0]!;
@@ -127,6 +134,7 @@ export const HELP_TEXT = `torlink, terminal-native torrent search
 
 usage
   torlnk                      open the search TUI
+  torlnk --flaresolverr <url> enable FlareSolverr proxy (e.g. http://localhost:8191/v1)
   torlnk "magnet:?xt=..."     start a download on launch
   torlnk path/to/file.torrent open a .torrent file on launch
   torlnk watch <dir>          headless: download torrents dropped into <dir>
