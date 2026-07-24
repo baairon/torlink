@@ -1,3 +1,17 @@
+import {
+  fetchViaFlareSolverr,
+  getFlareSolverrUrl,
+  isCloudflareBlock,
+  setFlareSolverrUrl,
+} from "./flaresolverr";
+
+export {
+  fetchViaFlareSolverr,
+  getFlareSolverrUrl,
+  isCloudflareBlock,
+  setFlareSolverrUrl,
+};
+
 export const USER_AGENT = "torlink (+https://www.npmjs.com/package/torlnk)";
 
 export type FetchImpl = (url: string, init?: RequestInit) => Promise<Response>;
@@ -111,15 +125,21 @@ export async function fetchResilient(
       throw e;
     }
 
-    if (!RETRY_STATUS.has(res.status)) return res;
-
-    const server = res.headers.get("server")?.toLowerCase() || "";
-    if (res.status === 503 && (server.includes("ddos-guard") || server.includes("cloudflare"))) {
-      throw new HttpError(
-        res.status,
-        `Request to ${url} blocked by ${server} (HTTP ${res.status}).`,
-      );
+    if (isCloudflareBlock(res)) {
+      const solverUrl = getFlareSolverrUrl();
+      if (solverUrl) {
+        return fetchViaFlareSolverr(url, solverUrl, signal ?? undefined);
+      }
+      const server = res.headers.get("server")?.toLowerCase() || "";
+      if (res.status === 503 && (server.includes("ddos-guard") || server.includes("cloudflare"))) {
+        throw new HttpError(
+          res.status,
+          `Request to ${url} blocked by ${server} (HTTP ${res.status}).`,
+        );
+      }
     }
+
+    if (!RETRY_STATUS.has(res.status)) return res;
 
     if (attempt >= retries) {
       throw new HttpError(
