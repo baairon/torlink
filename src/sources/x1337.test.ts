@@ -13,7 +13,9 @@ describe("parseUploadDate", () => {
   it("handles single-digit days and other ordinals", () => {
     expect(parseUploadDate(detail("Jan. 1st '24"))).toBe(Math.floor(Date.UTC(2024, 0, 1) / 1000));
     expect(parseUploadDate(detail("Mar. 3rd '25"))).toBe(Math.floor(Date.UTC(2025, 2, 3) / 1000));
-    expect(parseUploadDate(detail("Dec. 22nd '23"))).toBe(Math.floor(Date.UTC(2023, 11, 22) / 1000));
+    expect(parseUploadDate(detail("Dec. 22nd '23"))).toBe(
+      Math.floor(Date.UTC(2023, 11, 22) / 1000),
+    );
   });
 
   it("returns undefined when the field is missing or unparseable", () => {

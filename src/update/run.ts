@@ -95,7 +95,9 @@ export async function runUpdate(opts: { force?: boolean } = {}): Promise<void> {
 
   const latest = await fetchLatestVersion({ packageName: manifest.name });
   if (!opts.force && latest && !isNewer(VERSION, latest)) {
-    console.log(`Already on the latest release (v${latest}). Use --force to rebuild and restart anyway.`);
+    console.log(
+      `Already on the latest release (v${latest}). Use --force to rebuild and restart anyway.`,
+    );
     return;
   }
 
@@ -117,7 +119,9 @@ export async function runUpdate(opts: { force?: boolean } = {}): Promise<void> {
         : "Couldn't reach the registry; updating from source anyway…",
   );
 
-  const ok = isGitCheckout ? await gitUpdate(root, opts.force ?? false) : await npmGlobalUpdate(manifest.name);
+  const ok = isGitCheckout
+    ? await gitUpdate(root, opts.force ?? false)
+    : await npmGlobalUpdate(manifest.name);
 
   if (!ok) {
     console.error("Update failed; nothing was restarted.");

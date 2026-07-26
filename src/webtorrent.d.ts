@@ -52,16 +52,8 @@ declare module "webtorrent" {
     readonly downloadSpeed: number;
     readonly uploadSpeed: number;
     readonly torrentPort: number;
-    add(
-      torrentId: string,
-      opts?: TorrentOptions,
-      cb?: (torrent: Torrent) => void,
-    ): Torrent;
-    seed(
-      input: string | string[],
-      opts?: TorrentOptions,
-      cb?: (torrent: Torrent) => void,
-    ): Torrent;
+    add(torrentId: string, opts?: TorrentOptions, cb?: (torrent: Torrent) => void): Torrent;
+    seed(input: string | string[], opts?: TorrentOptions, cb?: (torrent: Torrent) => void): Torrent;
     get(torrentId: string): Torrent | null;
     remove(torrentId: string, cb?: (err?: Error) => void): void;
     destroy(cb?: (err?: Error) => void): void;

@@ -57,13 +57,7 @@ export class TorrentEngine {
   // locally instead of re-fetching metadata from the swarm.
   // `announce` supplements whatever trackers are already in the source URI;
   // webtorrent dedupes internally.
-  add(
-    id: string,
-    source: string,
-    dir: string,
-    handlers: AddHandlers,
-    announce?: string[],
-  ): void {
+  add(id: string, source: string, dir: string, handlers: AddHandlers, announce?: string[]): void {
     const client = this.ensureClient();
     const existing = this.torrents.get(id);
     if (existing) {

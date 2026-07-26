@@ -23,7 +23,9 @@ describe("crash log", () => {
   it("appends a timestamped entry and reports success", async () => {
     const { dir, crashlog } = await isolated();
     try {
-      expect(crashlog.logCrash("unhandledRejection", new Error("Chunk store init failed"))).toBe(true);
+      expect(crashlog.logCrash("unhandledRejection", new Error("Chunk store init failed"))).toBe(
+        true,
+      );
       const text = await fs.readFile(crashlog.crashLogFile, "utf8");
       expect(text).toContain("[unhandledRejection]");
       expect(text).toContain("Chunk store init failed");
@@ -50,15 +52,15 @@ describe("containUnhandledRejections", () => {
     const before = process.listeners("unhandledRejection");
     try {
       crashlog.containUnhandledRejections();
-      const added = process
-        .listeners("unhandledRejection")
-        .filter((l) => !before.includes(l));
+      const added = process.listeners("unhandledRejection").filter((l) => !before.includes(l));
       expect(added).toHaveLength(1);
 
       // Drive the handler directly: a real unhandled rejection would race the
       // test harness's own bookkeeping.
       const handler = added[0]! as (reason: unknown, promise: Promise<unknown>) => void;
-      expect(() => handler(new Error("Invalid torrent identifier"), Promise.resolve())).not.toThrow();
+      expect(() =>
+        handler(new Error("Invalid torrent identifier"), Promise.resolve()),
+      ).not.toThrow();
       const text = await fs.readFile(crashlog.crashLogFile, "utf8");
       expect(text).toContain("Invalid torrent identifier");
     } finally {

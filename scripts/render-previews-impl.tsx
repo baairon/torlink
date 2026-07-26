@@ -33,21 +33,105 @@ const NOW = Math.floor(Date.now() / 1000);
 const NOW_MS = Date.now();
 
 const RESULTS: TorrentResult[] = [
-  { infoHash: "b2", name: "Oppenheimer (2023) [1080p WEB]", source: "yts", sizeBytes: 2.1e9, seeders: 1240, leechers: 88, magnet: "", added: NOW - 7200 },
-  { infoHash: "g7", name: "Dune: Part Two (2024) [2160p BluRay]", source: "yts", sizeBytes: 8.4e9, seeders: 910, leechers: 41, magnet: "", added: NOW - 90000 },
-  { infoHash: "c3", name: "Breaking Bad S05E14 1080p WEB-DL", source: "eztv", sizeBytes: 1.6e9, seeders: 540, leechers: 31, magnet: "", added: NOW - 1800 },
-  { infoHash: "e5", name: "[Erai-raws] Jujutsu Kaisen S2 - 23 [1080p]", source: "nyaa", sizeBytes: 1.3e9, seeders: 320, leechers: 12, magnet: "", added: NOW - 900 },
-  { infoHash: "d4", name: "Frieren - 28 [1080p]", source: "subsplease", sizeBytes: 1.4e9, seeders: 0, leechers: 0, magnet: "", added: NOW - 600 },
-  { infoHash: "a1", name: "Elden Ring: Shadow of the Erdtree Edition", source: "fitgirl", sizeBytes: 0, seeders: 0, leechers: 0, magnet: "", added: NOW - 3600 },
+  {
+    infoHash: "b2",
+    name: "Oppenheimer (2023) [1080p WEB]",
+    source: "yts",
+    sizeBytes: 2.1e9,
+    seeders: 1240,
+    leechers: 88,
+    magnet: "",
+    added: NOW - 7200,
+  },
+  {
+    infoHash: "g7",
+    name: "Dune: Part Two (2024) [2160p BluRay]",
+    source: "yts",
+    sizeBytes: 8.4e9,
+    seeders: 910,
+    leechers: 41,
+    magnet: "",
+    added: NOW - 90000,
+  },
+  {
+    infoHash: "c3",
+    name: "Breaking Bad S05E14 1080p WEB-DL",
+    source: "eztv",
+    sizeBytes: 1.6e9,
+    seeders: 540,
+    leechers: 31,
+    magnet: "",
+    added: NOW - 1800,
+  },
+  {
+    infoHash: "e5",
+    name: "[Erai-raws] Jujutsu Kaisen S2 - 23 [1080p]",
+    source: "nyaa",
+    sizeBytes: 1.3e9,
+    seeders: 320,
+    leechers: 12,
+    magnet: "",
+    added: NOW - 900,
+  },
+  {
+    infoHash: "d4",
+    name: "Frieren - 28 [1080p]",
+    source: "subsplease",
+    sizeBytes: 1.4e9,
+    seeders: 0,
+    leechers: 0,
+    magnet: "",
+    added: NOW - 600,
+  },
+  {
+    infoHash: "a1",
+    name: "Elden Ring: Shadow of the Erdtree Edition",
+    source: "fitgirl",
+    sizeBytes: 0,
+    seeders: 0,
+    leechers: 0,
+    magnet: "",
+    added: NOW - 3600,
+  },
 ];
 
 const DOWNLOADS: QueueItem[] = [
-  { id: "x1", name: "Dune: Part Two (2024) [2160p BluRay]", source: "yts", magnet: "", dir: "", status: "downloading", progress: 64, totalBytes: 8.4e9, downloadedBytes: 5.4e9, speed: 8.1e6, peers: 41, eta: 360, addedAt: NOW_MS },
+  {
+    id: "x1",
+    name: "Dune: Part Two (2024) [2160p BluRay]",
+    source: "yts",
+    magnet: "",
+    dir: "",
+    status: "downloading",
+    progress: 64,
+    totalBytes: 8.4e9,
+    downloadedBytes: 5.4e9,
+    speed: 8.1e6,
+    peers: 41,
+    eta: 360,
+    addedAt: NOW_MS,
+  },
 ];
 
 const HISTORY: HistoryItem[] = [
-  { id: "h1", name: "Elden Ring: Shadow of the Erdtree Edition", source: "fitgirl", sizeBytes: 54e9, magnet: "", dir: "", completedAt: NOW_MS - 3_600_000 },
-  { id: "h2", name: "Breaking Bad S05E14 1080p WEB-DL", source: "eztv", sizeBytes: 1.6e9, magnet: "", dir: "", completedAt: NOW_MS - 90_000_000 },
+  {
+    id: "h1",
+    name: "Elden Ring: Shadow of the Erdtree Edition",
+    source: "fitgirl",
+    sizeBytes: 54e9,
+    magnet: "",
+    dir: "",
+    completedAt: NOW_MS - 3_600_000,
+  },
+  {
+    id: "h2",
+    name: "Breaking Bad S05E14 1080p WEB-DL",
+    source: "eztv",
+    sizeBytes: 1.6e9,
+    magnet: "",
+    dir: "",
+    completedAt: NOW_MS - 90_000_000,
+  },
 ];
 
 function fakeQueue(
@@ -150,7 +234,13 @@ save(
       <Text dimColor>{CATEGORIES}</Text>
     </Box>
     <Box marginTop={1} width={62}>
-      <SearchBar width={62} value="" editing placeholder="Search or paste a magnet link…" onSubmit={() => {}} />
+      <SearchBar
+        width={62}
+        value=""
+        editing
+        placeholder="Search or paste a magnet link…"
+        onSubmit={() => {}}
+      />
     </Box>
     <Box marginTop={1}>
       <Text>
@@ -183,18 +273,52 @@ save(
     <Box height={14} marginTop={1}>
       <Sidebar />
       <Box flexGrow={1} flexDirection="column">
-        <SearchBar width={CONTENT_WIDTH} value="" editing={false} placeholder="Search or paste a magnet link…" onSubmit={() => {}} />
+        <SearchBar
+          width={CONTENT_WIDTH}
+          value=""
+          editing={false}
+          placeholder="Search or paste a magnet link…"
+          onSubmit={() => {}}
+        />
         <Box marginTop={1}>
-          <Panel title="latest" width={CONTENT_WIDTH} focused count={`(${browseResults.length})`} height={9}>
-            <Box><Text dimColor>newest across all sources</Text></Box>
+          <Panel
+            title="latest"
+            width={CONTENT_WIDTH}
+            focused
+            count={`(${browseResults.length})`}
+            height={9}
+          >
+            <Box>
+              <Text dimColor>newest across all sources</Text>
+            </Box>
             <Box flexDirection="column" marginTop={1}>
               <Box>
                 <Box width={2} flexShrink={0} />
-                <Box width={numW} flexShrink={0} justifyContent="flex-end"><Text bold dimColor>#</Text></Box>
-                <Box flexGrow={1} minWidth={0} marginLeft={1}><Text bold dimColor>Name</Text></Box>
-                <Box width={10} flexShrink={0} marginLeft={1} justifyContent="flex-end"><Text bold dimColor>Size</Text></Box>
-                <Box width={9} flexShrink={0} marginLeft={1} justifyContent="flex-end"><Text bold dimColor>Seed:Lch</Text></Box>
-                <Box width={4} flexShrink={0} marginLeft={1} justifyContent="flex-end"><Text bold dimColor>Src</Text></Box>
+                <Box width={numW} flexShrink={0} justifyContent="flex-end">
+                  <Text bold dimColor>
+                    #
+                  </Text>
+                </Box>
+                <Box flexGrow={1} minWidth={0} marginLeft={1}>
+                  <Text bold dimColor>
+                    Name
+                  </Text>
+                </Box>
+                <Box width={10} flexShrink={0} marginLeft={1} justifyContent="flex-end">
+                  <Text bold dimColor>
+                    Size
+                  </Text>
+                </Box>
+                <Box width={9} flexShrink={0} marginLeft={1} justifyContent="flex-end">
+                  <Text bold dimColor>
+                    Seed:Lch
+                  </Text>
+                </Box>
+                <Box width={4} flexShrink={0} marginLeft={1} justifyContent="flex-end">
+                  <Text bold dimColor>
+                    Src
+                  </Text>
+                </Box>
               </Box>
               {browseResults.map((r, i) => {
                 const here = i === 0;
@@ -208,7 +332,12 @@ save(
                       <Text dimColor>{i + 1}</Text>
                     </Box>
                     <Box flexGrow={1} minWidth={0} marginLeft={1}>
-                      <Text wrap="truncate-end" color={here ? COLOR.accent : undefined} dimColor={!here} bold={here}>
+                      <Text
+                        wrap="truncate-end"
+                        color={here ? COLOR.accent : undefined}
+                        dimColor={!here}
+                        bold={here}
+                      >
                         {cleanText(r.name)}
                       </Text>
                     </Box>
@@ -218,7 +347,10 @@ save(
                           <Text dimColor>{r.sizeBytes > 0 ? formatBytes(r.sizeBytes) : "-"}</Text>
                         </Box>
                         <Box width={9} flexShrink={0} marginLeft={1} justifyContent="flex-end">
-                          <Text color={r.seeders > 0 ? COLOR.good : undefined} dimColor={r.seeders === 0}>
+                          <Text
+                            color={r.seeders > 0 ? COLOR.good : undefined}
+                            dimColor={r.seeders === 0}
+                          >
                             {r.seeders || r.leechers ? `${r.seeders}:${r.leechers}` : "-"}
                           </Text>
                         </Box>
@@ -247,7 +379,11 @@ save(
 
 save(
   "downloads",
-  makeStore({ section: "downloads", contentWidth: CONTENT_WIDTH, listRows: 10, cols: COLS, rows: 24 }, DOWNLOADS, HISTORY),
+  makeStore(
+    { section: "downloads", contentWidth: CONTENT_WIDTH, listRows: 10, cols: COLS, rows: 24 },
+    DOWNLOADS,
+    HISTORY,
+  ),
   <Box flexDirection="column" width={COLS} paddingX={1}>
     <Box justifyContent="space-between">
       <Logo />

@@ -1,13 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { SOURCES } from "../../sources/registry";
 import { StoreContext } from "../store";
-import {
-  KEY,
-  makeTestStore,
-  renderUI,
-  TEST_CONTENT_WIDTH,
-  type RenderedUI,
-} from "../testHarness";
+import { KEY, makeTestStore, renderUI, TEST_CONTENT_WIDTH, type RenderedUI } from "../testHarness";
 import { Results } from "./Results";
 import type { ConcurrentSearchState } from "../hooks/useConcurrentSearch";
 import type { TorrentResult } from "../../sources/types";

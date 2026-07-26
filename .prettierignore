@@ -1,0 +1,11 @@
+dist
+node_modules
+package-lock.json
+
+# The README and CONTRIBUTING carry hand-laid HTML (centered previews, the star
+# history picture block) that prettier reflows into something harder to read.
+# Prose is reviewed by eye, not by a formatter.
+*.md
+
+# Rendered terminal captures: generated files, not source.
+preview

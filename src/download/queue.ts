@@ -121,9 +121,7 @@ export class DownloadQueue extends EventEmitter {
           status: "downloading",
           error: undefined,
           speed: 0,
-          ...(existing.dir === dir
-            ? {}
-            : { progress: 0, downloadedBytes: 0, eta: undefined }),
+          ...(existing.dir === dir ? {} : { progress: 0, downloadedBytes: 0, eta: undefined }),
         }
       : {
           id: input.id,

@@ -22,7 +22,10 @@ function parseRows(html: string): Row[] {
   const start = html.indexOf("table-list");
   if (start < 0) return [];
   const out: Row[] = [];
-  for (const tr of html.slice(start).split(/<tr[\s>]/i).slice(1)) {
+  for (const tr of html
+    .slice(start)
+    .split(/<tr[\s>]/i)
+    .slice(1)) {
     const link = tr.match(/href="(\/torrent\/[^"]+)"[^>]*>([^<]+)<\/a>/i);
     if (!link) continue;
     const size = tr.match(/class="coll-4 size[^"]*">\s*([\d.]+\s*[KMGT]i?B)/i)?.[1] ?? "";
@@ -48,13 +51,25 @@ async function fetchText(url: string, opts: SearchOptions, retries: number): Pro
 }
 
 const MONTHS: Record<string, number> = {
-  jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5,
-  jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11,
+  jan: 0,
+  feb: 1,
+  mar: 2,
+  apr: 3,
+  may: 4,
+  jun: 5,
+  jul: 6,
+  aug: 7,
+  sep: 8,
+  oct: 9,
+  nov: 10,
+  dec: 11,
 };
 
 // 1337x detail pages render "Date uploaded" as e.g. "Jun. 26th  '26".
 export function parseUploadDate(html: string): number | undefined {
-  const m = html.match(/Date uploaded<\/strong>\s*<span>\s*([A-Za-z]{3})\.?\s+(\d{1,2})[a-z]{2}\s*'(\d{2})/i);
+  const m = html.match(
+    /Date uploaded<\/strong>\s*<span>\s*([A-Za-z]{3})\.?\s+(\d{1,2})[a-z]{2}\s*'(\d{2})/i,
+  );
   if (!m) return undefined;
   const month = MONTHS[m[1]!.toLowerCase()];
   if (month === undefined) return undefined;

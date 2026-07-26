@@ -68,13 +68,27 @@ describe("handleApi", () => {
   });
 
   it("401s a protected route without a token", async () => {
-    const res = await handleApi(runtime, "tok", "POST", "/add", undefined, `{"magnet":"${MAGNET}"}`);
+    const res = await handleApi(
+      runtime,
+      "tok",
+      "POST",
+      "/add",
+      undefined,
+      `{"magnet":"${MAGNET}"}`,
+    );
     expect(res.status).toBe(401);
     expect(add).not.toHaveBeenCalled();
   });
 
   it("adds a magnet on POST /add", async () => {
-    const res = await handleApi(runtime, "tok", "POST", "/add", "Bearer tok", `{"magnet":"${MAGNET}"}`);
+    const res = await handleApi(
+      runtime,
+      "tok",
+      "POST",
+      "/add",
+      "Bearer tok",
+      `{"magnet":"${MAGNET}"}`,
+    );
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ ok: true, outcome: "added" });
     expect(add).toHaveBeenCalledWith({ id: HASH, name: "Example", magnet: MAGNET }, dir);
@@ -109,20 +123,41 @@ describe("handleApi", () => {
   });
 
   it("400s POST /control with an unknown action", async () => {
-    const res = await handleApi(runtime, null, "POST", "/control", undefined, `{"id":"${HASH}","action":"boom"}`);
+    const res = await handleApi(
+      runtime,
+      null,
+      "POST",
+      "/control",
+      undefined,
+      `{"id":"${HASH}","action":"boom"}`,
+    );
     expect(res.status).toBe(400);
     expect(String(res.body.error)).toContain("unknown action");
   });
 
   it("404s POST /control for an unknown torrent", async () => {
-    const res = await handleApi(runtime, null, "POST", "/control", undefined, `{"id":"${HASH}","action":"pause"}`);
+    const res = await handleApi(
+      runtime,
+      null,
+      "POST",
+      "/control",
+      undefined,
+      `{"id":"${HASH}","action":"pause"}`,
+    );
     expect(res.status).toBe(404);
   });
 
   it("pauses a known download on POST /control", async () => {
     const pause = vi.fn();
     runtime.queue = { has: (id: string) => id === HASH, pause } as unknown as Runtime["queue"];
-    const res = await handleApi(runtime, null, "POST", "/control", undefined, `{"id":"${HASH}","action":"pause"}`);
+    const res = await handleApi(
+      runtime,
+      null,
+      "POST",
+      "/control",
+      undefined,
+      `{"id":"${HASH}","action":"pause"}`,
+    );
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ ok: true, action: "pause" });
     expect(pause).toHaveBeenCalledWith(HASH);
@@ -131,7 +166,11 @@ describe("handleApi", () => {
 
 describe("parseControl", () => {
   it("reads id + action from JSON", () => {
-    expect(parseControl(`{"id":"abc","action":"pause"}`)).toEqual({ id: "abc", action: "pause", deleteFiles: false });
+    expect(parseControl(`{"id":"abc","action":"pause"}`)).toEqual({
+      id: "abc",
+      action: "pause",
+      deleteFiles: false,
+    });
   });
   it("reads the deleteFiles flag", () => {
     expect(parseControl(`{"id":"abc","action":"delete","deleteFiles":true}`)).toEqual({
@@ -150,8 +189,10 @@ describe("parseControl", () => {
 });
 
 describe("applyControl", () => {
-  const mkRuntime = (queue: Partial<Record<string, unknown>>): Runtime =>
-    ({ queue: queue as unknown as Runtime["queue"], downloadDir: "/tmp" });
+  const mkRuntime = (queue: Partial<Record<string, unknown>>): Runtime => ({
+    queue: queue as unknown as Runtime["queue"],
+    downloadDir: "/tmp",
+  });
 
   it("resumes a paused download", async () => {
     const resume = vi.fn();
@@ -162,7 +203,10 @@ describe("applyControl", () => {
 
   it("stops seeding but keeps files", async () => {
     const stopSeeding = vi.fn();
-    const rt = mkRuntime({ getSeed: (id: string) => (id === "s" ? { id } : undefined), stopSeeding });
+    const rt = mkRuntime({
+      getSeed: (id: string) => (id === "s" ? { id } : undefined),
+      stopSeeding,
+    });
     expect(await applyControl(rt, { id: "s", action: "stop-seed", deleteFiles: false })).toBe("ok");
     expect(stopSeeding).toHaveBeenCalledWith("s");
   });
@@ -171,7 +215,9 @@ describe("applyControl", () => {
     const startSeeding = vi.fn();
     const hist = { id: "h", name: "H", magnet: "m", dir: "/d", sizeBytes: 1, completedAt: 0 };
     const rt = mkRuntime({ getHistory: () => [hist], startSeeding });
-    expect(await applyControl(rt, { id: "h", action: "start-seed", deleteFiles: false })).toBe("ok");
+    expect(await applyControl(rt, { id: "h", action: "start-seed", deleteFiles: false })).toBe(
+      "ok",
+    );
     expect(startSeeding).toHaveBeenCalledWith(hist);
   });
 
@@ -187,7 +233,11 @@ describe("applyControl", () => {
 
   it("reports not-found when remove finds nothing and unknown-action otherwise", async () => {
     const rt = mkRuntime({ remove: vi.fn().mockResolvedValue(false) });
-    expect(await applyControl(rt, { id: "z", action: "remove", deleteFiles: false })).toBe("not-found");
-    expect(await applyControl(mkRuntime({}), { id: "z", action: "nope", deleteFiles: false })).toBe("unknown-action");
+    expect(await applyControl(rt, { id: "z", action: "remove", deleteFiles: false })).toBe(
+      "not-found",
+    );
+    expect(await applyControl(mkRuntime({}), { id: "z", action: "nope", deleteFiles: false })).toBe(
+      "unknown-action",
+    );
   });
 });

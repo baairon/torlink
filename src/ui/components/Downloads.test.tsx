@@ -58,7 +58,10 @@ function mount(items: QueueItem[] = ACTIVE, history: HistoryItem[] = RECENT): Re
 }
 
 const lineWith = (u: RenderedUI, needle: string): string =>
-  u.frame().split("\n").find((l) => l.includes(needle)) ?? "";
+  u
+    .frame()
+    .split("\n")
+    .find((l) => l.includes(needle)) ?? "";
 
 // Two immediate press() calls can coalesce into one input chunk, which Ink
 // delivers as a single unmatched keypress; settle between no-op keys instead.

@@ -77,20 +77,18 @@ describe("DownloadQueue concurrent-download cap (TORLINK_MAX_DOWNLOADS)", () => 
   });
 
   it("starts persisted queued items on restore when the cap is unset", () => {
-    const persisted = [1, 2, 3].map(
-      (n): QueueItem => ({
-        ...mk(n),
-        source: undefined,
-        dir: "/d",
-        status: n === 1 ? "downloading" : "queued",
-        progress: 0,
-        totalBytes: 0,
-        downloadedBytes: 0,
-        speed: 0,
-        peers: 0,
-        addedAt: n,
-      }),
-    );
+    const persisted = [1, 2, 3].map((n): QueueItem => ({
+      ...mk(n),
+      source: undefined,
+      dir: "/d",
+      status: n === 1 ? "downloading" : "queued",
+      progress: 0,
+      totalBytes: 0,
+      downloadedBytes: 0,
+      speed: 0,
+      peers: 0,
+      addedAt: n,
+    }));
     const q = new DownloadQueue({ maxDownloads: 0 });
     q.restore(persisted);
     expect(q.activeCount).toBe(3);

@@ -31,7 +31,10 @@ export const RAIL_WIDTH =
 export function Sidebar() {
   const { section, setSection, region, setRegion, queue } = useStore();
   const focused = region === "sidebar";
-  const idx = Math.max(0, NAV.findIndex((n) => n.key === section));
+  const idx = Math.max(
+    0,
+    NAV.findIndex((n) => n.key === section),
+  );
   useQueueItems(queue);
   const active = queue.activeCount;
   const seeding = queue.seedingCount;
@@ -68,7 +71,8 @@ export function Sidebar() {
                   {item.label}
                 </Text>
                 {(() => {
-                  const n = item.key === "downloads" ? active : item.key === "seeding" ? seeding : 0;
+                  const n =
+                    item.key === "downloads" ? active : item.key === "seeding" ? seeding : 0;
                   return n > 0 ? (
                     <Box flexShrink={0}>
                       <Text dimColor>{` (${n})`}</Text>

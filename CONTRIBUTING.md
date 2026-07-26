@@ -25,8 +25,12 @@ Run these and make sure they're clean:
 
 ```sh
 npm run typecheck   # tsc --noEmit, zero errors
+npm run lint        # prettier --check, no reformatting owed
 npm test            # vitest, all green
 ```
+
+`npm run format` rewrites anything `npm run lint` flags. Formatting is not a
+review topic here: prettier settles it so nobody spends a comment on it.
 
 Then check your change against the standards below. The pull request template walks you through the same list.
 

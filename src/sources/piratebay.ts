@@ -61,10 +61,7 @@ async function search(
   opts: SearchOptions,
 ): Promise<TorrentResult[]> {
   const q = query.trim();
-  const items = await fetchItems(
-    q ? `${API}/q.php?q=${encodeURIComponent(q)}` : browseUrl,
-    opts,
-  );
+  const items = await fetchItems(q ? `${API}/q.php?q=${encodeURIComponent(q)}` : browseUrl, opts);
   const out: TorrentResult[] = [];
   for (const it of items) {
     if (q && !cats.has(Number(it.category))) continue;

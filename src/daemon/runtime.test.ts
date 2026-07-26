@@ -8,7 +8,10 @@ const HASH = "abcdef0123456789abcdef0123456789abcdef01";
 const MAGNET = `magnet:?xt=urn:btih:${HASH}&dn=Example`;
 
 // A stand-in for DownloadQueue that records adds without spinning up webtorrent.
-function fakeRuntime(dir: string, has = false): { runtime: Runtime; add: ReturnType<typeof vi.fn> } {
+function fakeRuntime(
+  dir: string,
+  has = false,
+): { runtime: Runtime; add: ReturnType<typeof vi.fn> } {
   const add = vi.fn();
   const runtime = {
     queue: { has: () => has, add } as unknown as Runtime["queue"],
@@ -29,10 +32,7 @@ describe("addInput", () => {
   it("adds a magnet keyed by its info hash", async () => {
     const { runtime, add } = fakeRuntime(dir);
     expect(await addInput(runtime, MAGNET)).toBe("added");
-    expect(add).toHaveBeenCalledWith(
-      { id: HASH, name: "Example", magnet: MAGNET },
-      dir,
-    );
+    expect(add).toHaveBeenCalledWith({ id: HASH, name: "Example", magnet: MAGNET }, dir);
   });
 
   it("adds a bare info hash", async () => {

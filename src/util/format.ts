@@ -78,9 +78,7 @@ export function formatEtaShort(sec?: number): string {
   const m = Math.floor((total % 3600) / 60);
   const s = total % 60;
   if (d > 0)
-    return [`${d}d`, h > 0 ? `${h}hr` : "", m > 0 ? `${m}m` : ""]
-      .filter(Boolean)
-      .join(" ");
+    return [`${d}d`, h > 0 ? `${h}hr` : "", m > 0 ? `${m}m` : ""].filter(Boolean).join(" ");
   if (h > 0) return m > 0 ? `${h}hr ${m}m` : `${h}hr`;
   if (m > 0) return s > 0 ? `${m}m ${s}s` : `${m}m`;
   return `${s}s`;

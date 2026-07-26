@@ -47,16 +47,10 @@ function realSleep(ms: number, signal?: AbortSignal): Promise<void> {
 }
 
 function isAbortError(e: unknown): boolean {
-  return (
-    e instanceof Error &&
-    (e.name === "AbortError" || /aborted/i.test(e.message))
-  );
+  return e instanceof Error && (e.name === "AbortError" || /aborted/i.test(e.message));
 }
 
-export function parseRetryAfter(
-  value: string | null,
-  nowMs = Date.now(),
-): number | undefined {
+export function parseRetryAfter(value: string | null, nowMs = Date.now()): number | undefined {
   if (!value) return undefined;
   const trimmed = value.trim();
   if (/^\d+$/.test(trimmed)) return Number(trimmed) * 1000;

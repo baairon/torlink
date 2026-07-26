@@ -159,7 +159,11 @@ async function main(): Promise<void> {
   await fs.rm(root, { recursive: true, force: true }).catch(() => {});
 
   log("");
-  log(failures === 0 ? "RESULT: seeding is REAL ✓ (seed/pause/resume verified)" : `RESULT: ${failures} check(s) FAILED`);
+  log(
+    failures === 0
+      ? "RESULT: seeding is REAL ✓ (seed/pause/resume verified)"
+      : `RESULT: ${failures} check(s) FAILED`,
+  );
   process.exit(failures === 0 ? 0 : 1);
 }
 

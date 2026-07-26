@@ -93,10 +93,7 @@ export type ControlOutcome = "ok" | "not-found" | "unknown-action";
 
 // Apply a parsed control request to the queue. Pure over the runtime so it's
 // unit-testable with a fake queue.
-export async function applyControl(
-  runtime: Runtime,
-  req: ControlRequest,
-): Promise<ControlOutcome> {
+export async function applyControl(runtime: Runtime, req: ControlRequest): Promise<ControlOutcome> {
   const q = runtime.queue;
   const { id, action, deleteFiles } = req;
   switch (action as ControlAction) {
@@ -169,7 +166,8 @@ export async function handleApi(
     const magnet = extractMagnet(bodyText);
     if (!magnet) return { status: 400, body: { error: "missing magnet or info hash" } };
     const outcome = await addInput(runtime, magnet);
-    if (outcome === "invalid") return { status: 400, body: { error: "invalid magnet or info hash" } };
+    if (outcome === "invalid")
+      return { status: 400, body: { error: "invalid magnet or info hash" } };
     return { status: 200, body: { ok: true, outcome } };
   }
   if (method === "POST" && urlPath === "/control") {

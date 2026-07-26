@@ -36,6 +36,23 @@ describe("parseCliArgs", () => {
   it("parses attach", () => {
     expect(parseCliArgs(["attach"])).toEqual({ kind: "attach" });
   });
+  it("parses doctor, with and without flags", () => {
+    expect(parseCliArgs(["doctor"])).toEqual({
+      kind: "doctor",
+      json: false,
+      timeoutMs: undefined,
+    });
+    expect(parseCliArgs(["doctor", "--json"])).toEqual({
+      kind: "doctor",
+      json: true,
+      timeoutMs: undefined,
+    });
+    expect(parseCliArgs(["doctor", "--json", "--timeout", "5s"])).toEqual({
+      kind: "doctor",
+      json: true,
+      timeoutMs: 5000,
+    });
+  });
   it("parses update, with and without --force", () => {
     expect(parseCliArgs(["update"])).toEqual({ kind: "update", force: false });
     expect(parseCliArgs(["update", "--force"])).toEqual({ kind: "update", force: true });

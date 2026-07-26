@@ -33,23 +33,28 @@ export function isNewer(current: string, candidate: string): boolean {
 // torlink was installed (npm, nix, a git checkout), since they all track the
 // same release. Never throws: the caller is either a background banner or a
 // one-shot command, and neither should care that the network was down.
-export async function fetchLatestVersion(opts: {
-  fetchImpl?: FetchImpl;
-  timeoutMs?: number;
-  packageName?: string;
-} = {}): Promise<string | null> {
+export async function fetchLatestVersion(
+  opts: {
+    fetchImpl?: FetchImpl;
+    timeoutMs?: number;
+    packageName?: string;
+  } = {},
+): Promise<string | null> {
   const { fetchImpl, timeoutMs = 4000 } = opts;
   const name = opts.packageName ?? readManifest()?.name;
   if (!name) return null;
   try {
-    const res = await fetchResilient(`https://registry.npmjs.org/${encodeURIComponent(name)}/latest`, {
-      // One shot: this feeds a background banner and a re-runnable command, so a
-      // flaky moment should fail soft, not sit through a backoff.
-      retries: 0,
-      headers: { "User-Agent": USER_AGENT, Accept: "application/json" },
-      signal: AbortSignal.timeout(timeoutMs),
-      fetchImpl,
-    });
+    const res = await fetchResilient(
+      `https://registry.npmjs.org/${encodeURIComponent(name)}/latest`,
+      {
+        // One shot: this feeds a background banner and a re-runnable command, so a
+        // flaky moment should fail soft, not sit through a backoff.
+        retries: 0,
+        headers: { "User-Agent": USER_AGENT, Accept: "application/json" },
+        signal: AbortSignal.timeout(timeoutMs),
+        fetchImpl,
+      },
+    );
     if (!res.ok) return null;
     const body = (await res.json()) as { version?: unknown };
     return typeof body.version === "string" ? body.version : null;

@@ -214,7 +214,9 @@ export function Downloads() {
 
       {hasRecent ? (
         <Box marginTop={gapRows ? 1 : 0}>
-          <Text dimColor>{`Recently downloaded${recent.length > 1 ? `  (${recent.length})` : ""}`}</Text>
+          <Text
+            dimColor
+          >{`Recently downloaded${recent.length > 1 ? `  (${recent.length})` : ""}`}</Text>
         </Box>
       ) : null}
 

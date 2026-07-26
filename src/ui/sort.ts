@@ -60,10 +60,7 @@ export function sortResults(list: TorrentResult[], sort: Sort): TorrentResult[] 
       arr.sort((a, b) => mul * a.source.localeCompare(b.source) || b.seeders - a.seeders);
       break;
     case "added":
-      arr.sort(
-        (a, b) =>
-          mul * ((a.added ?? 0) - (b.added ?? 0)) || b.seeders - a.seeders,
-      );
+      arr.sort((a, b) => mul * ((a.added ?? 0) - (b.added ?? 0)) || b.seeders - a.seeders);
       break;
   }
   return arr;

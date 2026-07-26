@@ -26,11 +26,14 @@ async function fetchMovies(params: URLSearchParams, opts: SearchOptions): Promis
   let lastError: unknown;
   for (const host of HOSTS) {
     try {
-      const res = await fetchResilient(`https://${host}/api/v2/list_movies.json?${params.toString()}`, {
-        headers: { "User-Agent": USER_AGENT },
-        signal: opts.signal,
-        retries: 1,
-      });
+      const res = await fetchResilient(
+        `https://${host}/api/v2/list_movies.json?${params.toString()}`,
+        {
+          headers: { "User-Agent": USER_AGENT },
+          signal: opts.signal,
+          retries: 1,
+        },
+      );
       if (res.ok) return (await res.json()) as YtsResponse;
       lastError = new HttpError(res.status, `YTS returned ${res.status}`);
     } catch (e) {

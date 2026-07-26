@@ -55,7 +55,11 @@ describe("fetchResilient", () => {
     const ctrl = new AbortController();
     ctrl.abort();
     await expect(
-      fetchResilient("http://x", { ...opts, signal: ctrl.signal, fetchImpl: async () => fakeRes(200) }),
+      fetchResilient("http://x", {
+        ...opts,
+        signal: ctrl.signal,
+        fetchImpl: async () => fakeRes(200),
+      }),
     ).rejects.toBeInstanceOf(HttpError);
   });
 

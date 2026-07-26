@@ -27,7 +27,13 @@ describe("listRunDescriptors", () => {
     fs.writeFileSync(path.join(dir, `${name}.run.json`), JSON.stringify(body));
 
   it("reads valid descriptors and skips everything else", () => {
-    write("watch", { name: "watch", pid: 111, argv: ["a", "watch", "/srv"], cwd: "/srv", startedAt: 1 });
+    write("watch", {
+      name: "watch",
+      pid: 111,
+      argv: ["a", "watch", "/srv"],
+      cwd: "/srv",
+      startedAt: 1,
+    });
     write("serve", { name: "serve", pid: 222, argv: ["a", "serve"], cwd: "/opt" });
     fs.writeFileSync(path.join(dir, "watch.log"), "noise");
     fs.writeFileSync(path.join(dir, "broken.run.json"), "{ not json");

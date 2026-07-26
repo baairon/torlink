@@ -143,10 +143,7 @@ describe("sortResults", () => {
   });
 
   it("does not mutate the input array", () => {
-    const list = [
-      r({ infoHash: "a", sizeBytes: 1 }),
-      r({ infoHash: "b", sizeBytes: 2 }),
-    ];
+    const list = [r({ infoHash: "a", sizeBytes: 1 }), r({ infoHash: "b", sizeBytes: 2 })];
     const before = ids(list);
     sortResults(list, { field: "size", dir: "asc" });
     expect(ids(list)).toEqual(before);

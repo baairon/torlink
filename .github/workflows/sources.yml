@@ -1,0 +1,36 @@
+name: Sources
+
+# A search source can break without anything in this repo changing: a site
+# rewrites its markup, an API moves, a host goes dark. `torlnk doctor` asks each
+# one for its latest feed and grades what comes back, so the breakage shows up
+# here instead of as a silently empty search for users.
+on:
+  schedule:
+    # Once a day, off the hour so it does not land in the busiest scheduling
+    # minute. One probe per source per run: this hits sites we do not own.
+    - cron: "17 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Deliberately not wired to pull_request or push: this job reports on the
+# outside world, which no contributor can fix in their diff.
+jobs:
+  doctor:
+    name: probe search sources
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # Prints the table and exits non-zero if any source is unhealthy, so the
+      # run's own status is the signal.
+      - run: npm run doctor

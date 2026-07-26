@@ -25,6 +25,7 @@ export type CliCommand =
     }
   | { kind: "files"; port?: number; host?: string; token?: string; dir?: string; daemon?: boolean }
   | { kind: "attach" }
+  | { kind: "doctor"; json?: boolean; timeoutMs?: number }
   | { kind: "update"; force?: boolean }
   | { kind: "invalid"; arg: string };
 
@@ -76,6 +77,15 @@ export function parseCliArgs(argv: string[]): CliCommand {
   if (a === "--version" || a === "-v") return { kind: "version" };
   if (a === "--help" || a === "-h") return { kind: "help" };
   if (a === "attach") return { kind: "attach" };
+  if (a === "doctor") {
+    const rest = args.slice(1);
+    const { flags } = readFlags(rest.filter((r) => r !== "--json"));
+    return {
+      kind: "doctor",
+      json: rest.includes("--json"),
+      timeoutMs: seedTimeFrom(flags.timeout),
+    };
+  }
   if (a === "update") return { kind: "update", force: args.slice(1).includes("--force") };
   if (a === "watch") {
     const { bools, rest: r0 } = splitBooleans(args.slice(1));
@@ -133,6 +143,7 @@ usage
   torlnk serve                headless: HTTP add API (POST /add) on :9161
   torlnk files                headless: serve downloads over HTTP on :9160
   torlnk attach               open/reattach the TUI in a persistent tmux session
+  torlnk doctor               check every search source and report which still work
   torlnk update [--force]     update to the latest release and restart any daemon
                               (--force rebuilds/restarts even if already current)
   torlnk --version            print the version
@@ -155,6 +166,14 @@ file), so you can log out and it keeps running. Prints the pid and log path.
 torlnk attach: run the TUI inside a persistent tmux session. Detach with
 tmux's ctrl-b d, log out, then torlnk attach again to reattach where you
 left off. Downloads and seeds keep running while detached.
+
+doctor mode (no TUI): asks every source for its latest feed and grades the
+answer, so a site that changed its markup shows up as a broken parse instead of
+a silently empty search. Each row reports how many results came back and how
+many were usable; exits non-zero if any source is unhealthy, so it works as a
+scheduled check.
+  --json            print the report as JSON instead of a table
+  --timeout <dur>   per-source deadline (default 20s)
 
 serve mode (no TUI): a small HTTP API for handing torlink a magnet.
   POST /add {"magnet":"..."}   queue a magnet or info hash

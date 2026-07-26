@@ -3,7 +3,5 @@ declare module "parse-torrent" {
     infoHash: string;
     name?: string;
   }
-  export default function parseTorrent(
-    torrentId: Uint8Array | string,
-  ): Promise<ParsedTorrent>;
+  export default function parseTorrent(torrentId: Uint8Array | string): Promise<ParsedTorrent>;
 }

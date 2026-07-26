@@ -1,0 +1,4 @@
+# torlink is developed on Windows, macOS and Linux, and CI runs `prettier
+# --check` on all three. Normalizing to LF in the working tree keeps a Windows
+# checkout from failing that check on line endings alone.
+* text=auto eol=lf

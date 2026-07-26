@@ -36,9 +36,7 @@ const DEEP_PAGE_RETRIES = 2;
 
 function feedUrl(base: string, query: string, page: number): string {
   const q = query.trim();
-  const url = q
-    ? `${base}/?s=${encodeURIComponent(q)}&feed=rss2`
-    : `${base}/feed/`;
+  const url = q ? `${base}/?s=${encodeURIComponent(q)}&feed=rss2` : `${base}/feed/`;
   if (page <= 1) return url;
   return `${url}${q ? "&" : "?"}paged=${page}`;
 }

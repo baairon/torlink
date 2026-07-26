@@ -154,10 +154,7 @@ export function App({
           : null;
       if (launch) {
         await fs.mkdir(cfg.downloadDir, { recursive: true }).catch(() => {});
-        q.add(
-          { id: launch.infoHash, name: launch.name, magnet: launch.magnet },
-          cfg.downloadDir,
-        );
+        q.add({ id: launch.infoHash, name: launch.name, magnet: launch.magnet }, cfg.downloadDir);
         setView("browser");
         setSection("downloads");
         setRegion("content");
@@ -229,14 +226,17 @@ export function App({
       closeTrackersPrompt();
       if (!config) return;
       const same =
-        list.length === config.trackers.length &&
-        list.every((t, i) => t === config.trackers[i]);
+        list.length === config.trackers.length && list.every((t, i) => t === config.trackers[i]);
       if (same) {
         setNotice("Trackers unchanged.");
         return;
       }
       setConfig({ ...config, trackers: list });
-      setNotice(list.length === 0 ? "Cleared extra trackers." : `Saved ${list.length} tracker${list.length === 1 ? "" : "s"}.`);
+      setNotice(
+        list.length === 0
+          ? "Cleared extra trackers."
+          : `Saved ${list.length} tracker${list.length === 1 ? "" : "s"}.`,
+      );
     },
     [config, setConfig, closeTrackersPrompt],
   );
@@ -414,11 +414,7 @@ export function App({
   const compact = rows < 18;
   const showTopRule = !compact;
   const showFooter = rows >= 12;
-  const chrome =
-    3 +
-    (showTopRule ? 1 : 0) +
-    (compact ? 0 : 1) +
-    (showFooter ? 1 : 0);
+  const chrome = 3 + (showTopRule ? 1 : 0) + (compact ? 0 : 1) + (showFooter ? 1 : 0);
   const bodyH = Math.max(6, rows - 1 - chrome);
   const listRows = Math.max(4, bodyH);
   const contentWidth = Math.max(24, cols - RAIL_WIDTH - 3);
@@ -633,7 +629,9 @@ export function App({
         <Box
           height={bodyH}
           marginTop={compact ? 0 : 1}
-          display={showHelp || editingFolder || editingTrackers || pendingDownload ? "none" : "flex"}
+          display={
+            showHelp || editingFolder || editingTrackers || pendingDownload ? "none" : "flex"
+          }
           overflow="hidden"
         >
           <Sidebar />
@@ -649,7 +647,11 @@ export function App({
         </Box>
 
         {showFooter ? (
-          <Box display={showHelp || editingFolder || editingTrackers || pendingDownload ? "none" : "flex"}>
+          <Box
+            display={
+              showHelp || editingFolder || editingTrackers || pendingDownload ? "none" : "flex"
+            }
+          >
             <Footer hints={footerHints(region, section, downloadFocus, seedFocus)} />
           </Box>
         ) : null}

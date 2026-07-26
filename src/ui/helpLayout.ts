@@ -17,18 +17,18 @@ const ROWS_PER_GROUP = HELP_GROUPS.map((g) => g.hints.length + 1); // title + hi
 const LAYOUTS: number[][][] = [
   [[0], [1], [2], [3]], // 4-col
   [[0], [1, 3], [2]], // 3-col, Seeding under Search
-  [[0, 1], [2, 3]], // 2-col: browse column | transfers column
+  [
+    [0, 1],
+    [2, 3],
+  ], // 2-col: browse column | transfers column
   [[0, 1, 2, 3]], // 1-col
 ];
 
 export const MEASURED = LAYOUTS.map((layout) => {
   const colWidths = layout.map((col) => Math.max(...col.map((gi) => COL_W[gi]!)));
-  const width =
-    colWidths.reduce((a, b) => a + b, 0) + (layout.length - 1) * COL_GAP + FRAME;
+  const width = colWidths.reduce((a, b) => a + b, 0) + (layout.length - 1) * COL_GAP + FRAME;
   const gridH = Math.max(
-    ...layout.map(
-      (col) => col.reduce((a, gi) => a + ROWS_PER_GROUP[gi]!, 0) + (col.length - 1),
-    ),
+    ...layout.map((col) => col.reduce((a, gi) => a + ROWS_PER_GROUP[gi]!, 0) + (col.length - 1)),
   );
   return { layout, colWidths, width, gridH };
 });

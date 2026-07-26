@@ -57,7 +57,11 @@ async function resolveInput(dir: string, name: string): Promise<string | null> {
 
 // Process one candidate file: add it, then archive it by outcome. Returns the
 // outcome for logging/tests. Never throws — a bad file must not stop the loop.
-export async function processFile(runtime: Runtime, dir: string, name: string): Promise<AddOutcome> {
+export async function processFile(
+  runtime: Runtime,
+  dir: string,
+  name: string,
+): Promise<AddOutcome> {
   const input = await resolveInput(dir, name);
   let outcome: AddOutcome;
   try {

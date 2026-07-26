@@ -39,6 +39,10 @@ jobs:
 
       - run: npm run typecheck
 
+      # Formatting only. Runs on every OS in the matrix because a Windows
+      # checkout is where line endings would break it; see .gitattributes.
+      - run: npm run lint
+
       - run: npm test
 
       # Builds what `npm publish` would build, so a broken publish path is

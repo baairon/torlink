@@ -11,9 +11,7 @@ import {
 
 describe("torrent metadata export", () => {
   it("builds a safe .torrent filename from a torrent name", () => {
-    expect(torrentExportName('Bad:/Name?* "Final". ', "abc123")).toBe(
-      "Bad Name Final.torrent",
-    );
+    expect(torrentExportName('Bad:/Name?* "Final". ', "abc123")).toBe("Bad Name Final.torrent");
     expect(torrentExportName("   ", "abc123")).toBe("abc123.torrent");
   });
 

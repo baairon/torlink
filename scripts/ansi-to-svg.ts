@@ -45,10 +45,22 @@ const FONT_STACK =
   'ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, "DejaVu Sans Mono", monospace';
 
 const PALETTE16 = [
-  "#262626", "#ee7d92", "#86d6a2", "#f0c560",
-  "#8fb4d8", "#c79bd8", "#7fc8c4", "#ece4da",
-  "#7f7f7f", "#f59cab", "#a3e6bb", "#f7d68a",
-  "#a9c8e8", "#d8b3e8", "#9adcd8", "#fff8ef",
+  "#262626",
+  "#ee7d92",
+  "#86d6a2",
+  "#f0c560",
+  "#8fb4d8",
+  "#c79bd8",
+  "#7fc8c4",
+  "#ece4da",
+  "#7f7f7f",
+  "#f59cab",
+  "#a3e6bb",
+  "#f7d68a",
+  "#a9c8e8",
+  "#d8b3e8",
+  "#9adcd8",
+  "#fff8ef",
 ];
 
 function freshStyle(): Style {
@@ -81,8 +93,10 @@ function applySgr(style: Style, params: number[]): Style {
     if (p === 0) Object.assign(s, freshStyle());
     else if (p === 1) s.bold = true;
     else if (p === 2) s.dim = true;
-    else if (p === 22) { s.bold = false; s.dim = false; }
-    else if (p === 3) s.italic = true;
+    else if (p === 22) {
+      s.bold = false;
+      s.dim = false;
+    } else if (p === 3) s.italic = true;
     else if (p === 23) s.italic = false;
     else if (p === 7) s.inverse = true;
     else if (p === 27) s.inverse = false;
@@ -94,11 +108,13 @@ function applySgr(style: Style, params: number[]): Style {
       if (mode === 2) {
         const [r, g, b] = [params[i + 2] ?? 0, params[i + 3] ?? 0, params[i + 4] ?? 0];
         const c = `#${hex(r)}${hex(g)}${hex(b)}`;
-        if (isFg) s.fg = c; else s.bg = c;
+        if (isFg) s.fg = c;
+        else s.bg = c;
         i += 4;
       } else if (mode === 5) {
         const c = color256(params[i + 2] ?? 0);
-        if (isFg) s.fg = c; else s.bg = c;
+        if (isFg) s.fg = c;
+        else s.bg = c;
         i += 2;
       }
     } else if (p >= 30 && p <= 37) s.fg = PALETTE16[p - 30]!;
@@ -136,7 +152,11 @@ function parseLine(line: string, state: { style: Style }, cols: number): Run[] {
     const text = Array.from(part);
     if (text.length === 0) continue;
     const last = runs[runs.length - 1];
-    if (last && sameStyle(last.style, state.style) && last.col + Array.from(last.text).length === col) {
+    if (
+      last &&
+      sameStyle(last.style, state.style) &&
+      last.col + Array.from(last.text).length === col
+    ) {
       last.text += part;
     } else {
       runs.push({ col, text: part, style: { ...state.style } });
@@ -158,8 +178,7 @@ const fmt = (n: number): string => String(Math.round(n * 100) / 100);
 export function ansiToSvg(frame: string, opts: AnsiToSvgOptions): string {
   const { cols, bg = BG, title, maxWidth, shimmer = false } = opts;
   const lines = frame.replace(/\r/g, "").split("\n");
-  const isBlank = (l: string): boolean =>
-    l.replace(/\x1b\[[0-9;]*m/g, "").trim() === "";
+  const isBlank = (l: string): boolean => l.replace(/\x1b\[[0-9;]*m/g, "").trim() === "";
   while (lines.length > 0 && isBlank(lines[0]!)) lines.shift();
   while (lines.length > 0 && isBlank(lines[lines.length - 1]!)) lines.pop();
 
@@ -181,9 +200,7 @@ export function ansiToSvg(frame: string, opts: AnsiToSvgOptions): string {
       `  <text x="${fmt(width / 2)}" y="${fmt(HEADER_H / 2 + 5)}" text-anchor="middle" font-family='${FONT_STACK}' font-size="13" fill="#8a8a8a">${escapeXml(title)}</text>`,
     );
   }
-  out.push(
-    `  <g font-family='${FONT_STACK}' font-size="${FONT_SIZE}" fill="${FG_DEFAULT}">`,
-  );
+  out.push(`  <g font-family='${FONT_STACK}' font-size="${FONT_SIZE}" fill="${FG_DEFAULT}">`);
 
   const barRuns: { row: number; col: number; n: number; fg: string }[] = [];
   const trackLen = new Map<number, number>();
@@ -238,9 +255,14 @@ export function ansiToSvg(frame: string, opts: AnsiToSvgOptions): string {
           let rw = CHAR_W;
           let rh = LINE_H;
           if (ch === "▀") rh = half;
-          else if (ch === "▄") { ry = top + half; rh = half; }
-          else if (ch === "▌") rw = CHAR_W / 2;
-          else if (ch === "▐") { rx = cellLeft + CHAR_W / 2; rw = CHAR_W / 2; }
+          else if (ch === "▄") {
+            ry = top + half;
+            rh = half;
+          } else if (ch === "▌") rw = CHAR_W / 2;
+          else if (ch === "▐") {
+            rx = cellLeft + CHAR_W / 2;
+            rw = CHAR_W / 2;
+          }
           out.push(
             `    <rect x="${fmt(rx)}" y="${fmt(ry)}" width="${fmt(rw)}" height="${fmt(rh)}" fill="${fg}"${dim}/>`,
           );

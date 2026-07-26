@@ -110,7 +110,7 @@ describe("DownloadQueue error resilience on boot", () => {
           peers: 0,
           addedAt: Date.now(),
         },
-      ])
+      ]),
     ).not.toThrow();
 
     const errItem = q.getItems().find((i) => i.id === "err1");
@@ -127,9 +127,7 @@ describe("DownloadQueue error resilience on boot", () => {
       throw new Error("Chunk store init failed");
     };
 
-    expect(() =>
-      q.restoreSeeds([{ id: "h-broken", status: "seeding" }])
-    ).not.toThrow();
+    expect(() => q.restoreSeeds([{ id: "h-broken", status: "seeding" }])).not.toThrow();
 
     expect(q.getSeed("h-broken")?.status).toBe("paused");
     q.suspend();

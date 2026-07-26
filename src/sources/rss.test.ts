@@ -57,7 +57,11 @@ describe("fetchWordpressRss", () => {
   });
 
   it("counts magnetless news posts toward the full-page check", async () => {
-    const first = feed(newsItem("Upcoming Repacks"), newsItem("Updates Digest"), ...hashes(8, "a").map(item));
+    const first = feed(
+      newsItem("Upcoming Repacks"),
+      newsItem("Updates Digest"),
+      ...hashes(8, "a").map(item),
+    );
     mockFetch
       .mockResolvedValueOnce(page(first))
       .mockResolvedValueOnce(page(feed(...hashes(10, "b").map(item))))

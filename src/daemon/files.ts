@@ -72,7 +72,10 @@ export interface Range {
 // Parse a single-range `bytes=start-end` header against a known size. Returns
 // null for a missing/multi/malformed range (caller sends the whole file) and
 // "unsatisfiable" when the range falls outside the file (caller sends 416).
-export function parseRange(header: string | undefined, size: number): Range | null | "unsatisfiable" {
+export function parseRange(
+  header: string | undefined,
+  size: number,
+): Range | null | "unsatisfiable" {
   if (!header) return null;
   const m = /^bytes=(\d*)-(\d*)$/.exec(header.trim());
   if (!m) return null;

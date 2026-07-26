@@ -1,0 +1,15 @@
+# Keeps an editor's defaults from fighting prettier before you ever run it.
+# The formatter is still the source of truth; see .prettierrc.
+root = true
+
+[*]
+charset = utf-8
+indent_style = space
+indent_size = 2
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+[*.md]
+# Trailing spaces are a line break in markdown.
+trim_trailing_whitespace = false

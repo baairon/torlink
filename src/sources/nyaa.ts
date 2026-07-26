@@ -7,7 +7,11 @@ import type { SearchOptions, Source, TorrentResult } from "./types";
 const BASE = "https://nyaa.si/";
 
 function tag(item: string, name: string): string {
-  return item.match(new RegExp(`<${name}>(?:<!\\[CDATA\\[)?(.*?)(?:\\]\\]>)?</${name}>`, "s"))?.[1]?.trim() ?? "";
+  return (
+    item
+      .match(new RegExp(`<${name}>(?:<!\\[CDATA\\[)?(.*?)(?:\\]\\]>)?</${name}>`, "s"))?.[1]
+      ?.trim() ?? ""
+  );
 }
 
 async function search(query: string, opts: SearchOptions = {}): Promise<TorrentResult[]> {

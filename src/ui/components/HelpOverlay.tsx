@@ -40,11 +40,7 @@ export function HelpOverlay() {
             {col.map((gi, pos) => {
               const group = HELP_GROUPS[gi]!;
               return (
-                <Box
-                  key={group.title}
-                  flexDirection="column"
-                  marginTop={pos > 0 ? 1 : 0}
-                >
+                <Box key={group.title} flexDirection="column" marginTop={pos > 0 ? 1 : 0}>
                   <Text bold>{group.title}</Text>
                   {group.hints.map((h) => (
                     <Box key={h.keys + h.label}>

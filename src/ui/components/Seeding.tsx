@@ -23,7 +23,11 @@ function glyph(seed: SeedItem | undefined): { icon: string; color: string } {
 function statusCell(seed: SeedItem | undefined): { text: string; color?: string; dim: boolean } {
   if (!seed) return { text: "ready", dim: true };
   if (seed.status === "seeding") {
-    return { text: `${ICON.up}${formatBytesPerSec(seed.uploadSpeed) || "0 B/s"} ${ICON.peer}${seed.peers}`, color: COLOR.good, dim: false };
+    return {
+      text: `${ICON.up}${formatBytesPerSec(seed.uploadSpeed) || "0 B/s"} ${ICON.peer}${seed.peers}`,
+      color: COLOR.good,
+      dim: false,
+    };
   }
   if (seed.status === "paused") return { text: "paused", dim: true };
   return { text: "file gone", color: COLOR.warn, dim: false };
@@ -75,7 +79,10 @@ export function Seeding() {
   if (total === 0) {
     return (
       <Panel title="seeding" width={contentWidth} focused={focused} height={panelH}>
-        <Text dimColor>Nothing here yet. Downloads start seeding automatically when they finish, and show up here.</Text>
+        <Text dimColor>
+          Nothing here yet. Downloads start seeding automatically when they finish, and show up
+          here.
+        </Text>
       </Panel>
     );
   }
@@ -108,10 +115,14 @@ export function Seeding() {
         {seedingCount > 0 ? (
           <Text color={COLOR.good}>
             {ICON.up} {formatBytesPerSec(totalUp) || "0 B/s"}
-            <Text dimColor>{`  ${ICON.dot}  ${totalPeers} peers  ${ICON.dot}  ${formatBytes(totalShared)} shared back`}</Text>
+            <Text
+              dimColor
+            >{`  ${ICON.dot}  ${totalPeers} peers  ${ICON.dot}  ${formatBytes(totalShared)} shared back`}</Text>
           </Text>
         ) : (
-          <Text dimColor>Downloads seed automatically when they finish. Press p to pause or resume any of them.</Text>
+          <Text dimColor>
+            Downloads seed automatically when they finish. Press p to pause or resume any of them.
+          </Text>
         )}
       </Box>
 
@@ -120,16 +131,24 @@ export function Seeding() {
           <Box width={MARK} flexShrink={0} />
           <Box width={GUTTER} flexShrink={0} />
           <Box flexGrow={1} minWidth={0} marginLeft={1}>
-            <Text bold dimColor>Name</Text>
+            <Text bold dimColor>
+              Name
+            </Text>
           </Box>
           <Box width={SIZE_W} flexShrink={0} marginLeft={1} justifyContent="flex-end">
-            <Text bold dimColor>Size</Text>
+            <Text bold dimColor>
+              Size
+            </Text>
           </Box>
           <Box width={STATUS_W} flexShrink={0} marginLeft={1} justifyContent="flex-end">
-            <Text bold dimColor>Status</Text>
+            <Text bold dimColor>
+              Status
+            </Text>
           </Box>
           <Box width={SRC_W} flexShrink={0} marginLeft={1} justifyContent="flex-end">
-            <Text bold dimColor>Src</Text>
+            <Text bold dimColor>
+              Src
+            </Text>
           </Box>
         </Box>
 
@@ -142,13 +161,22 @@ export function Seeding() {
           return (
             <Box key={h.id}>
               <Box width={MARK} flexShrink={0}>
-                <Text color={COLOR.accent} bold>{here ? ICON.pointer : ""}</Text>
+                <Text color={COLOR.accent} bold>
+                  {here ? ICON.pointer : ""}
+                </Text>
               </Box>
               <Box width={GUTTER} flexShrink={0}>
-                <Text color={g.color} dimColor={!seed && !here}>{g.icon}</Text>
+                <Text color={g.color} dimColor={!seed && !here}>
+                  {g.icon}
+                </Text>
               </Box>
               <Box flexGrow={1} minWidth={0} marginLeft={1}>
-                <Text wrap="truncate-end" bold={here} color={here ? COLOR.accent : undefined} dimColor={!here}>
+                <Text
+                  wrap="truncate-end"
+                  bold={here}
+                  color={here ? COLOR.accent : undefined}
+                  dimColor={!here}
+                >
                   {cleanText(h.name)}
                 </Text>
               </Box>
@@ -156,7 +184,9 @@ export function Seeding() {
                 <Text dimColor>{h.sizeBytes > 0 ? formatBytes(h.sizeBytes) : "-"}</Text>
               </Box>
               <Box width={STATUS_W} flexShrink={0} marginLeft={1} justifyContent="flex-end">
-                <Text color={st.color} dimColor={st.dim}>{truncate(st.text, STATUS_W)}</Text>
+                <Text color={st.color} dimColor={st.dim}>
+                  {truncate(st.text, STATUS_W)}
+                </Text>
               </Box>
               <Box width={SRC_W} flexShrink={0} marginLeft={1} justifyContent="flex-end">
                 <Text color={h.source ? ss.color : undefined} dimColor={!h.source || !here}>

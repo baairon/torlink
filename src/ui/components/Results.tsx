@@ -12,7 +12,14 @@ import { stickCursor, wrapStep, windowStart, resultsPanelOuter } from "../move";
 import { sortResults, nextSort, sortLabel, sortArrow, type Sort, type SortField } from "../sort";
 import { filterResults } from "../filter";
 import { COLOR, GUTTER, ICON, sourceStyle } from "../theme";
-import { cleanText, formatBytes, formatCount, formatRelative, stripControl, truncate } from "../../util/format";
+import {
+  cleanText,
+  formatBytes,
+  formatCount,
+  formatRelative,
+  stripControl,
+  truncate,
+} from "../../util/format";
 import type { Source, TorrentResult } from "../../sources/types";
 
 type Mode = "list" | "search" | "detail" | "filter";
@@ -25,7 +32,9 @@ function DetailRow({ label, value }: { label: string; value: ReactNode }) {
       <Box width={9} flexShrink={0}>
         <Text dimColor>{label}</Text>
       </Box>
-      <Box flexGrow={1} minWidth={0}>{value}</Box>
+      <Box flexGrow={1} minWidth={0}>
+        {value}
+      </Box>
     </Box>
   );
 }
@@ -158,7 +167,9 @@ export function Results() {
 
   useEffect(() => {
     if (!focused) return;
-    setCaptureMode(mode === "search" || mode === "filter" ? "text" : mode === "detail" ? "esc" : "none");
+    setCaptureMode(
+      mode === "search" || mode === "filter" ? "text" : mode === "detail" ? "esc" : "none",
+    );
     return () => setCaptureMode("none");
   }, [mode, focused, setCaptureMode]);
 
@@ -283,16 +294,11 @@ export function Results() {
   // Only the active tab's sources hold its spinner; other groups' stragglers
   // stream in silently.
   const pending = tabSources.some((s) => search.perSource[s.id]?.loading);
-  const showStats = useMemo(
-    () => results.some((r) => r.sizeBytes > 0 || r.seeders > 0),
-    [results],
-  );
+  const showStats = useMemo(() => results.some((r) => r.sizeBytes > 0 || r.seeders > 0), [results]);
   const numW = Math.max(2, String(results.length).length);
 
   const outageCodes = (sources: readonly Source[]): string => {
-    const codes = [
-      ...new Set(sources.map((s) => search.perSource[s.id]?.code).filter(Boolean)),
-    ];
+    const codes = [...new Set(sources.map((s) => search.perSource[s.id]?.code).filter(Boolean))];
     return codes.length ? ` (${codes.join(", ")})` : "";
   };
 
@@ -339,22 +345,23 @@ export function Results() {
           ? search.results.filter((r) => getSource(r.source).groups?.includes(cat.group!))
           : search.results;
         if (base.length > 0 && base.every((r) => r.seeders <= 0)) {
-          return (
-            <Text dimColor>
-              All results have zero seeders. Press z to show them.
-            </Text>
-          );
+          return <Text dimColor>All results have zero seeders. Press z to show them.</Text>;
         }
       }
       if (search.results.length > 0 && activeCat?.group)
-        return <Text dimColor>{`No ${activeCat.label.toLowerCase()} results yet. Try another tab or a search.`}</Text>;
+        return (
+          <Text
+            dimColor
+          >{`No ${activeCat.label.toLowerCase()} results yet. Try another tab or a search.`}</Text>
+        );
       return (
         <Text dimColor>
           {browsing ? "Nothing new right now." : `No results for "${truncate(query, 28)}".`}
         </Text>
       );
     }
-    const note = erroredCount > 0 ? `  (${erroredCount} source${erroredCount === 1 ? "" : "s"} down)` : "";
+    const note =
+      erroredCount > 0 ? `  (${erroredCount} source${erroredCount === 1 ? "" : "s"} down)` : "";
     return <Text dimColor>{`${head}${note}${sortNote}${filterNote}`}</Text>;
   };
 
@@ -362,7 +369,9 @@ export function Results() {
     if (sort === "none" || sort.field !== field) return label;
     return (
       <>
-        <Text color={COLOR.accent} bold>{sortArrow(sort.dir)}</Text>
+        <Text color={COLOR.accent} bold>
+          {sortArrow(sort.dir)}
+        </Text>
         {label}
       </>
     );
@@ -401,27 +410,39 @@ export function Results() {
                   <Box>
                     <Box width={GUTTER} flexShrink={0} />
                     <Box width={numW} flexShrink={0} justifyContent="flex-end">
-                      <Text bold dimColor>#</Text>
+                      <Text bold dimColor>
+                        #
+                      </Text>
                     </Box>
                     <Box flexGrow={1} minWidth={0} marginLeft={1}>
-                      <Text bold dimColor>Name</Text>
+                      <Text bold dimColor>
+                        Name
+                      </Text>
                     </Box>
                     {showStats ? (
                       <>
                         <Box width={10} flexShrink={0} marginLeft={1} justifyContent="flex-end">
-                          <Text bold dimColor>{sortMark("size", "Size")}</Text>
+                          <Text bold dimColor>
+                            {sortMark("size", "Size")}
+                          </Text>
                         </Box>
                         <Box width={9} flexShrink={0} marginLeft={1} justifyContent="flex-end">
-                          <Text bold dimColor>{sortMark("seeders", "Seed:Lch")}</Text>
+                          <Text bold dimColor>
+                            {sortMark("seeders", "Seed:Lch")}
+                          </Text>
                         </Box>
                       </>
                     ) : (
                       <Box width={12} flexShrink={0} marginLeft={1} justifyContent="flex-end">
-                        <Text bold dimColor>Added</Text>
+                        <Text bold dimColor>
+                          Added
+                        </Text>
                       </Box>
                     )}
                     <Box width={4} flexShrink={0} marginLeft={1} justifyContent="flex-end">
-                      <Text bold dimColor>{sortMark("source", "Src")}</Text>
+                      <Text bold dimColor>
+                        {sortMark("source", "Src")}
+                      </Text>
                     </Box>
                   </Box>
                 ) : null}
@@ -453,7 +474,10 @@ export function Results() {
                             <Text dimColor>{r.sizeBytes > 0 ? formatBytes(r.sizeBytes) : "-"}</Text>
                           </Box>
                           <Box width={9} flexShrink={0} marginLeft={1} justifyContent="flex-end">
-                            <Text color={r.seeders > 0 ? COLOR.good : undefined} dimColor={r.seeders === 0}>
+                            <Text
+                              color={r.seeders > 0 ? COLOR.good : undefined}
+                              dimColor={r.seeders === 0}
+                            >
                               {r.seeders || r.leechers
                                 ? `${formatCount(r.seeders)}:${formatCount(r.leechers)}`
                                 : "-"}
@@ -492,9 +516,18 @@ export function Results() {
                 // Commit from the submit value / functional form, not the
                 // render closure: a same-tick burst (ctrl+u then enter) would
                 // otherwise resurrect the pre-clear text.
-                onSubmit={(value) => { setTextFilter(value.trim()); setMode("list"); }}
-                onExitDown={() => { setTextFilter((cur) => cur.trim()); setMode("list"); }}
-                onExitLeft={() => { setTextFilter((cur) => cur.trim()); setMode("list"); }}
+                onSubmit={(value) => {
+                  setTextFilter(value.trim());
+                  setMode("list");
+                }}
+                onExitDown={() => {
+                  setTextFilter((cur) => cur.trim());
+                  setMode("list");
+                }}
+                onExitLeft={() => {
+                  setTextFilter((cur) => cur.trim());
+                  setMode("list");
+                }}
               />
             ) : (
               <Text wrap="truncate-end">{textFilter}</Text>

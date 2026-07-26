@@ -57,6 +57,7 @@ torlink also runs without the TUI, for servers and seedboxes:
     torlnk serve          take magnets over HTTP
     torlnk files          stream finished downloads over HTTP
     torlnk attach         keep the TUI alive across ssh sessions
+    torlnk doctor         check every source and report which ones still work
 
 Add `--daemon` to keep watch, serve, or files running after you log out; `torlnk --help` has the full list of modes and flags.
 
