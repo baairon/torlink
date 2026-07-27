@@ -43,7 +43,7 @@ if (!hasDatachannel) {
     if (isDarwin) {
       process.stderr.write(
         'torlnk: WebRTC peers disabled on macOS to prevent high CPU usage/crashes; ' +
-          'TCP/UDP peers still work. https://github.com/baairon/torlink/issues/60\n'
+          'TCP/UDP peers still work. https://github.com/baairon/torlink/issues/119\n'
       );
     } else {
       process.stderr.write(
