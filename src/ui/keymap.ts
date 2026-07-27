@@ -28,10 +28,12 @@ export const HELP_GROUPS: HelpGroup[] = [
     hints: [
       { keys: "/", label: "Edit search" },
       { keys: "f", label: "Filter list" },
+      { keys: "i / ↵", label: "Inspect details" },
       { keys: "d", label: "Download (shift+d picks folder)" },
       { keys: "s", label: "Sort results" },
       { keys: "z", label: "Hide dead torrents" },
       { keys: "y", label: "Copy magnet" },
+      { keys: "h", label: "Copy infohash (in details)" },
       { keys: "m", label: "Paste magnet" },
     ],
   },

@@ -3,19 +3,20 @@ import { MEASURED, pickLayout } from "./helpLayout";
 
 describe("help layout measurement", () => {
   it("derives packing widths and grid heights from HELP_GROUPS", () => {
-    expect(MEASURED.map((m) => m.width)).toEqual([134, 113, 77, 41]);
-    expect(MEASURED.map((m) => m.gridH)).toEqual([8, 13, 17, 30]);
+    expect(MEASURED.map((m) => m.width)).toEqual([138, 117, 78, 42]);
+    expect(MEASURED.map((m) => m.gridH)).toEqual([10, 15, 19, 32]);
   });
 
   it("picks the widest packing that fits inside cols - 2", () => {
     expect(pickLayout(160).layout).toHaveLength(4);
-    expect(pickLayout(136).layout).toHaveLength(4);
-    expect(pickLayout(135).layout).toHaveLength(3);
-    expect(pickLayout(115).layout).toHaveLength(3);
-    expect(pickLayout(114).layout).toHaveLength(2);
+    expect(pickLayout(140).layout).toHaveLength(4);
+    expect(pickLayout(139).layout).toHaveLength(3);
+    expect(pickLayout(119).layout).toHaveLength(3);
+    expect(pickLayout(118).layout).toHaveLength(2);
     expect(pickLayout(80).layout).toHaveLength(2);
-    expect(pickLayout(79).layout).toHaveLength(2);
+    expect(pickLayout(79).layout).toHaveLength(1);
     expect(pickLayout(78).layout).toHaveLength(1);
     expect(pickLayout(40).layout).toHaveLength(1);
   });
 });
+

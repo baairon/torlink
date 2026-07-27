@@ -75,6 +75,31 @@ export function isInfoHash(input: string): boolean {
   return INFOHASH_RE.test(input.trim());
 }
 
+/**
+ * Extracts and decodes the announce URLs from the `tr=` parameters of a magnet
+ * URI. Returns an empty array for non-magnets or magnets without trackers.
+ * Duplicate URLs (case-insensitive) are removed so the UI never shows the same
+ * tracker twice.
+ */
+export function parseTrackers(magnet: string): string[] {
+  if (!/^magnet:\?/i.test(magnet.trim())) return [];
+  try {
+    const params = new URL(magnet.trim()).searchParams;
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const tr of params.getAll("tr")) {
+      const key = tr.toLowerCase();
+      if (!seen.has(key)) {
+        seen.add(key);
+        out.push(tr);
+      }
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}
+
 // Accepts either a magnet URI or a bare info hash. A bare hash is normalized and
 // wrapped with the default public trackers via buildMagnet, so it downloads over
 // the DHT (enabled by default in the Node client) plus those trackers, exactly

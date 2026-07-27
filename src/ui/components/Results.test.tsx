@@ -12,6 +12,14 @@ import { Results } from "./Results";
 import type { ConcurrentSearchState } from "../hooks/useConcurrentSearch";
 import type { TorrentResult } from "../../sources/types";
 
+// Prevent real OS-clipboard calls; spy lets tests verify what was written.
+const clipboardWrite = vi.hoisted(() => vi.fn().mockResolvedValue(true));
+vi.mock("../../util/clipboard", () => ({
+  readClipboard: vi.fn().mockResolvedValue(""),
+  writeClipboard: clipboardWrite,
+}));
+
+
 const searchState = vi.hoisted(() => ({ current: null as unknown }));
 
 vi.mock("../hooks/useConcurrentSearch", () => ({
@@ -183,5 +191,112 @@ describe("Results filter UI", () => {
     u.press(KEY.enter);
     await vi.waitFor(() => expect(u.frame()).not.toContain("Filter"));
     expect(u.frame()).toContain("Results (8)");
+  });
+});
+
+// ─── Details panel ───────────────────────────────────────────────────────────
+
+const HASH = "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2";
+const TR1 = "udp://tracker.opentrackr.org:1337/announce";
+const TR2 = "udp://open.stealth.si:80/announce";
+
+const withTrackers: TorrentResult = {
+  infoHash: HASH,
+  name: "Cool Movie 2024 1080p BluRay",
+  source: "yts",
+  sizeBytes: 2_800_000_000,
+  seeders: 842,
+  leechers: 91,
+  magnet: `magnet:?xt=urn:btih:${HASH}&dn=Cool+Movie+2024&tr=${encodeURIComponent(TR1)}&tr=${encodeURIComponent(TR2)}`,
+  added: 1_760_000_000,
+};
+
+// Render with enough rows that the detail panel is never clipped by the
+// terminal height. 40 rows is generous; the panel fits in ~18.
+async function mountDetail(result = withTrackers): Promise<RenderedUI> {
+  searchState.current = settled([result]);
+  const startDownload = vi.fn();
+  const copyMagnet = vi.fn();
+  const setNotice = vi.fn();
+  const store = makeTestStore({
+    query: "cool movie",
+    startDownload,
+    copyMagnet,
+    setNotice,
+    // Larger budget so detail rows are never scrolled off.
+    listRows: 30,
+    rows: 40,
+  });
+  const u = renderUI(
+    <StoreContext.Provider value={store}>
+      <Results />
+    </StoreContext.Provider>,
+    { rows: 40 },
+  );
+  await vi.waitFor(() => expect(u.frame()).toContain("Results (1)"));
+  return u;
+}
+
+// Panel.tsx capitalises the first letter of its title prop.
+const PANEL_TITLE = "Details";
+
+describe("Details panel", () => {
+  afterEach(() => {
+    clipboardWrite.mockClear();
+  });
+
+  it("pressing i opens the detail panel and shows the title", async () => {
+    const u = await mountDetail();
+    u.press("i");
+    await vi.waitFor(() => expect(u.frame()).toContain(PANEL_TITLE));
+    expect(u.frame()).toContain("Cool Movie 2024 1080p BluRay");
+  });
+
+  it("pressing Enter also opens the detail panel (regression guard)", async () => {
+    const u = await mountDetail();
+    u.press(KEY.enter);
+    await vi.waitFor(() => expect(u.frame()).toContain(PANEL_TITLE));
+    expect(u.frame()).toContain("Cool Movie 2024 1080p BluRay");
+  });
+
+  it("Esc from detail mode returns to the list", async () => {
+    const u = await mountDetail();
+    u.press("i");
+    await vi.waitFor(() => expect(u.frame()).toContain(PANEL_TITLE));
+    u.press(KEY.esc);
+    await vi.waitFor(() => expect(u.frame()).toContain("Results (1)"));
+    expect(u.frame()).not.toContain("Trackers");
+  });
+
+  it("shows the infohash inside the detail panel", async () => {
+    const u = await mountDetail();
+    u.press("i");
+    await vi.waitFor(() => expect(u.frame()).toContain(PANEL_TITLE));
+    expect(u.frame()).toContain(HASH);
+  });
+
+  it("shows tracker URLs when the magnet contains tr= parameters", async () => {
+    const u = await mountDetail();
+    u.press("i");
+    await vi.waitFor(() => expect(u.frame()).toContain("Trackers"));
+    // Tracker lines may be truncated at terminal width; check a unique prefix.
+    expect(u.frame()).toContain("tracker.opentrackr.org");
+    expect(u.frame()).toContain("open.stealth.si");
+  });
+
+  it("does not show the Trackers section when the magnet has no tr= params", async () => {
+    const bare: TorrentResult = { ...withTrackers, magnet: `magnet:?xt=urn:btih:${HASH}&dn=X` };
+    const u = await mountDetail(bare);
+    u.press("i");
+    await vi.waitFor(() => expect(u.frame()).toContain(PANEL_TITLE));
+    expect(u.frame()).not.toContain("Trackers");
+  });
+
+  it("h copies the infohash to the clipboard", async () => {
+    const u = await mountDetail();
+    u.press("i");
+    await vi.waitFor(() => expect(u.frame()).toContain(PANEL_TITLE));
+    u.press("h");
+    await vi.waitFor(() => expect(clipboardWrite).toHaveBeenCalledWith(HASH));
   });
 });

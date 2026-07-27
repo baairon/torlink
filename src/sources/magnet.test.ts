@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { parseMagnet, parseInput, isInfoHash, normalizeInfoHash, buildMagnet } from "./magnet";
+import { parseMagnet, parseInput, isInfoHash, normalizeInfoHash, buildMagnet, parseTrackers } from "./magnet";
+
 
 describe("parseMagnet", () => {
   it("keeps a full 40-char hex info hash", () => {
@@ -95,5 +96,43 @@ describe("parseInput", () => {
     expect(parseInput("g".repeat(40))).toBeNull(); // 40 chars but not hex
     expect(parseInput("magnet:?xt=urn:btih:tooshort")).toBeNull();
     expect(parseInput("")).toBeNull();
+  });
+});
+
+describe("parseTrackers", () => {
+  const HASH = "abcdef0123456789abcdef0123456789abcdef01";
+
+  it("returns decoded tracker URLs from tr= parameters", () => {
+    const tr1 = "udp://tracker.opentrackr.org:1337/announce";
+    const tr2 = "udp://open.stealth.si:80/announce";
+    const magnet = `magnet:?xt=urn:btih:${HASH}&tr=${encodeURIComponent(tr1)}&tr=${encodeURIComponent(tr2)}`;
+    const trackers = parseTrackers(magnet);
+    expect(trackers).toHaveLength(2);
+    expect(trackers[0]).toBe(tr1);
+    expect(trackers[1]).toBe(tr2);
+  });
+
+  it("returns an empty array when there are no tr= parameters", () => {
+    const magnet = `magnet:?xt=urn:btih:${HASH}&dn=SomeName`;
+    expect(parseTrackers(magnet)).toEqual([]);
+  });
+
+  it("deduplicates trackers that appear more than once (case-insensitive)", () => {
+    const tr = "udp://tracker.opentrackr.org:1337/announce";
+    const magnet = `magnet:?xt=urn:btih:${HASH}&tr=${encodeURIComponent(tr)}&tr=${encodeURIComponent(tr.toUpperCase())}`;
+    expect(parseTrackers(magnet)).toHaveLength(1);
+  });
+
+  it("returns an empty array for non-magnet strings", () => {
+    expect(parseTrackers("https://example.com")).toEqual([]);
+    expect(parseTrackers("")).toEqual([]);
+    expect(parseTrackers("not a magnet")).toEqual([]);
+  });
+
+  it("handles a magnet built by buildMagnet and extracts all trackers", () => {
+    const magnet = buildMagnet(HASH, "Cool Movie");
+    const trackers = parseTrackers(magnet);
+    expect(trackers.length).toBeGreaterThan(0);
+    expect(trackers[0]).toContain("tracker");
   });
 });

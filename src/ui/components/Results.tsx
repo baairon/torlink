@@ -13,6 +13,8 @@ import { sortResults, nextSort, sortLabel, sortArrow, type Sort, type SortField 
 import { filterResults } from "../filter";
 import { COLOR, GUTTER, ICON, sourceStyle } from "../theme";
 import { cleanText, formatBytes, formatCount, formatRelative, stripControl, truncate } from "../../util/format";
+import { parseTrackers } from "../../sources/magnet";
+import { writeClipboard } from "../../util/clipboard";
 import type { Source, TorrentResult } from "../../sources/types";
 
 type Mode = "list" | "search" | "detail" | "filter";
@@ -30,9 +32,14 @@ function DetailRow({ label, value }: { label: string; value: ReactNode }) {
   );
 }
 
+// Maximum number of tracker lines shown in the detail panel. Keeps the layout
+// stable on small terminals without hiding all trackers for typical magnets.
+const MAX_TRACKERS = 6;
+
 function Detail({ r, width }: { r: TorrentResult; width: number }) {
   const ss = sourceStyle(r.source);
   const date = formatRelative(r.added);
+  const trackers = parseTrackers(r.magnet);
   const health =
     r.seeders || r.leechers ? (
       <Text>
@@ -83,25 +90,33 @@ function Detail({ r, width }: { r: TorrentResult; width: number }) {
             </Text>
           }
         />
-        <DetailRow
-          label="Magnet"
-          value={
-            <Text color={COLOR.alt} dimColor wrap="truncate-end">
-              {stripControl(r.magnet)}
-            </Text>
-          }
-        />
+        {trackers.length > 0 ? (
+          <Box marginTop={1} flexDirection="column">
+            <Box>
+              <Text bold dimColor>Trackers</Text>
+              {trackers.length > MAX_TRACKERS ? (
+                <Text dimColor>{` (${trackers.length}, showing ${MAX_TRACKERS})`}</Text>
+              ) : null}
+            </Box>
+            {trackers.slice(0, MAX_TRACKERS).map((tr) => (
+              <Box key={tr} marginLeft={1}>
+                <Text color={COLOR.alt} dimColor wrap="truncate-end">
+                  {stripControl(tr)}
+                </Text>
+              </Box>
+            ))}
+          </Box>
+        ) : null}
       </Box>
       <Box marginTop={1}>
-        <Text color={COLOR.accent} bold>
-          d
-        </Text>
+        <Text color={COLOR.accent} bold>d</Text>
         <Text color={COLOR.text}> Download</Text>
         <Text dimColor>{`  ${ICON.dot}  `}</Text>
-        <Text color={COLOR.accent} bold>
-          y
-        </Text>
-        <Text color={COLOR.text}> Copy</Text>
+        <Text color={COLOR.accent} bold>y</Text>
+        <Text color={COLOR.text}> Copy magnet</Text>
+        <Text dimColor>{`  ${ICON.dot}  `}</Text>
+        <Text color={COLOR.accent} bold>h</Text>
+        <Text color={COLOR.text}> Copy hash</Text>
         <Text dimColor>{`  ${ICON.dot}  `}</Text>
         <Text color={COLOR.alt}>esc</Text>
         <Text dimColor> back</Text>
@@ -121,6 +136,7 @@ export function Results() {
     startDownload,
     requestDownloadTo,
     copyMagnet,
+    setNotice,
     contentWidth,
     listRows,
   } = useStore();
@@ -225,7 +241,7 @@ export function Results() {
         moveTo(Math.max(0, clamped - pageJump));
       } else if (key.pageDown) {
         moveTo(Math.min(results.length - 1, clamped + pageJump));
-      } else if (key.return) {
+      } else if (key.return || input === "i") {
         const r = results[clamped];
         if (r) {
           setDetail(r);
@@ -253,6 +269,16 @@ export function Results() {
       } else if (input === "d" && detail) openDownload(detail);
       else if (input === "D" && detail) openDownloadTo(detail);
       else if (input === "y" && detail) copyResultMagnet(detail);
+      else if (input === "h" && detail) {
+        void (async () => {
+          const ok = await writeClipboard(detail.infoHash);
+          if (ok) {
+            setNotice(`Copied hash: ${truncate(detail.infoHash, 44)}`);
+          } else {
+            setNotice(`Couldn't copy hash for ${truncate(cleanText(detail.name), 32)}.`);
+          }
+        })();
+      }
     },
     { isActive: focused && mode === "detail" },
   );
