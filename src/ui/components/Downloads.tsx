@@ -93,6 +93,7 @@ export function Downloads() {
             source: h.source,
             sizeBytes: h.sizeBytes,
           });
+        else if (input === "p") queue.toggleSeeding(h);
         else if (input === "c") queue.removeHistory(h.id);
         // Clear-all lives here, not at the top of the chain, so it can only
         // fire while the cursor is actually on the recent list.

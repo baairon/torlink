@@ -53,6 +53,7 @@ export interface AddInput {
   magnet: string;
   source?: SourceId;
   sizeBytes?: number;
+  selections?: boolean[];
 }
 
 export interface RestoreOptions {
@@ -124,6 +125,7 @@ export class DownloadQueue extends EventEmitter {
           ...(existing.dir === dir
             ? {}
             : { progress: 0, downloadedBytes: 0, eta: undefined }),
+          selections: input.selections ?? existing.selections,
         }
       : {
           id: input.id,
@@ -138,6 +140,7 @@ export class DownloadQueue extends EventEmitter {
           speed: 0,
           peers: 0,
           addedAt: Date.now(),
+          selections: input.selections,
         };
     // Respect the concurrent-download cap: start now if a slot is free, else
     // hold the torrent as "queued" until one frees (see promote()).
@@ -154,7 +157,7 @@ export class DownloadQueue extends EventEmitter {
 
   private startEngine(item: QueueItem): void {
     try {
-      this.engine.add(item.id, item.magnet, item.dir, this.engineHandlers(item.id), this.trackers);
+      this.engine.add(item.id, item.magnet, item.dir, this.engineHandlers(item.id), this.trackers, item.selections);
     } catch (e) {
       // engine.add routes webtorrent's own synchronous failures through
       // onError, so the only throw that reaches here is the client failing to
@@ -284,6 +287,7 @@ export class DownloadQueue extends EventEmitter {
       uploadSpeed: 0,
       uploaded: 0,
       peers: 0,
+      selections: it.selections,
     });
     this.strayHits.set(it.id, 0);
     this.seedStartedAt.set(it.id, Date.now());
@@ -726,5 +730,14 @@ export class DownloadQueue extends EventEmitter {
       this.poll = null;
     }
     this.engine.destroy();
+  }
+
+  fetchMetadata(
+    magnet: string,
+    trackers: string[],
+    onResult: (meta: any, files: any[]) => void,
+    onError: (err: Error) => void
+  ): () => void {
+    return this.engine.fetchMetadata(magnet, trackers, onResult, onError);
   }
 }
