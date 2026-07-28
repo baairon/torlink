@@ -4,7 +4,6 @@ import { Panel } from "./Panel";
 import { PromptHints } from "./PromptHints";
 import { Spinner } from "./Spinner";
 import { COLOR, ICON } from "../theme";
-import { parseTrackers } from "../../sources/magnet";
 import { formatBytes, truncate } from "../../util/format";
 
 interface FileSelectionPromptProps {
@@ -32,7 +31,10 @@ export function FileSelectionPrompt({
   const [cursor, setCursor] = useState(0);
 
   useEffect(() => {
-    const magnetTrackers = parseTrackers(magnet);
+    const magnetTrackers: string[] = [];
+    try {
+      new URL(magnet).searchParams.getAll("tr").forEach((t) => magnetTrackers.push(t));
+    } catch {}
     const allTrackers = Array.from(new Set([...magnetTrackers, ...trackers]));
     const cancel = fetchMetadata(
       magnet,
@@ -103,7 +105,7 @@ export function FileSelectionPrompt({
           </Box>
         ) : error ? (
           <Box paddingX={1}>
-            <Text color={COLOR.danger}>{`Error: ${truncate(error, width - 12)}`}</Text>
+            <Text color={COLOR.bad}>{`Error: ${truncate(error, width - 12)}`}</Text>
           </Box>
         ) : (
           <Box flexDirection="column" width="100%">
@@ -112,7 +114,7 @@ export function FileSelectionPrompt({
               <Box flexGrow={1} />
               <Text color={COLOR.accent}>{`${selectedCount}/${totalCount} files`}</Text>
             </Box>
-            {viewFiles.map((f, i) => {
+            {viewFiles.map((f: { path: string; length: number }, i: number) => {
               const absIndex = offset + i;
               const isFocused = absIndex === cursor;
               const isSelected = viewSelections[i];
@@ -121,7 +123,7 @@ export function FileSelectionPrompt({
                   <Text color={isFocused ? COLOR.accent : COLOR.text}>
                     {isFocused ? ICON.pointer : " "}
                   </Text>
-                  <Text color={isSelected ? COLOR.success : COLOR.text}>
+                  <Text color={isSelected ? COLOR.good : COLOR.text}>
                     {isSelected ? "[x]" : "[ ]"}
                   </Text>
                   <Text> </Text>
