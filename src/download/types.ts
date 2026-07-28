@@ -18,6 +18,7 @@ export interface SeedItem {
   uploadSpeed: number;
   uploaded: number;
   peers: number;
+  selections?: boolean[];
 }
 
 export interface QueueItem {
@@ -36,4 +37,5 @@ export interface QueueItem {
   files?: number;
   error?: string;
   addedAt: number;
+  selections?: boolean[];
 }

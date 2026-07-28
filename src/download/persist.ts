@@ -48,6 +48,7 @@ export type PersistedSeedStatus = "seeding" | "paused";
 export interface SeedRecord {
   id: string;
   status: PersistedSeedStatus;
+  selections?: boolean[];
 }
 
 export function saveSeeds(records: SeedRecord[]): Promise<void> {
@@ -129,7 +130,11 @@ export async function loadSeeds(): Promise<SeedRecord[]> {
       } else if (el && typeof el === "object") {
         const r = el as Record<string, unknown>;
         if (typeof r.id === "string" && (r.status === "seeding" || r.status === "paused")) {
-          out.push({ id: r.id, status: r.status });
+          out.push({
+            id: r.id,
+            status: r.status,
+            selections: Array.isArray(r.selections) ? r.selections as boolean[] : undefined,
+          });
         }
       }
     }

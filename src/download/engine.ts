@@ -35,6 +35,7 @@ export function message(e: unknown): string {
 export class TorrentEngine {
   private client: WebTorrent | null = null;
   private torrents = new Map<string, Torrent>();
+  private selections = new Map<string, boolean[]>();
 
   private ensureClient(): WebTorrent {
     if (!this.client) {
@@ -63,14 +64,20 @@ export class TorrentEngine {
     dir: string,
     handlers: AddHandlers,
     announce?: string[],
+    selections?: boolean[],
   ): void {
     const client = this.ensureClient();
     const existing = this.torrents.get(id);
     if (existing) {
       this.torrents.delete(id);
+      this.selections.delete(id);
       try {
         existing.destroy();
       } catch {}
+    }
+
+    if (selections) {
+      this.selections.set(id, selections);
     }
 
     const opts = announce && announce.length > 0 ? { path: dir, announce } : { path: dir };
@@ -84,6 +91,13 @@ export class TorrentEngine {
     this.torrents.set(id, torrent);
 
     torrent.on("metadata", () => {
+      if (selections && torrent.files) {
+        for (let i = 0; i < torrent.files.length; i++) {
+          if (i < selections.length && !selections[i]) {
+            torrent.files[i]!.deselect();
+          }
+        }
+      }
       handlers.onMetadata?.({
         name: torrent.name,
         total: torrent.length,
@@ -99,10 +113,64 @@ export class TorrentEngine {
     torrent.on("error", (err: unknown) => {
       handlers.onError?.(message(err));
       this.torrents.delete(id);
+      this.selections.delete(id);
       try {
         torrent.destroy();
       } catch {}
     });
+  }
+
+  fetchMetadata(
+    source: string,
+    trackers: string[],
+    onResult: (meta: TorrentMeta, files: { path: string; length: number }[]) => void,
+    onError: (err: Error) => void
+  ): () => void {
+    const client = this.ensureClient();
+    
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const memoryStore = require("memory-chunk-store");
+    const opts = trackers.length > 0 ? { announce: trackers, store: memoryStore } : { store: memoryStore };
+    
+    let torrent: Torrent;
+    try {
+      torrent = client.add(source, opts);
+    } catch (e) {
+      onError(e instanceof Error ? e : new Error(String(e)));
+      return () => {};
+    }
+
+    const onMetadata = () => {
+      onResult({
+        name: torrent.name,
+        total: torrent.length,
+        files: torrent.files?.length ?? 0,
+        torrentFile: torrent.torrentFile,
+      }, (torrent.files || []).map((f) => ({ path: f.path, length: f.length })));
+    };
+
+    if (torrent.ready || (torrent as any).metadata) {
+      onMetadata();
+      return () => {};
+    }
+
+    const cleanup = () => {
+      try {
+        torrent.destroy();
+      } catch {}
+    };
+
+    torrent.on("metadata", () => {
+      onMetadata();
+      cleanup();
+    });
+
+    torrent.on("error", (err: unknown) => {
+      onError(err instanceof Error ? err : new Error(String(err)));
+      cleanup();
+    });
+
+    return cleanup;
   }
 
   // The TCP port the client accepts incoming peers on (diagnostics / tests).
@@ -125,14 +193,41 @@ export class TorrentEngine {
     let name = "";
 
     try {
-      progress = t.progress || 0;
-      downloaded = t.downloaded || 0;
-      total = t.length || 0;
+      const sel = this.selections.get(id);
+      let customSels = false;
+      if (sel && t.files) {
+        for (let i = 0; i < t.files.length; i++) {
+          if (i < sel.length && !sel[i]) {
+            customSels = true;
+            break;
+          }
+        }
+      }
+
       speed = t.downloadSpeed || 0;
+      if (customSels && t.files) {
+        let selTotal = 0;
+        let selDown = 0;
+        for (let i = 0; i < t.files.length; i++) {
+          if (i < sel!.length && sel![i]) {
+            selTotal += t.files[i]!.length;
+            selDown += t.files[i]!.downloaded;
+          }
+        }
+        total = selTotal;
+        downloaded = Math.min(total, selDown);
+        progress = total === 0 ? 1 : downloaded / total;
+        timeRemaining = speed > 0 ? ((total - downloaded) / speed) * 1000 : Infinity;
+      } else {
+        progress = t.progress || 0;
+        downloaded = t.downloaded || 0;
+        total = t.length || 0;
+        timeRemaining = t.timeRemaining;
+      }
+
       uploadSpeed = t.uploadSpeed || 0;
       uploaded = t.uploaded || 0;
       peers = t.numPeers || 0;
-      timeRemaining = t.timeRemaining;
       name = t.name || "";
     } catch {
       // Every stat is read inside this try on purpose: webtorrent getters can
@@ -156,12 +251,12 @@ export class TorrentEngine {
 
   remove(id: string): void {
     const t = this.torrents.get(id);
+    if (!t) return;
     this.torrents.delete(id);
-    if (t) {
-      try {
-        t.destroy();
-      } catch {}
-    }
+    this.selections.delete(id);
+    try {
+      t.destroy();
+    } catch {}
   }
 
   destroy(): void {

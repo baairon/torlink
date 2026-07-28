@@ -42,6 +42,8 @@ import { TabTitle } from "./components/TabTitle";
 import { Splash } from "./views/Splash";
 import { FolderPrompt } from "./components/FolderPrompt";
 import { TrackersPrompt } from "./components/TrackersPrompt";
+import { FileSelectionPrompt } from "./components/FileSelectionPrompt";
+import { saveTorrentMeta } from "../download/persist";
 import { footerHints } from "./keymap";
 import { COLOR, ICON } from "./theme";
 import { useMouseWheel } from "./hooks/useMouseWheel";
@@ -104,6 +106,16 @@ export function App({
     magnet: string;
     source?: SourceId;
     sizeBytes?: number;
+  } | null>(null);
+  const [pendingFileSelection, setPendingFileSelection] = useState<{
+    input: {
+      id: string;
+      name: string;
+      magnet: string;
+      source?: SourceId;
+      sizeBytes?: number;
+    };
+    dir: string;
   } | null>(null);
   const [lastDownloadToDir, setLastDownloadToDir] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -263,6 +275,28 @@ export function App({
     [config, setConfig, closeFolderPrompt],
   );
 
+  const closeFileSelection = useCallback(() => {
+    setPendingFileSelection(null);
+  }, []);
+
+  const submitFileSelection = useCallback(
+    (selections: boolean[], meta: { torrentFile: Uint8Array }) => {
+      if (!queue || !pendingFileSelection) return;
+      const { input, dir } = pendingFileSelection;
+      setPendingFileSelection(null);
+      void (async () => {
+        if (meta.torrentFile) {
+          await saveTorrentMeta(input.id, meta.torrentFile);
+        }
+        queue.add({ ...input, selections }, dir);
+        setNotice(`Added: ${truncate(cleanText(input.name), 40)}`);
+        setSection("downloads");
+        setRegion("content");
+      })();
+    },
+    [queue, pendingFileSelection],
+  );
+
   const startDownload = useCallback(
     (input: {
       id: string;
@@ -272,11 +306,12 @@ export function App({
       sizeBytes?: number;
     }) => {
       if (!config || !queue) return;
-      void fs.mkdir(config.downloadDir, { recursive: true }).catch(() => {});
-      queue.add(input, config.downloadDir);
-      setNotice(`Added: ${truncate(cleanText(input.name), 40)}`);
-      setSection("downloads");
-      setRegion("content");
+      const existing = queue.getItems().find((it) => it.id === input.id);
+      if (existing && existing.status !== "failed") {
+        setNotice(`Already in queue: ${truncate(cleanText(input.name), 40)}`);
+        return;
+      }
+      setPendingFileSelection({ input, dir: config.downloadDir });
     },
     [config, queue],
   );
@@ -304,9 +339,6 @@ export function App({
       setPendingDownload(null);
       const dir = normalizeDownloadDir(raw);
       if (!queue || !input || !dir) return;
-      // add() ignores the dir for anything already active, so don't claim a
-      // folder that won't be used. Failed items fall through: a re-add with a
-      // fresh dir is exactly how a bad-disk download gets redirected.
       const existing = queue.getItems().find((it) => it.id === input.id);
       if (existing && existing.status !== "failed") {
         setNotice(`Already in queue: ${truncate(cleanText(input.name), 40)}`);
@@ -319,11 +351,7 @@ export function App({
           setNotice(`Couldn't use folder: ${truncate(dir, 48)}`);
           return;
         }
-        setLastDownloadToDir(dir);
-        queue.add(input, dir);
-        setNotice(`Added: ${truncate(cleanText(input.name), 28)} → ${truncate(dir, 36)}`);
-        setSection("downloads");
-        setRegion("content");
+        setPendingFileSelection({ input, dir });
       })();
     },
     [queue, pendingDownload],
@@ -436,7 +464,7 @@ export function App({
       submitQuery,
       section,
       setSection,
-      region: showHelp || editingFolder || editingTrackers || pendingDownload ? "help" : region,
+      region: showHelp || editingFolder || editingTrackers || pendingDownload || pendingFileSelection ? "help" : region,
       setRegion,
       captureMode,
       setCaptureMode,
@@ -470,6 +498,7 @@ export function App({
     editingFolder,
     editingTrackers,
     pendingDownload,
+    pendingFileSelection,
     captureMode,
     downloadFocus,
     seedFocus,
@@ -494,7 +523,7 @@ export function App({
         quitAll();
         return;
       }
-      if (editingFolder || editingTrackers || pendingDownload) return; // the prompt owns input (its own esc + enter)
+      if (editingFolder || editingTrackers || pendingDownload || pendingFileSelection) return; // the prompt owns input (its own esc + enter)
       if (captureMode === "text") return;
       if (showHelp) {
         setShowHelp(false);
@@ -630,10 +659,23 @@ export function App({
           </Box>
         ) : null}
 
+        {pendingFileSelection ? (
+          <Box marginTop={1}>
+            <FileSelectionPrompt
+              width={Math.max(24, Math.min(cols - 4, 78))}
+              magnet={pendingFileSelection.input.magnet}
+              trackers={store.config.trackers}
+              fetchMetadata={queue!.fetchMetadata.bind(queue!)}
+              onSubmit={submitFileSelection}
+              onCancel={closeFileSelection}
+            />
+          </Box>
+        ) : null}
+
         <Box
           height={bodyH}
           marginTop={compact ? 0 : 1}
-          display={showHelp || editingFolder || editingTrackers || pendingDownload ? "none" : "flex"}
+          display={showHelp || editingFolder || editingTrackers || pendingDownload || pendingFileSelection ? "none" : "flex"}
           overflow="hidden"
         >
           <Sidebar />
@@ -649,7 +691,7 @@ export function App({
         </Box>
 
         {showFooter ? (
-          <Box display={showHelp || editingFolder || editingTrackers || pendingDownload ? "none" : "flex"}>
+          <Box display={showHelp || editingFolder || editingTrackers || pendingDownload || pendingFileSelection ? "none" : "flex"}>
             <Footer hints={footerHints(region, section, downloadFocus, seedFocus)} />
           </Box>
         ) : null}
