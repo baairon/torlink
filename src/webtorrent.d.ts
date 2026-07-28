@@ -5,6 +5,7 @@ declare module "webtorrent" {
     name: string;
     path: string;
     length: number;
+    downloaded: number;
     select(): void;
     deselect(): void;
   }
