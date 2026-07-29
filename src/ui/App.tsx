@@ -24,6 +24,7 @@ import {
   type CaptureMode,
   type DownloadFocus,
   type Region,
+  type ResultFocus,
   type Section,
   type SeedFocus,
   type Store,
@@ -92,6 +93,7 @@ export function App({
   const [captureMode, setCaptureMode] = useState<CaptureMode>("none");
   const [downloadFocus, setDownloadFocus] = useState<DownloadFocus | null>(null);
   const [seedFocus, setSeedFocus] = useState<SeedFocus | null>(null);
+  const [resultFocus, setResultFocus] = useState<ResultFocus | null>(null);
   const [showHelp, setShowHelp] = useState(false);
   const [editingFolder, setEditingFolder] = useState(false);
   const [editingTrackers, setEditingTrackers] = useState(false);
@@ -366,6 +368,22 @@ export function App({
     [queue],
   );
 
+  const fetchAndExportTorrent = useCallback(
+    (input: { id: string; name: string; magnet: string }) => {
+      if (!queue || !config) return;
+      setNotice("Fetching torrent metadata…");
+      void (async () => {
+        const file = await queue.fetchAndExportTorrent(input, config.downloadDir);
+        if (file) {
+          setNotice(`Exported torrent file: ${truncate(file, 48)}`);
+          return;
+        }
+        setNotice(`Couldn't export torrent file for ${truncate(cleanText(input.name), 32)}.`);
+      })();
+    },
+    [queue, config],
+  );
+
   const submitQuery = useCallback(
     (raw: string) => {
       const q = raw.trim();
@@ -444,11 +462,14 @@ export function App({
       setDownloadFocus,
       seedFocus,
       setSeedFocus,
+      resultFocus,
+      setResultFocus,
       startDownload,
       requestDownloadTo,
       copyMagnet,
       openDownloadFolder,
       exportTorrent,
+      fetchAndExportTorrent,
       notice,
       setNotice,
       quitAll,
@@ -473,11 +494,13 @@ export function App({
     captureMode,
     downloadFocus,
     seedFocus,
+    resultFocus,
     startDownload,
     requestDownloadTo,
     copyMagnet,
     openDownloadFolder,
     exportTorrent,
+    fetchAndExportTorrent,
     notice,
     listRows,
     compact,
@@ -650,7 +673,7 @@ export function App({
 
         {showFooter ? (
           <Box display={showHelp || editingFolder || editingTrackers || pendingDownload ? "none" : "flex"}>
-            <Footer hints={footerHints(region, section, downloadFocus, seedFocus)} />
+            <Footer hints={footerHints(region, section, downloadFocus, seedFocus, resultFocus)} />
           </Box>
         ) : null}
       </Box>

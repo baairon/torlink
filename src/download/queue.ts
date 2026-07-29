@@ -405,6 +405,48 @@ export class DownloadQueue extends EventEmitter {
     return exportTorrentMeta(it.id, it.name, it.dir);
   }
 
+  // Fetch the .torrent metadata for a magnet-only result (e.g. a search hit
+  // that has never been downloaded) and export it to exportDir. If the metadata
+  // is already cached from a prior download it is exported immediately without
+  // touching the network. The torrent handle is destroyed as soon as metadata
+  // arrives — no file content is downloaded.
+  fetchAndExportTorrent(
+    input: { id: string; name: string; magnet: string },
+    exportDir: string,
+  ): Promise<string | null> {
+    // Fast path: cached from a previous download.
+    if (torrentMetaExists(input.id)) {
+      return exportTorrentMeta(input.id, input.name, exportDir);
+    }
+    // If this torrent is already in the engine (downloading / seeding), its
+    // metadata will arrive through the normal queue flow; don't double-add it.
+    if (this.items.has(input.id) || this.seeds.has(input.id)) {
+      return Promise.resolve(null);
+    }
+    return new Promise<string | null>((resolve) => {
+      const tempKey = `__meta__${input.id}`;
+      let done = false;
+      this.engine.add(tempKey, input.magnet, exportDir, {
+        onMetadata: (meta) => {
+          if (done) return;
+          done = true;
+          // Tear down synchronously before any file data can be written.
+          this.engine.remove(tempKey);
+          void (async () => {
+            if (meta.torrentFile) await saveTorrentMeta(input.id, meta.torrentFile);
+            resolve(await exportTorrentMeta(input.id, input.name, exportDir));
+          })();
+        },
+        onError: () => {
+          if (done) return;
+          done = true;
+          this.engine.remove(tempKey);
+          resolve(null);
+        },
+      });
+    });
+  }
+
   cancel(id: string): void {
     if (!this.items.has(id)) return;
     this.engine.remove(id);
