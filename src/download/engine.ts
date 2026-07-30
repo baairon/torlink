@@ -132,7 +132,7 @@ export class TorrentEngine {
       uploadSpeed = t.uploadSpeed || 0;
       uploaded = t.uploaded || 0;
       peers = t.numPeers || 0;
-      timeRemaining = t.timeRemaining;
+      timeRemaining = typeof t.timeRemaining === "number" && !isNaN(t.timeRemaining) ? t.timeRemaining : Infinity;
       name = t.name || "";
     } catch {
       // Every stat is read inside this try on purpose: webtorrent getters can
