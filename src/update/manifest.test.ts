@@ -35,7 +35,12 @@ describe("readManifest", () => {
 
   it("resolves this repo's own manifest from the source tree", () => {
     const m = readManifest();
-    expect(m?.name).toBe("torlnk");
+    // Read the manifest independently instead of hardcoding a name: what this
+    // test asserts is that resolution works, not which package it happens to be.
+    const own = JSON.parse(
+      fs.readFileSync(new URL("../../package.json", import.meta.url), "utf8")
+    ) as { name: string };
+    expect(m?.name).toBe(own.name);
     expect(m?.version).toMatch(/^\d+\.\d+\.\d+$/);
   });
 });

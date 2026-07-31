@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import fs from "node:fs";
 import { compareVersions, isNewer, fetchLatestVersion } from "./version";
 
 describe("compareVersions", () => {
@@ -53,7 +54,14 @@ describe("fetchLatestVersion", () => {
         return okResponse("9.9.9");
       },
     });
-    expect(urls).toEqual(["https://registry.npmjs.org/torlnk/latest"]);
+    // Derived, not hardcoded — the URL builder percent-encodes the name, so a
+    // scoped package name exercises that path too.
+    const own = JSON.parse(
+      fs.readFileSync(new URL("../../package.json", import.meta.url), "utf8")
+    ) as { name: string };
+    expect(urls).toEqual([
+      `https://registry.npmjs.org/${encodeURIComponent(own.name)}/latest`,
+    ]);
   });
   it("returns null on a non-ok response", async () => {
     const v = await fetchLatestVersion({
