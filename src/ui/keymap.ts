@@ -32,7 +32,7 @@ export const HELP_GROUPS: HelpGroup[] = [
       { keys: "s", label: "Sort results" },
       { keys: "z", label: "Hide dead torrents" },
       { keys: "y", label: "Copy magnet" },
-      { keys: "s", label: "Export as .torrent (no download)" },
+      { keys: "e", label: "Export as .torrent" },
       { keys: "m", label: "Paste magnet" },
     ],
   },
@@ -69,6 +69,8 @@ const SWITCH: Hint = { keys: "tab", label: "Switch" };
 const FOLDER: Hint = { keys: "e", label: "Folder" };
 
 const TORRENT: Hint = { keys: "s", label: "Export" };
+
+const EXPORT: Hint = { keys: "e", label: "Export" };
 
 export function footerHints(
   region: Region,
@@ -118,7 +120,7 @@ export function footerHints(
     // chosen folder) stays bound but lives in the `?` sheet alone.
     { keys: "d", label: "Download" },
     { keys: "y", label: "Copy" },
-    resultFocus === "detail" ? TORRENT : { keys: "s", label: "Sort" },
+    resultFocus === "detail" ? EXPORT : { keys: "s", label: "Sort" },
     { keys: "/", label: "Search" },
     { keys: "f", label: "Filter" },
     SWITCH,

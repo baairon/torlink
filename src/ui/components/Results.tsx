@@ -104,7 +104,7 @@ function Detail({ r, width }: { r: TorrentResult; width: number }) {
         <Text color={COLOR.text}> Copy</Text>
         <Text dimColor>{`  ${ICON.dot}  `}</Text>
         <Text color={COLOR.accent} bold>
-          s
+          e
         </Text>
         <Text color={COLOR.text}> Export</Text>
         <Text dimColor>{`  ${ICON.dot}  `}</Text>
@@ -266,7 +266,7 @@ export function Results() {
       } else if (input === "d" && detail) openDownload(detail);
       else if (input === "D" && detail) openDownloadTo(detail);
       else if (input === "y" && detail) copyResultMagnet(detail);
-      else if (input === "s" && detail)
+      else if (input === "e" && detail)
         fetchAndExportTorrent({ id: detail.infoHash, name: detail.name, magnet: detail.magnet });
     },
     { isActive: focused && mode === "detail" },

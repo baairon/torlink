@@ -1,7 +1,7 @@
 import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { DownloadQueue, strayDownload } from "./queue";
 import type { HistoryItem } from "./history";
 import { deleteTorrentMeta, saveTorrentMeta } from "./persist";
@@ -187,6 +187,41 @@ describe("DownloadQueue.fetchAndExportTorrent", () => {
       expect(file).toBeNull();
       expect(removed).toEqual(["__meta__gone1"]);
     } finally {
+      await fs.rm(outDir, { recursive: true, force: true });
+      q.suspend();
+    }
+  });
+
+  it("gives up after a metadata timeout and tears the handle down", async () => {
+    const q = new DownloadQueue();
+    const outDir = await fs.mkdtemp(path.join(os.tmpdir(), "torlink-fetch-export-"));
+    const removed: string[] = [];
+    const fakeEngine = (
+      q as unknown as {
+        engine: {
+          add: (id: string, magnet: string, dir: string, handlers: AddHandlers) => void;
+          remove: (id: string) => void;
+        };
+      }
+    ).engine;
+    // A magnet with no peers: neither onMetadata nor onError ever fires.
+    fakeEngine.add = () => {};
+    fakeEngine.remove = (id) => removed.push(id);
+    vi.useFakeTimers();
+    try {
+      const pending = q.fetchAndExportTorrent(
+        {
+          id: "stuck1",
+          name: "Stuck",
+          magnet: "magnet:?xt=urn:btih:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        },
+        outDir,
+      );
+      await vi.advanceTimersByTimeAsync(20_000);
+      expect(await pending).toBeNull();
+      expect(removed).toEqual(["__meta__stuck1"]);
+    } finally {
+      vi.useRealTimers();
       await fs.rm(outDir, { recursive: true, force: true });
       q.suspend();
     }

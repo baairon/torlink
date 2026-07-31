@@ -37,6 +37,11 @@ const STRAY_TICKS = 2; // consecutive stray polls before flagging missing (~1s)
 // missing file. 10 s covers most single-torrent verifications comfortably.
 const SEED_GRACE_MS = 10_000;
 
+// A magnet with no peers never fires onMetadata or onError, so a metadata-only
+// fetch (fetchAndExportTorrent) would otherwise hang forever. Give up after
+// this long and fall into the same "export failed" path as a real error.
+const FETCH_METADATA_TIMEOUT_MS = 20_000;
+
 const POLL_MS = 500;
 const HISTORY_MAX = 500;
 
@@ -426,10 +431,17 @@ export class DownloadQueue extends EventEmitter {
     return new Promise<string | null>((resolve) => {
       const tempKey = `__meta__${input.id}`;
       let done = false;
+      const timer = setTimeout(() => {
+        if (done) return;
+        done = true;
+        this.engine.remove(tempKey);
+        resolve(null);
+      }, FETCH_METADATA_TIMEOUT_MS);
       this.engine.add(tempKey, input.magnet, exportDir, {
         onMetadata: (meta) => {
           if (done) return;
           done = true;
+          clearTimeout(timer);
           // Tear down synchronously before any file data can be written.
           this.engine.remove(tempKey);
           void (async () => {
@@ -440,6 +452,7 @@ export class DownloadQueue extends EventEmitter {
         onError: () => {
           if (done) return;
           done = true;
+          clearTimeout(timer);
           this.engine.remove(tempKey);
           resolve(null);
         },
