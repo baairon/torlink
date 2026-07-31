@@ -1,0 +1,219 @@
+# Managed by sh1pt Actions Fleet
+# pack: vu1nz-scan@1.0.1
+# install: sh1pt-actions-store
+# hash: sha256:69dca6b225e64533cd02750003f56fd1ccb4f178c37f48d4398a8254a3fe887b
+name: vu1nz security scan
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  review:
+    name: Review PR for security vulnerabilities
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install vu1nz
+        run: pip install --quiet git+https://github.com/profullstack/vu1nz-gh-actions.git
+
+      - name: Load env file
+        env:
+          ENV_FILE: ${{ secrets.ENV_FILE }}
+        run: |
+          echo "$ENV_FILE" > "$RUNNER_TEMP/.env"
+          echo "Keys in ENV_FILE:"
+          grep -oP '^[A-Z_]+(?==)' "$RUNNER_TEMP/.env" || echo "(no keys found or different format)"
+          ANTHROPIC_API_KEY=$(grep -E '^ANTHROPIC_API_KEY=' "$RUNNER_TEMP/.env" | head -1 | sed 's/^ANTHROPIC_API_KEY=//')
+          if [ -n "$ANTHROPIC_API_KEY" ]; then
+            echo "::add-mask::$ANTHROPIC_API_KEY"
+            echo "ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY" >> "$GITHUB_ENV"
+            echo "ANTHROPIC_API_KEY found and exported"
+          else
+            echo "::warning::ANTHROPIC_API_KEY not found in ENV_FILE"
+          fi
+
+      - name: Review PR
+        id: review
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NO_COLOR: "1"
+          TERM: dumb
+        run: |
+          vu1nz review-pr main \
+            ${{ github.repository }} \
+            ${{ github.event.pull_request.number }} \
+            --token "$GITHUB_TOKEN" \
+            --json \
+            | tee "$RUNNER_TEMP/vu1nz-review-raw.txt" || true
+
+          python3 -c "
+          import json, re, sys
+          raw = open('$RUNNER_TEMP/vu1nz-review-raw.txt').read()
+          raw = re.sub(r'\x1b\[[0-9;]*m', '', raw)
+          start = raw.find('{')
+          if start >= 0:
+              obj, _ = json.JSONDecoder(strict=False).raw_decode(raw, start)
+              json.dump(obj, sys.stdout)
+          else:
+              print('{}')
+          " > "$RUNNER_TEMP/vu1nz-review.json"
+
+      - name: Build PR comment
+        id: comment
+        run: |
+          python3 << 'PYEOF'
+          import json, os, sys
+
+          review_file = os.environ.get("RUNNER_TEMP", "") + "/vu1nz-review.json"
+          comment_file = os.environ.get("RUNNER_TEMP", "") + "/vu1nz-comment.md"
+
+          try:
+              with open(review_file) as f:
+                  data = json.loads(f.read(), strict=False)
+          except Exception as e:
+              print(f"::warning::Could not parse review results: {e}")
+              with open(comment_file, "w") as f:
+                  f.write("## vu1nz Security Review\n\nCould not parse review results.\n")
+              sys.exit(0)
+
+          findings = data.get("findings", [])
+          analysis = data.get("analysis", "")
+          pr = data.get("pr_number", "?")
+          total = len(findings)
+
+          counts = {"critical": 0, "high": 0, "medium": 0, "low": 0}
+          for finding in findings:
+              sev = finding.get("severity", "").lower()
+              if sev in counts:
+                  counts[sev] += 1
+
+          has_hc = counts["critical"] > 0 or counts["high"] > 0
+
+          lines = ["## vu1nz Security Review", ""]
+          lines.append(f"**{total}** finding(s) in PR #{pr}")
+          lines.append("")
+
+          badge_parts = []
+          for sev in ("critical", "high", "medium", "low"):
+              if counts[sev] > 0:
+                  badge_parts.append(f"**{sev.upper()}**: {counts[sev]}")
+          if badge_parts:
+              lines.append(" | ".join(badge_parts))
+              lines.append("")
+
+          if has_hc:
+              lines.append("> **High or critical findings - review before merging.**")
+              lines.append("")
+
+          if findings:
+              lines.append("### Findings")
+              lines.append("")
+              lines.append("| Severity | File | Issue | Suggestion |")
+              lines.append("|----------|------|-------|------------|")
+              for f in findings:
+                  sev = f.get("severity", "?").upper()
+                  file = f.get("file", "N/A")
+                  issue = f.get("issue", "").replace("\n", " ")[:150]
+                  suggestion = f.get("suggestion", "").replace("\n", " ")[:150]
+                  lines.append(f"| {sev} | `{file}` | {issue} | {suggestion} |")
+              lines.append("")
+          else:
+              lines.append("No security issues found.")
+              lines.append("")
+
+          if analysis:
+              lines.append("<details><summary>Full AI Analysis</summary>")
+              lines.append("")
+              lines.append(analysis)
+              lines.append("")
+              lines.append("</details>")
+
+          body = "\n".join(lines)
+          with open(comment_file, "w") as f:
+              f.write(body)
+
+          with open(os.environ.get("GITHUB_OUTPUT", ""), "a") as out:
+              out.write(f"total={total}\n")
+              out.write(f"has_high_critical={'true' if has_hc else 'false'}\n")
+
+          if has_hc:
+              print(f"::error::vu1nz found high/critical vulnerabilities in PR code")
+              sys.exit(1)
+
+          print(f"::notice::vu1nz review: {total} finding(s), no high/critical issues")
+          PYEOF
+
+      - name: Write report to job summary
+        if: always()
+        run: |
+          if [ -f "$RUNNER_TEMP/vu1nz-comment.md" ]; then
+            cat "$RUNNER_TEMP/vu1nz-comment.md" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "## vu1nz Security Review" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "Scan completed but could not read results." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Comment on PR
+        # Best-effort only. Skip for Dependabot (read-only token can't comment)
+        # and never fail the job if posting the comment errors — the scan's
+        # pass/fail is decided by the "Build PR comment" step, and findings are
+        # always written to the job summary.
+        if: always() && github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]'
+        continue-on-error: true
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const commentFile = `${process.env.RUNNER_TEMP}/vu1nz-comment.md`;
+            let body;
+            try {
+              body = fs.readFileSync(commentFile, 'utf8');
+            } catch {
+              body = '## vu1nz Security Review\n\nScan completed but could not read results.';
+            }
+
+            try {
+              const { data: comments } = await github.rest.issues.listComments({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+              });
+
+              const existing = comments.find(c =>
+                c.user.type === 'Bot' && c.body.includes('vu1nz Security Review')
+              );
+
+              if (existing) {
+                await github.rest.issues.updateComment({
+                  comment_id: existing.id,
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  body: body,
+                });
+              } else {
+                await github.rest.issues.createComment({
+                  issue_number: context.issue.number,
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  body: body,
+                });
+              }
+            } catch (err) {
+              // Posting the comment is best-effort. Read-only tokens return 403
+              // and transient GitHub outages return 503 (the "Unicorn" HTML
+              // page); neither should fail the scan. Findings are in the job
+              // summary regardless.
+              core.warning(`Could not post PR comment (status ${err.status ?? 'unknown'}): ${err.message}. Findings are in the job summary.`);
+            }
