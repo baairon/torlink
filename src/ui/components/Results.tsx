@@ -484,7 +484,10 @@ export function Results() {
                         </>
                       ) : (
                         <Box width={12} flexShrink={0} marginLeft={1} justifyContent="flex-end">
-                          <Text dimColor>{formatRelative(r.added) || "-"}</Text>
+                          <Text 
+							dimColor={!here}
+							bold={here}
+						  >{formatRelative(r.added) || "-"}</Text>
                         </Box>
                       )}
                       <Box width={4} flexShrink={0} marginLeft={1} justifyContent="flex-end">
