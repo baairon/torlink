@@ -9,6 +9,7 @@ let workingHostIndex = 0;
 const MAX_DETAILS = 4;
 
 const STOP = new Set(["the", "a", "an", "of", "and", "or", "to"]);
+const AUDIO_KW = /\b(audiobook|audiobooks|audio book|audio books|mp3|m4b|flac|narrated|read by|audible)\b/i;
 
 interface Row {
   name: string;
@@ -48,8 +49,18 @@ async function fetchText(url: string, opts: SearchOptions, retries: number): Pro
 }
 
 const MONTHS: Record<string, number> = {
-  jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5,
-  jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11,
+  jan: 0,
+  feb: 1,
+  mar: 2,
+  apr: 3,
+  may: 4,
+  jun: 5,
+  jul: 6,
+  aug: 7,
+  sep: 8,
+  oct: 9,
+  nov: 10,
+  dec: 11,
 };
 
 // 1337x detail pages render "Date uploaded" as e.g. "Jun. 26th  '26".
@@ -81,14 +92,15 @@ async function detailInfo(
 
 async function search(
   query: string,
-  cat: "Movies" | "TV",
+  cat: "Movies" | "TV" | "Other",
   source: SourceId,
   opts: SearchOptions = {},
 ): Promise<TorrentResult[]> {
   const q = query.trim();
+  const catSlug = cat === "Movies" ? "movies" : cat === "TV" ? "tv" : "other";
   const path = q
     ? `/category-search/${encodeURIComponent(q).replace(/%20/g, "+")}/${cat}/1/`
-    : `/popular-${cat === "Movies" ? "movies" : "tv"}`;
+    : `/popular-${catSlug}`;
 
   let base = "";
   let html = "";
@@ -109,7 +121,15 @@ async function search(
   }
   if (!base) throw lastError instanceof Error ? lastError : new HttpError(0, "1337x unreachable");
 
-  const all = parseRows(html);
+  let all = parseRows(html);
+
+  // Category media purity filtering for 1337x's shared 'Other' category
+  if (source === "x1337-ebooks") {
+    all = all.filter((r) => !AUDIO_KW.test(r.name));
+  } else if (source === "x1337-audiobooks") {
+    all = all.filter((r) => AUDIO_KW.test(r.name));
+  }
+
   const tokens = q.toLowerCase().split(/\s+/).filter(Boolean);
   const meaningful = tokens.filter((t) => !STOP.has(t));
   const need = meaningful.length ? meaningful : tokens;
@@ -157,4 +177,22 @@ export const x1337Tv: Source = {
   homepage: "https://1337x.to",
   reportsHealth: true,
   search: (query, opts = {}) => search(query, "TV", "x1337-tv", opts),
+};
+
+export const x1337Ebooks: Source = {
+  id: "x1337-ebooks",
+  label: "1337x",
+  groups: ["E-Books"],
+  homepage: "https://1337x.to",
+  reportsHealth: true,
+  search: (query, opts = {}) => search(query, "Other", "x1337-ebooks", opts),
+};
+
+export const x1337Audiobooks: Source = {
+  id: "x1337-audiobooks",
+  label: "1337x",
+  groups: ["Audiobooks"],
+  homepage: "https://1337x.to",
+  reportsHealth: true,
+  search: (query, opts = {}) => search(query, "Other", "x1337-audiobooks", opts),
 };

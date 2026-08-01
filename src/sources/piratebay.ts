@@ -6,9 +6,13 @@ const API = "https://apibay.org";
 
 const MOVIE_CATS = new Set([201, 202, 207, 209]);
 const TV_CATS = new Set([205, 208]);
+const AUDIOBOOK_CATS = new Set([102]);
+const EBOOK_CATS = new Set([601]);
 
 const TOP_MOVIES = `${API}/precompiled/data_top100_207.json`;
 const TOP_TV = `${API}/precompiled/data_top100_208.json`;
+const TOP_AUDIOBOOKS = `${API}/precompiled/data_top100_102.json`;
+const TOP_EBOOKS = `${API}/precompiled/data_top100_601.json`;
 
 interface ApibayItem {
   id?: string;
@@ -90,4 +94,22 @@ export const tpbTv: Source = {
   homepage: "https://thepiratebay.org",
   reportsHealth: true,
   search: (query, opts = {}) => search(query, TV_CATS, TOP_TV, "tpb-tv", opts),
+};
+
+export const tpbAudiobooks: Source = {
+  id: "tpb-audiobooks",
+  label: "TPB",
+  groups: ["Audiobooks"],
+  homepage: "https://thepiratebay.org",
+  reportsHealth: true,
+  search: (query, opts = {}) => search(query, AUDIOBOOK_CATS, TOP_AUDIOBOOKS, "tpb-audiobooks", opts),
+};
+
+export const tpbEbooks: Source = {
+  id: "tpb-ebooks",
+  label: "TPB",
+  groups: ["E-Books"],
+  homepage: "https://thepiratebay.org",
+  reportsHealth: true,
+  search: (query, opts = {}) => search(query, EBOOK_CATS, TOP_EBOOKS, "tpb-ebooks", opts),
 };

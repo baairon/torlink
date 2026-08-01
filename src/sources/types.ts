@@ -3,14 +3,19 @@ export type SourceId =
   | "yts"
   | "eztv"
   | "nyaa"
+  | "nyaa-ebooks"
   | "subsplease"
   | "tpb-movies"
   | "tpb-tv"
+  | "tpb-audiobooks"
+  | "tpb-ebooks"
   | "x1337-movies"
   | "x1337-tv"
+  | "x1337-ebooks"
+  | "x1337-audiobooks"
   | "bittorrented";
 
-export type SourceGroup = "Games" | "Movies" | "TV" | "Anime";
+export type SourceGroup = "Games" | "Movies" | "TV" | "Anime" | "E-Books" | "Audiobooks";
 
 export interface TorrentResult {
   infoHash: string;
