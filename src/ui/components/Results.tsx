@@ -11,7 +11,7 @@ import { getSource, SOURCES } from "../../sources/registry";
 import { stickCursor, wrapStep, windowStart, resultsPanelOuter } from "../move";
 import { sortResults, nextSort, sortLabel, sortArrow, type Sort, type SortField } from "../sort";
 import { filterResults } from "../filter";
-import { COLOR, GUTTER, ICON, sourceStyle } from "../theme";
+import { COLOR, COLOR_HIGHLIGHTED, GUTTER, ICON, sourceStyle } from "../theme";
 import { cleanText, formatBytes, formatCount, formatRelative, stripControl, truncate } from "../../util/format";
 import type { Source, TorrentResult } from "../../sources/types";
 
@@ -465,10 +465,17 @@ export function Results() {
                       {showStats ? (
                         <>
                           <Box width={10} flexShrink={0} marginLeft={1} justifyContent="flex-end">
-                            <Text dimColor>{r.sizeBytes > 0 ? formatBytes(r.sizeBytes) : "-"}</Text>
+                            <Text 
+								dimColor={!here}
+								bold={here}
+							>{r.sizeBytes > 0 ? formatBytes(r.sizeBytes) : "-"}</Text>
                           </Box>
                           <Box width={9} flexShrink={0} marginLeft={1} justifyContent="flex-end">
-                            <Text color={r.seeders > 0 ? COLOR.good : undefined} dimColor={r.seeders === 0}>
+                            <Text 
+								color = { here ? ( r.seeders > 0 ? COLOR_HIGHLIGHTED.good : undefined ) : ( r.seeders > 0 ? COLOR.good : undefined )}
+								dimColor = { !here }
+								bold={here}
+							>
                               {r.seeders || r.leechers
                                 ? `${formatCount(r.seeders)}:${formatCount(r.leechers)}`
                                 : "-"}
