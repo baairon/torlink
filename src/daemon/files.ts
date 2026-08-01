@@ -12,6 +12,7 @@ import { createReadStream } from "node:fs";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { loadConfig } from "../config/config";
+import { getDownloadsDir, getSeedingDir, getCompletedDir } from "../config/folder";
 import { LOOPBACK_HOSTS, isAuthorized, hostHeaderOk } from "./auth";
 import { renderDirectoryListing } from "./template";
 
@@ -101,8 +102,18 @@ function log(message: string): void {
   console.log(`[torlnk files] ${new Date().toISOString()} ${message}`);
 }
 
-async function sendListing(req: http.IncomingMessage, res: http.ServerResponse, dir: string, root: string, method: string): Promise<void> {
-  const names = await fs.readdir(dir).catch(() => [] as string[]);
+export async function sendListing(
+  req: http.IncomingMessage,
+  res: http.ServerResponse,
+  dir: string,
+  root: string,
+  method: string,
+): Promise<void> {
+  let names = await fs.readdir(dir).catch(() => [] as string[]);
+  if (path.resolve(dir) === path.resolve(root)) {
+    const allowed = new Set(["Completed", "Downloads", "Seeding"]);
+    names = names.filter((name) => allowed.has(name));
+  }
   const entries = await Promise.all(
     names.map(async (name) => {
       const stat = await fs.stat(path.join(dir, name)).catch(() => null);
@@ -201,6 +212,9 @@ export async function runFiles(options: FilesOptions = {}): Promise<void> {
     options.dir && options.dir.trim() ? options.dir.trim() : (await loadConfig()).downloadDir,
   );
   await fs.mkdir(root, { recursive: true }).catch(() => {});
+  await fs.mkdir(getDownloadsDir(root), { recursive: true }).catch(() => {});
+  await fs.mkdir(getSeedingDir(root), { recursive: true }).catch(() => {});
+  await fs.mkdir(getCompletedDir(root), { recursive: true }).catch(() => {});
 
   const server = http.createServer((req, res) => {
     void (async () => {

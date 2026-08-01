@@ -135,3 +135,163 @@ describe("DownloadQueue error resilience on boot", () => {
     q.suspend();
   });
 });
+
+describe("DownloadQueue folder isolation", () => {
+  it("routes active downloads to Downloads subfolder and seeds to Seeding subfolder", () => {
+    const q = new DownloadQueue();
+    let passedDir = "";
+    const fakeEngine = (q as unknown as { engine: { add: (id: string, src: string, dir: string) => void } }).engine;
+    fakeEngine.add = (_id, _src, dir) => {
+      passedDir = dir;
+    };
+
+    q.add(
+      {
+        id: "iso1",
+        name: "Iso Torrent",
+        magnet: "magnet:?xt=urn:btih:2222222222222222222222222222222222222222",
+      },
+      "/base/download/path"
+    );
+    expect(passedDir).toBe(path.join("/base/download/path", "Downloads"));
+
+    q.restoreHistory([h({ id: "seed1", dir: "/base/download/path" })]);
+    q.startSeeding(h({ id: "seed1", dir: "/base/download/path" }));
+    expect(passedDir).toBe(path.join("/base/download/path", "Seeding"));
+
+    q.suspend();
+  });
+
+  it("automatically migrates existing legacy active download files from root to Downloads folder", async () => {
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "torlink-migration-test-"));
+    try {
+      const legacyFile = path.join(tmpDir, "ActiveItem.mkv");
+      await fs.writeFile(legacyFile, "content");
+      expect(await fs.stat(legacyFile).then(() => true).catch(() => false)).toBe(true);
+
+      const q = new DownloadQueue();
+      const fakeEngine = (q as unknown as { engine: { add: () => void } }).engine;
+      fakeEngine.add = () => {};
+
+      q.restore([
+        {
+          id: "mig1",
+          name: "ActiveItem.mkv",
+          source: undefined,
+          magnet: "magnet:?xt=urn:btih:3333333333333333333333333333333333333333",
+          dir: tmpDir,
+          status: "downloading",
+          progress: 50,
+          totalBytes: 100,
+          downloadedBytes: 50,
+          speed: 100,
+          peers: 1,
+          addedAt: Date.now(),
+        },
+      ]);
+
+      const newFile = path.join(tmpDir, "Downloads", "ActiveItem.mkv");
+      expect(await fs.stat(newFile).then(() => true).catch(() => false)).toBe(true);
+      expect(await fs.stat(legacyFile).then(() => true).catch(() => false)).toBe(false);
+      q.suspend();
+    } finally {
+      await fs.rm(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it("automatically migrates existing legacy seed files from root to Seeding folder on startSeeding", async () => {
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "torlink-seedmig-test-"));
+    try {
+      const legacyFile = path.join(tmpDir, "SeedItem.mkv");
+      await fs.writeFile(legacyFile, "seed content");
+
+      const q = new DownloadQueue();
+      const fakeEngine = (q as unknown as { engine: { add: () => void } }).engine;
+      fakeEngine.add = () => {};
+
+      const seedItem = h({ id: "seedmig1", name: "SeedItem.mkv", dir: tmpDir });
+      q.restoreHistory([seedItem]);
+      q.startSeeding(seedItem);
+
+      const newFile = path.join(tmpDir, "Seeding", "SeedItem.mkv");
+      expect(await fs.stat(newFile).then(() => true).catch(() => false)).toBe(true);
+      expect(await fs.stat(legacyFile).then(() => true).catch(() => false)).toBe(false);
+      q.suspend();
+    } finally {
+      await fs.rm(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it("migrates legacy file when metadata resolves a name", async () => {
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "torlink-metamig-test-"));
+    try {
+      const legacyFile = path.join(tmpDir, "MetaResolved.mkv");
+      await fs.writeFile(legacyFile, "meta content");
+
+      const q = new DownloadQueue();
+      let capturedHandlers: any;
+      const fakeEngine = (q as unknown as { engine: { add: (id: string, src: string, dir: string, handlers: any) => void } }).engine;
+      fakeEngine.add = (_id, _src, _dir, handlers) => {
+        capturedHandlers = handlers;
+      };
+
+      q.add(
+        {
+          id: "meta1",
+          name: "",
+          magnet: "magnet:?xt=urn:btih:4444444444444444444444444444444444444444",
+        },
+        tmpDir
+      );
+
+      capturedHandlers.onMetadata({ name: "MetaResolved.mkv", total: 100, files: [] });
+
+      const newFile = path.join(tmpDir, "Downloads", "MetaResolved.mkv");
+      expect(await fs.stat(newFile).then(() => true).catch(() => false)).toBe(true);
+      expect(await fs.stat(legacyFile).then(() => true).catch(() => false)).toBe(false);
+      q.suspend();
+    } finally {
+      await fs.rm(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it("removes legacy file in root directory on queue.remove", async () => {
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "torlink-legacyrm-test-"));
+    try {
+      const legacyFile = path.join(tmpDir, "LegacyToRemove.mkv");
+      await fs.writeFile(legacyFile, "to be deleted");
+
+      const q = new DownloadQueue();
+      const fakeEngine = (q as unknown as { engine: { remove: (_id: string) => void } }).engine;
+      fakeEngine.remove = () => {};
+
+      q.restore([
+        {
+          id: "rm1",
+          name: "LegacyToRemove.mkv",
+          source: undefined,
+          magnet: "magnet:?xt=urn:btih:5555555555555555555555555555555555555555",
+          dir: tmpDir,
+          status: "downloading",
+          progress: 50,
+          totalBytes: 100,
+          downloadedBytes: 50,
+          speed: 100,
+          peers: 1,
+          addedAt: Date.now(),
+        },
+      ]);
+
+      await q.remove("rm1", { deleteFiles: true });
+
+      expect(await fs.stat(legacyFile).then(() => true).catch(() => false)).toBe(false);
+      q.suspend();
+    } finally {
+      await fs.rm(tmpDir, { recursive: true, force: true });
+    }
+  });
+});
+
+
+
+
