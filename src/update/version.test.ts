@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { compareVersions, isNewer, fetchLatestVersion } from "./version";
+import { readManifest } from "./manifest";
 
 describe("compareVersions", () => {
   it("orders by major, minor, then patch", () => {
@@ -53,7 +54,9 @@ describe("fetchLatestVersion", () => {
         return okResponse("9.9.9");
       },
     });
-    expect(urls).toEqual(["https://registry.npmjs.org/klink/latest"]);
+    expect(urls).toEqual([
+      `https://registry.npmjs.org/${encodeURIComponent(readManifest()!.name)}/latest`,
+    ]);
   });
   it("returns null on a non-ok response", async () => {
     const v = await fetchLatestVersion({

@@ -1,4 +1,4 @@
-import type { DownloadFocus, Region, Section, SeedFocus } from "./store";
+import type { DownloadFocus, Region, ResultFocus, Section, SeedFocus } from "./store";
 
 export interface Hint {
   keys: string;
@@ -31,11 +31,13 @@ export const HELP_GROUPS: HelpGroup[] = [
     hints: [
       { keys: "/", label: "Edit search" },
       { keys: "f", label: "Filter list" },
-      { keys: "d", label: "Download (shift+d picks folder)" },
+      { keys: "d", label: "Download (shift+d: folder)" },
       { keys: "s", label: "Sort results" },
       { keys: "z", label: "Hide dead torrents" },
       { keys: "i", label: "Inspect files" },
       { keys: "y", label: "Copy magnet" },
+      { keys: "↵", label: "Open details" },
+      { keys: "e", label: "Export as .torrent" },
       { keys: "m", label: "Paste magnet" },
     ],
   },
@@ -55,7 +57,7 @@ export const HELP_GROUPS: HelpGroup[] = [
     title: "Seeding",
     hints: [
       { keys: "p", label: "Pause/resume" },
-      { keys: "c", label: "Remove from list" },
+      { keys: "c", label: "Remove (shift+c: all)" },
       { keys: "x", label: "Stop" },
       { keys: "e", label: "Open folder" },
     ],
@@ -69,18 +71,12 @@ export const HELP_GROUPS: HelpGroup[] = [
   },
 ];
 
-// Footer labels stay terse so the contextual hint row never wraps; the `?`
-// overlay (HELP_GROUPS) carries the full, descriptive list. Rare or
-// self-announcing actions (z) stay `?`-only to keep every row inside 80 cols.
 const NAVIGATE: Hint = { keys: "↑↓←→", label: "Move" };
-
 const ALWAYS: Hint = { keys: "?", label: "Keys" };
-
 const SWITCH: Hint = { keys: "tab", label: "Switch" };
-
 const FOLDER: Hint = { keys: "e", label: "Folder" };
-
 const TORRENT: Hint = { keys: "s", label: "Export" };
+const EXPORT: Hint = { keys: "e", label: "Export" };
 
 export function footerHints(
   region: Region,
@@ -90,7 +86,8 @@ export function footerHints(
   downloadFocus?: DownloadFocus | null,
   seedFocus?: SeedFocus | null,
   inspecting?: boolean,
-  inspectFocusSelected?: boolean
+  inspectFocusSelected?: boolean,
+  resultFocus?: ResultFocus | null,
 ): Hint[] {
   const getHints = (): Hint[] => {
     if (inspecting) {
@@ -166,7 +163,7 @@ export function footerHints(
       { keys: "d", label: "Download" },
       { keys: "i", label: "Files" },
       { keys: "y", label: "Copy" },
-      { keys: "s", label: "Sort" },
+      resultFocus === "detail" ? EXPORT : { keys: "s", label: "Sort" },
       { keys: "/", label: "Search" },
       { keys: "f", label: "Filter" },
       SWITCH,

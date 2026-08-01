@@ -68,6 +68,8 @@ export function Seeding() {
         if (h) {
           requestConfirm(`Remove and delete '${truncate(cleanText(h.name), 40)}'?`, () => queue.removeHistory(h.id));
         }
+      } else if (input === "C") {
+        requestConfirm("Clear all seeding history?", () => queue.clearHistory());
       } else if (input === "e") {
         const h = activeHistory[clamped];
         if (h) openDownloadFolder(getSeedingDir(h.dir));

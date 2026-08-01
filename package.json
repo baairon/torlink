@@ -1,6 +1,6 @@
 {
   "name": "klink",
-  "version": "1.5.1",
+  "version": "1.6.0",
   "description": "Klink - A sleek, zero-setup torrent finder and downloader TUI with peer inspection, media streaming, and turtle mode.",
   "type": "module",
   "bin": {

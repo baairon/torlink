@@ -67,6 +67,11 @@ const STRAY_TICKS = 2; // consecutive stray polls before flagging missing (~1s)
 // missing file. 10 s covers most single-torrent verifications comfortably.
 const SEED_GRACE_MS = 10_000;
 
+// A magnet with no peers never fires onMetadata or onError, so a metadata-only
+// fetch (fetchAndExportTorrent) would otherwise hang forever. Give up after
+// this long and fall into the same "export failed" path as a real error.
+const FETCH_METADATA_TIMEOUT_MS = 20_000;
+
 const POLL_MS = 500;
 const HISTORY_MAX = 500;
 
@@ -532,6 +537,56 @@ export class DownloadQueue extends EventEmitter {
       targetDir = getCompletedDir(it.dir);
     }
     return exportTorrentMeta(it.id, it.name, targetDir);
+  }
+
+  // Fetch the .torrent metadata for a magnet-only result (e.g. a search hit
+  // that has never been downloaded) and export it to exportDir. If the metadata
+  // is already cached from a prior download it is exported immediately without
+  // touching the network. The torrent handle is destroyed as soon as metadata
+  // arrives — no file content is downloaded.
+  fetchAndExportTorrent(
+    input: { id: string; name: string; magnet: string },
+    exportDir: string,
+  ): Promise<string | null> {
+    // Fast path: cached from a previous download.
+    if (torrentMetaExists(input.id)) {
+      return exportTorrentMeta(input.id, input.name, exportDir);
+    }
+    // If this torrent is already in the engine (downloading / seeding), its
+    // metadata will arrive through the normal queue flow; don't double-add it.
+    if (this.items.has(input.id) || this.seeds.has(input.id)) {
+      return Promise.resolve(null);
+    }
+    return new Promise<string | null>((resolve) => {
+      const tempKey = `__meta__${input.id}`;
+      let done = false;
+      const timer = setTimeout(() => {
+        if (done) return;
+        done = true;
+        this.engine.remove(tempKey);
+        resolve(null);
+      }, FETCH_METADATA_TIMEOUT_MS);
+      this.engine.add(tempKey, input.magnet, exportDir, {
+        onMetadata: (meta) => {
+          if (done) return;
+          done = true;
+          clearTimeout(timer);
+          // Tear down synchronously before any file data can be written.
+          this.engine.remove(tempKey);
+          void (async () => {
+            if (meta.torrentFile) await saveTorrentMeta(input.id, meta.torrentFile);
+            resolve(await exportTorrentMeta(input.id, input.name, exportDir));
+          })();
+        },
+        onError: () => {
+          if (done) return;
+          done = true;
+          clearTimeout(timer);
+          this.engine.remove(tempKey);
+          resolve(null);
+        },
+      });
+    });
   }
 
   cancel(id: string): void {
