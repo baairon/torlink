@@ -24,9 +24,29 @@ import type {
 } from "./types";
 import type { SourceId } from "../sources/types";
 import parseTorrent from "parse-torrent";
-import { promises as fs } from "node:fs";
+import { promises as fs, existsSync, mkdirSync, renameSync } from "node:fs";
 import path from "node:path";
 import { getDownloadsDir, getSeedingDir, getCompletedDir } from "../config/folder";
+
+function migrateLegacyPathSync(baseDir: string, name: string, targetSubfolder: "Downloads" | "Seeding" | "Completed"): void {
+  if (!name) return;
+  const legacyPath = path.join(baseDir, name);
+  const targetBase = targetSubfolder === "Downloads"
+    ? getDownloadsDir(baseDir)
+    : targetSubfolder === "Seeding"
+    ? getSeedingDir(baseDir)
+    : getCompletedDir(baseDir);
+  const targetPath = path.join(targetBase, name);
+
+  try {
+    if (existsSync(legacyPath)) {
+      mkdirSync(targetBase, { recursive: true });
+      if (!existsSync(targetPath)) {
+        renameSync(legacyPath, targetPath);
+      }
+    }
+  } catch {}
+}
 
 /**
  * A real seed never pulls data off the network: verifying on-disk files reads
@@ -163,9 +183,10 @@ export class DownloadQueue extends EventEmitter {
   }
 
   private startEngine(item: QueueItem): void {
+    if (item.name) migrateLegacyPathSync(item.dir, item.name, "Downloads");
     const source = torrentMetaExists(item.id) ? torrentMetaPath(item.id) : item.magnet;
     try {
-      this.engine.add(item.id, source, item.dir, this.engineHandlers(item.id), this.trackers);
+      this.engine.add(item.id, source, getDownloadsDir(item.dir), this.engineHandlers(item.id), this.trackers);
     } catch (e) {
       // engine.add routes webtorrent's own synchronous failures through
       // onError, so the only throw that reaches here is the client failing to
@@ -218,7 +239,10 @@ export class DownloadQueue extends EventEmitter {
         if (meta.torrentFile) void saveTorrentMeta(id, meta.torrentFile);
         const it = this.items.get(id);
         if (!it) return; // the rest only matters while still downloading
-        if (meta.name) it.name = meta.name;
+        if (meta.name) {
+          it.name = meta.name;
+          migrateLegacyPathSync(it.dir, meta.name, "Downloads");
+        }
         if (meta.total) it.totalBytes = meta.total;
         it.files = meta.files;
         this.changed();
@@ -631,9 +655,10 @@ export class DownloadQueue extends EventEmitter {
     this.seedStartedAt.set(h.id, Date.now());
     // Seed from the stored .torrent metadata when we have it (verifies the local
     // file immediately, no swarm needed); fall back to the magnet otherwise.
+    if (h.name) migrateLegacyPathSync(h.dir, h.name, "Seeding");
     const source = torrentMetaExists(h.id) ? torrentMetaPath(h.id) : h.magnet;
     try {
-      this.engine.add(h.id, source, h.dir, this.engineHandlers(h.id), this.trackers);
+      this.engine.add(h.id, source, getSeedingDir(h.dir), this.engineHandlers(h.id), this.trackers);
     } catch {
       // Same narrow case as startEngine: only a client that won't construct
       // lands here. Leave the seed paused so it stays visible and resumable.
@@ -743,6 +768,7 @@ export class DownloadQueue extends EventEmitter {
     }
     let active = 0;
     for (const raw of items) {
+      if (raw.name) migrateLegacyPathSync(raw.dir, raw.name, "Downloads");
       this.items.set(raw.id, raw);
       if (raw.status !== "downloading") continue;
       if (this.maxDownloads === 0 || active < this.maxDownloads) {
@@ -838,6 +864,10 @@ export class DownloadQueue extends EventEmitter {
     } catch (err) {
       // Ignore if it's already gone
     }
+    const legacyPath = path.join(dir, name);
+    try {
+      await fs.rm(legacyPath, { recursive: true, force: true });
+    } catch (err) {}
   }
 
   private changed(): void {

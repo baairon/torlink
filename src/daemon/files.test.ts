@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
+import os from "node:os";
 import path from "node:path";
-import { contentType, safeResolve, parseRange } from "./files";
+import { promises as fs } from "node:fs";
+import { contentType, safeResolve, parseRange, sendListing } from "./files";
 
 describe("contentType", () => {
   it("maps known media extensions", () => {
@@ -58,3 +60,70 @@ describe("parseRange", () => {
     expect(parseRange("chunks=0-1", size)).toBeNull();
   });
 });
+
+describe("sendListing", () => {
+  it("filters root directory listing to only Completed, Downloads, and Seeding", async () => {
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "torlink-files-listing-"));
+    try {
+      await fs.mkdir(path.join(tmpDir, "Completed"), { recursive: true });
+      await fs.mkdir(path.join(tmpDir, "Downloads"), { recursive: true });
+      await fs.mkdir(path.join(tmpDir, "Seeding"), { recursive: true });
+      await fs.mkdir(path.join(tmpDir, "UnrelatedFolder"), { recursive: true });
+      await fs.writeFile(path.join(tmpDir, "secret.txt"), "hello");
+
+      let statusCode = 0;
+      let headers: Record<string, string> = {};
+      let responseData = "";
+
+      const req = { headers: { accept: "application/json" } } as unknown as import("node:http").IncomingMessage;
+      const res = {
+        writeHead: (code: number, h: Record<string, string>) => {
+          statusCode = code;
+          headers = h;
+        },
+        end: (data: string) => {
+          responseData = data;
+        },
+      } as unknown as import("node:http").ServerResponse;
+
+      await sendListing(req, res, tmpDir, tmpDir, "GET");
+
+      expect(statusCode).toBe(200);
+      expect(headers["Content-Type"]).toBe("application/json");
+
+      const parsed = JSON.parse(responseData) as { entries: Array<{ name: string; type: string }> };
+      const names = parsed.entries.map((e) => e.name).sort();
+      expect(names).toEqual(["Completed", "Downloads", "Seeding"]);
+    } finally {
+      await fs.rm(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it("does not filter listing when requesting a subdirectory", async () => {
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "torlink-files-subdir-"));
+    try {
+      const downloadsDir = path.join(tmpDir, "Downloads");
+      await fs.mkdir(downloadsDir, { recursive: true });
+      await fs.writeFile(path.join(downloadsDir, "Movie.mkv"), "movie");
+      await fs.mkdir(path.join(downloadsDir, "SubFolder"), { recursive: true });
+
+      let responseData = "";
+      const req = { headers: { accept: "application/json" } } as unknown as import("node:http").IncomingMessage;
+      const res = {
+        writeHead: () => {},
+        end: (data: string) => {
+          responseData = data;
+        },
+      } as unknown as import("node:http").ServerResponse;
+
+      await sendListing(req, res, downloadsDir, tmpDir, "GET");
+
+      const parsed = JSON.parse(responseData) as { entries: Array<{ name: string; type: string }> };
+      const names = parsed.entries.map((e) => e.name).sort();
+      expect(names).toEqual(["Movie.mkv", "SubFolder"]);
+    } finally {
+      await fs.rm(tmpDir, { recursive: true, force: true });
+    }
+  });
+});
+
