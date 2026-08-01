@@ -488,7 +488,11 @@ export function Results() {
                         </Box>
                       )}
                       <Box width={4} flexShrink={0} marginLeft={1} justifyContent="flex-end">
-                        <Text color={ss.color} dimColor={!here}>
+                        <Text 
+							color={ss.color} 
+							dimColor={!here}
+							bold={here}
+						>
                           {ss.tag}
                         </Text>
                       </Box>

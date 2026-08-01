@@ -12,7 +12,7 @@ export const COLOR = {
 
 export const COLOR_HIGHLIGHTED = {
   text: "#ffffff",
-  good: "#c9f3d8",
+  good: "#add7bc",
   warn: "#f5dda5",
   bad: "#f7adbb",
 } as const;
