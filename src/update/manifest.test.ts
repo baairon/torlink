@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import os from "node:os";
 import path from "node:path";
 import fs from "node:fs";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { readManifest } from "./manifest";
 
 describe("readManifest", () => {
@@ -34,8 +34,13 @@ describe("readManifest", () => {
   });
 
   it("resolves this repo's own manifest from the source tree", () => {
+    // Compare against the real root package.json instead of a hardcoded name,
+    // so the test keeps passing on a fork or rename (#127).
+    const own = JSON.parse(
+      fs.readFileSync(fileURLToPath(new URL("../../package.json", import.meta.url)), "utf8"),
+    ) as { name: string; version: string };
     const m = readManifest();
-    expect(m?.name).toBe("klink");
-    expect(m?.version).toMatch(/^\d+\.\d+\.\d+$/);
+    expect(m?.name).toBe(own.name);
+    expect(m?.version).toBe(own.version);
   });
 });

@@ -27,6 +27,8 @@ export type DownloadFocus = "downloading" | "paused" | "failed" | "recent";
 
 export type SeedFocus = "seeding" | "paused" | "missing" | "idle";
 
+export type ResultFocus = "list" | "detail";
+
 export interface Store {
   config: Config;
   setConfig: (c: Config) => void;
@@ -48,6 +50,8 @@ export interface Store {
   setDownloadFocus: (f: DownloadFocus | null) => void;
   seedFocus: SeedFocus | null;
   setSeedFocus: (f: SeedFocus | null) => void;
+  resultFocus: ResultFocus | null;
+  setResultFocus: (f: ResultFocus | null) => void;
 
 
 
@@ -73,7 +77,10 @@ export interface Store {
   toggleThrottle: () => void;
   // Copies the cached .torrent metadata into the item's download folder and
   // reports the outcome through the notice line.
-  exportTorrent: (item: { id: string; name: string }) => void;
+  exportTorrent: (input: { id: string; name: string }) => void;
+  // Fetches the .torrent metadata for a search result (via magnet if not yet
+  // cached) and exports it to the configured download folder.
+  fetchAndExportTorrent: (input: { id: string; name: string; magnet: string }) => void;
   notice: string | null;
   setNotice: (msg: string | null) => void;
   inspectingId: string | null;
