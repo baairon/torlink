@@ -44,7 +44,7 @@ async function search(query: string, opts: SearchOptions = {}): Promise<TorrentR
 export const nyaa: Source = {
   id: "nyaa",
   label: "Nyaa",
-  group: "Anime",
+  groups: ["Anime"],
   homepage: "https://nyaa.si",
   reportsHealth: true,
   search,

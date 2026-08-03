@@ -45,4 +45,19 @@ describe("filterResults", () => {
     filterResults(list, true);
     expect(list.map((x) => x.infoHash)).toEqual(before);
   });
+
+  it("filters by text matching all tokens and ranks exact matches higher", () => {
+    const list = [
+      r({ infoHash: "a", name: "ubuntu 24 desktop" }),
+      r({ infoHash: "b", name: "ubuntu desktop 24.04" }),
+      r({ infoHash: "c", name: "debian 12" }),
+      r({ infoHash: "d", name: "24 ubuntu desktop" }),
+    ];
+    // "ubuntu 24" -> 
+    // a: exact substring "ubuntu 24" (score 60)
+    // b: "ubuntu" before "24" (score 30)
+    // d: "24" before "ubuntu" (out of order, score 10)
+    // c: no match
+    expect(filterResults(list, false, "ubuntu 24").map(x => x.infoHash)).toEqual(["a", "b", "d"]);
+  });
 });

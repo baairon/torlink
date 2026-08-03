@@ -61,6 +61,8 @@ export function Seeding() {
       } else if (input === "c") {
         const h = history[clamped];
         if (h) queue.removeHistory(h.id);
+      } else if (input === "C") {
+        queue.clearHistory();
       } else if (input === "e") {
         const h = history[clamped];
         if (h) openDownloadFolder(h.dir);

@@ -58,6 +58,13 @@ function idleState(): ConcurrentSearchState {
   };
 }
 
+// Coalesce interval for streaming result updates. Sources finish in bursts (a
+// cache hit or a couple of fast hosts land almost together), and each update
+// re-sorts and re-renders the whole list. Flushing at most once per this window
+// keeps a burst from flooding Ink with re-renders and blocking stdin — the same
+// leading-throttle the queue hooks in store.ts use for `update` events.
+const RESULT_FLUSH_MS = 150;
+
 export function useConcurrentSearch(query: string): ConcurrentSearchState {
   const [state, setState] = useState<ConcurrentSearchState>(idleState);
 
@@ -67,6 +74,35 @@ export function useConcurrentSearch(query: string): ConcurrentSearchState {
     const collected: TorrentResult[] = [];
     const per = blankPerSource(true);
     let done = 0;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    const flush = (): void => {
+      setState({
+        results: defaultOrder(dedupe(collected.slice())),
+        perSource: { ...per },
+        loading: done < SOURCES.length,
+        done,
+        total: SOURCES.length,
+      });
+    };
+
+    // Push the accumulated state to the UI, but no more than once per window.
+    // The final source flushes immediately so "done" / loading:false is prompt.
+    const scheduleFlush = (): void => {
+      if (done >= SOURCES.length) {
+        if (timer) {
+          clearTimeout(timer);
+          timer = null;
+        }
+        flush();
+        return;
+      }
+      if (timer) return;
+      timer = setTimeout(() => {
+        timer = null;
+        if (alive) flush();
+      }, RESULT_FLUSH_MS);
+    };
 
     setState({
       results: [],
@@ -95,19 +131,14 @@ export function useConcurrentSearch(query: string): ConcurrentSearchState {
         .finally(() => {
           if (!alive) return;
           done += 1;
-          setState({
-            results: defaultOrder(dedupe(collected.slice())),
-            perSource: { ...per },
-            loading: done < SOURCES.length,
-            done,
-            total: SOURCES.length,
-          });
+          scheduleFlush();
         });
     }
 
     return () => {
       alive = false;
       ctrl.abort();
+      if (timer) clearTimeout(timer);
     };
   }, [query]);
 

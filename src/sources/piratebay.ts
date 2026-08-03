@@ -77,7 +77,7 @@ async function search(
 export const tpbMovies: Source = {
   id: "tpb-movies",
   label: "TPB",
-  group: "Movies",
+  groups: ["Movies"],
   homepage: "https://thepiratebay.org",
   reportsHealth: true,
   search: (query, opts = {}) => search(query, MOVIE_CATS, TOP_MOVIES, "tpb-movies", opts),
@@ -86,7 +86,7 @@ export const tpbMovies: Source = {
 export const tpbTv: Source = {
   id: "tpb-tv",
   label: "TPB",
-  group: "TV",
+  groups: ["TV"],
   homepage: "https://thepiratebay.org",
   reportsHealth: true,
   search: (query, opts = {}) => search(query, TV_CATS, TOP_TV, "tpb-tv", opts),

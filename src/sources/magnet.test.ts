@@ -46,6 +46,8 @@ describe("buildMagnet", () => {
     expect(out).toContain("xt=urn:btih:abc123");
     expect(out).toContain("dn=My%20Movie%202024");
     expect(out).toContain("&tr=");
+    // At least one non-UDP tracker, so UDP-blocked networks can still announce.
+    expect(out).toContain(encodeURIComponent("http://tracker.opentrackr.org:1337/announce"));
   });
 });
 

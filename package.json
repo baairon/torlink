@@ -1,6 +1,6 @@
 {
   "name": "torlnk",
-  "version": "1.3.1",
+  "version": "1.6.0",
   "description": "A sleek, zero-setup torrent finder and downloader that lives right in your terminal.",
   "type": "module",
   "bin": {
@@ -8,7 +8,8 @@
   },
   "files": [
     "dist",
-    "preview"
+    "preview",
+    "scripts/ensure-webrtc.cjs"
   ],
   "engines": {
     "node": ">=22"
@@ -22,6 +23,7 @@
     "test": "vitest run",
     "verify:seeding": "tsx scripts/verify-seeding.ts",
     "previews": "tsx scripts/render-previews.tsx",
+    "postinstall": "node scripts/ensure-webrtc.cjs",
     "prepublishOnly": "npm run build"
   },
   "keywords": [
@@ -48,7 +50,7 @@
     "type": "git",
     "url": "git+https://github.com/baairon/torlink.git"
   },
-  "homepage": "https://github.com/baairon/torlink#readme",
+  "homepage": "https://torlink.bairon.dev",
   "bugs": {
     "url": "https://github.com/baairon/torlink/issues"
   },
@@ -60,7 +62,11 @@
     "ink": "^7.0.5",
     "parse-torrent": "^11.0.21",
     "react": "^19.2.7",
+    "uint8-util": "2.2.6",
     "webtorrent": "^2.4.1"
+  },
+  "overrides": {
+    "uint8-util": "2.2.6"
   },
   "devDependencies": {
     "@types/node": "^25.9.2",

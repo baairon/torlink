@@ -6,6 +6,12 @@ const TRACKERS = [
   "udp://exodus.desync.com:6969/announce",
   "udp://open.stealth.si:80/announce",
   "udp://tracker.dler.org:6969/announce",
+  // HTTP(S) endpoints so peer discovery still works where UDP is blocked or
+  // mangled (VPN exit nodes, strict NATs): DHT and udp:// are both UDP.
+  "http://tracker.opentrackr.org:1337/announce",
+  "http://tracker.openbittorrent.com:80/announce",
+  "http://tracker.dler.org:6969/announce",
+  "https://tracker.tamersunion.org:443/announce",
 ];
 
 export function buildMagnet(infoHash: string, name: string): string {

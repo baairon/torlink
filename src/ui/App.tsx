@@ -7,6 +7,13 @@ import { DownloadQueue } from "../download/queue";
 import { loadQueue, loadSeeds } from "../download/persist";
 import { loadHistory } from "../download/history";
 import { reconcileQueue } from "../download/reconcile";
+import {
+  BOOT_SETTLE_MS,
+  armBootMarker,
+  disarmBootMarker,
+  wasBootInterrupted,
+} from "../download/bootguard";
+import { logCrash } from "../util/crashlog";
 import { parseInput } from "../sources/magnet";
 import { magnetFromTorrentFile } from "../sources/torrentFile";
 import { readClipboard, writeClipboard } from "../util/clipboard";
@@ -17,6 +24,7 @@ import {
   type CaptureMode,
   type DownloadFocus,
   type Region,
+  type ResultFocus,
   type Section,
   type SeedFocus,
   type Store,
@@ -38,6 +46,8 @@ import { TrackersPrompt } from "./components/TrackersPrompt";
 import { footerHints } from "./keymap";
 import { COLOR, ICON } from "./theme";
 import { useMouseWheel } from "./hooks/useMouseWheel";
+import { VERSION } from "../version";
+import { fetchLatestVersion, isNewer } from "../update/version";
 import type { SourceId } from "../sources/types";
 
 export function App({
@@ -83,6 +93,7 @@ export function App({
   const [captureMode, setCaptureMode] = useState<CaptureMode>("none");
   const [downloadFocus, setDownloadFocus] = useState<DownloadFocus | null>(null);
   const [seedFocus, setSeedFocus] = useState<SeedFocus | null>(null);
+  const [resultFocus, setResultFocus] = useState<ResultFocus | null>(null);
   const [showHelp, setShowHelp] = useState(false);
   const [editingFolder, setEditingFolder] = useState(false);
   const [editingTrackers, setEditingTrackers] = useState(false);
@@ -98,6 +109,8 @@ export function App({
   } | null>(null);
   const [lastDownloadToDir, setLastDownloadToDir] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [updateVersion, setUpdateVersion] = useState<string | null>(null);
+  const [recovered, setRecovered] = useState(false);
   const booting = useRef(false);
 
   useEffect(() => {
@@ -108,15 +121,34 @@ export function App({
       const cfg = await loadConfig();
       const q = new DownloadQueue();
       q.setTrackers(cfg.trackers);
-      q.restore(reconcileQueue(await loadQueue()));
-      q.restoreHistory(await loadHistory());
-      q.restoreSeeds(await loadSeeds());
+      // Crash-boot breaker: a marker left behind by the previous boot means it
+      // died mid-restore, so this one restores everything paused with the
+      // engine cold (safe mode) instead of walking into the same explosion.
+      const safeBoot = wasBootInterrupted();
+      armBootMarker();
+      // One fail-safe around the whole restore, holding a single invariant: the
+      // app always reaches a usable screen. Nothing below throws today (every
+      // loader falls back to empty state and the engine calls are guarded), but
+      // a future one that did would otherwise strand the boot on the loading
+      // spinner, which is the worst failure this app has.
+      try {
+        q.restore(reconcileQueue(await loadQueue()), { safe: safeBoot });
+        q.restoreHistory(await loadHistory());
+        q.restoreSeeds(await loadSeeds(), { safe: safeBoot });
+      } catch (e) {
+        logCrash("boot-restore", e);
+      }
+      setTimeout(disarmBootMarker, BOOT_SETTLE_MS).unref();
       if (!alive) {
         q.suspend();
         return;
       }
       setConfigState(cfg);
       setQueue(q);
+      if (safeBoot) {
+        setRecovered(true);
+        setNotice("Recovered from a crashed start · downloads paused");
+      }
       const launch = initialMagnet
         ? parseInput(initialMagnet)
         : initialTorrent
@@ -137,6 +169,20 @@ export function App({
       alive = false;
     };
   }, [initialMagnet, initialTorrent]);
+
+  // Best-effort, once per launch, off the hot path: if a newer release exists,
+  // surface a quiet banner. Any failure (offline, opt-out) just leaves it hidden.
+  useEffect(() => {
+    if (process.env.TORLINK_NO_UPDATE_CHECK) return;
+    let alive = true;
+    void (async () => {
+      const latest = await fetchLatestVersion();
+      if (alive && latest && isNewer(VERSION, latest)) setUpdateVersion(latest);
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (!queue) return;
@@ -322,6 +368,22 @@ export function App({
     [queue],
   );
 
+  const fetchAndExportTorrent = useCallback(
+    (input: { id: string; name: string; magnet: string }) => {
+      if (!queue || !config) return;
+      setNotice("Fetching torrent metadata…");
+      void (async () => {
+        const file = await queue.fetchAndExportTorrent(input, config.downloadDir);
+        if (file) {
+          setNotice(`Exported torrent file: ${truncate(file, 48)}`);
+          return;
+        }
+        setNotice(`Couldn't export torrent file for ${truncate(cleanText(input.name), 32)}.`);
+      })();
+    },
+    [queue, config],
+  );
+
   const submitQuery = useCallback(
     (raw: string) => {
       const q = raw.trim();
@@ -400,11 +462,14 @@ export function App({
       setDownloadFocus,
       seedFocus,
       setSeedFocus,
+      resultFocus,
+      setResultFocus,
       startDownload,
       requestDownloadTo,
       copyMagnet,
       openDownloadFolder,
       exportTorrent,
+      fetchAndExportTorrent,
       notice,
       setNotice,
       quitAll,
@@ -429,11 +494,13 @@ export function App({
     captureMode,
     downloadFocus,
     seedFocus,
+    resultFocus,
     startDownload,
     requestDownloadTo,
     copyMagnet,
     openDownloadFolder,
     exportTorrent,
+    fetchAndExportTorrent,
     notice,
     listRows,
     compact,
@@ -515,7 +582,7 @@ export function App({
     return (
       <StoreContext.Provider value={store}>
         <TabTitle />
-        <Splash />
+        <Splash updateVersion={updateVersion} recovered={recovered} />
       </StoreContext.Provider>
     );
   }
@@ -525,8 +592,18 @@ export function App({
       <TabTitle />
       <Box flexDirection="column" paddingX={1}>
         <Box justifyContent="space-between">
-          <Logo />
-          {notice ? <Text color={COLOR.good}>{notice}</Text> : null}
+          {/* The wordmark never shrinks: without these constraints a long notice
+              squeezes the logo box and wraps its own text through the art. */}
+          <Box flexShrink={0}>
+            <Logo />
+          </Box>
+          {notice ? (
+            <Box flexShrink={1} minWidth={0} marginLeft={2}>
+              <Text color={COLOR.good} wrap="truncate-end">
+                {notice}
+              </Text>
+            </Box>
+          ) : null}
         </Box>
         {showTopRule ? <Rule width={ruleWidth} /> : null}
 
@@ -596,7 +673,7 @@ export function App({
 
         {showFooter ? (
           <Box display={showHelp || editingFolder || editingTrackers || pendingDownload ? "none" : "flex"}>
-            <Footer hints={footerHints(region, section, downloadFocus, seedFocus)} />
+            <Footer hints={footerHints(region, section, downloadFocus, seedFocus, resultFocus)} />
           </Box>
         ) : null}
       </Box>

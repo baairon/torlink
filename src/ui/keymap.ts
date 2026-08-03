@@ -1,4 +1,4 @@
-import type { DownloadFocus, Region, Section, SeedFocus } from "./store";
+import type { DownloadFocus, Region, ResultFocus, Section, SeedFocus } from "./store";
 
 export interface Hint {
   keys: string;
@@ -27,10 +27,13 @@ export const HELP_GROUPS: HelpGroup[] = [
     title: "Search",
     hints: [
       { keys: "/", label: "Edit search" },
-      { keys: "d", label: "Download (shift+d picks folder)" },
+      { keys: "f", label: "Filter list" },
+      { keys: "d", label: "Download (shift+d: folder)" },
       { keys: "s", label: "Sort results" },
       { keys: "z", label: "Hide dead torrents" },
       { keys: "y", label: "Copy magnet" },
+      { keys: "↵", label: "Open details" },
+      { keys: "e", label: "Export as .torrent" },
       { keys: "m", label: "Paste magnet" },
     ],
   },
@@ -38,19 +41,18 @@ export const HELP_GROUPS: HelpGroup[] = [
     title: "Downloads",
     hints: [
       { keys: "p", label: "Pause/resume" },
-      { keys: "c", label: "Cancel or remove" },
+      { keys: "c", label: "Cancel or remove (shift+c: all)" },
       { keys: "f", label: "Retry failed" },
       { keys: "d", label: "Download again" },
       { keys: "e", label: "Open folder" },
       { keys: "s", label: "Export torrent file" },
-      { keys: "x", label: "Clear recent" },
     ],
   },
   {
     title: "Seeding",
     hints: [
       { keys: "p", label: "Pause/resume" },
-      { keys: "c", label: "Remove from list" },
+      { keys: "c", label: "Remove (shift+c: all)" },
       { keys: "e", label: "Open folder" },
     ],
   },
@@ -69,11 +71,14 @@ const FOLDER: Hint = { keys: "e", label: "Folder" };
 
 const TORRENT: Hint = { keys: "s", label: "Export" };
 
+const EXPORT: Hint = { keys: "e", label: "Export" };
+
 export function footerHints(
   region: Region,
   section: Section,
   downloadFocus?: DownloadFocus | null,
   seedFocus?: SeedFocus | null,
+  resultFocus?: ResultFocus | null,
 ): Hint[] {
   if (region === "sidebar") {
     return [
@@ -87,7 +92,7 @@ export function footerHints(
   if (section === "seeding") {
     const label =
       seedFocus === "seeding" ? "Pause" : seedFocus === "missing" ? "Retry" : "Resume";
-    return [{ keys: "p", label }, { keys: "c", label: "Remove" }, FOLDER, SWITCH, ALWAYS];
+    return [{ keys: "p", label }, { keys: "c", label: "Remove from list" }, FOLDER, SWITCH, ALWAYS];
   }
   if (section === "downloads") {
     if (downloadFocus === "paused") {
@@ -97,10 +102,11 @@ export function footerHints(
       return [{ keys: "f", label: "Retry" }, { keys: "c", label: "Remove" }, FOLDER, TORRENT, SWITCH, ALWAYS];
     }
     if (downloadFocus === "recent") {
+      // Removal is list bookkeeping, never file deletion, and the label says
+      // so. Clear-all (shift+c) stays `?`-only, like D.
       return [
         { keys: "d", label: "Redownload" },
-        { keys: "c", label: "Remove" },
-        { keys: "x", label: "Clear" },
+        { keys: "c", label: "Remove from list" },
         FOLDER,
         TORRENT,
         SWITCH,
@@ -115,8 +121,9 @@ export function footerHints(
     // chosen folder) stays bound but lives in the `?` sheet alone.
     { keys: "d", label: "Download" },
     { keys: "y", label: "Copy" },
-    { keys: "s", label: "Sort" },
+    resultFocus === "detail" ? EXPORT : { keys: "s", label: "Sort" },
     { keys: "/", label: "Search" },
+    { keys: "f", label: "Filter" },
     SWITCH,
     ALWAYS,
   ];

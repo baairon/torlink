@@ -48,6 +48,7 @@ export function FolderPrompt({
             <TextField
               defaultValue={value}
               placeholder="~/Downloads/torlink"
+              width={Math.max(1, width - 6)}
               onSubmit={onSubmit}
             />
           </Box>

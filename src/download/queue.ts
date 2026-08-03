@@ -1,5 +1,5 @@
 import { EventEmitter } from "node:events";
-import { TorrentEngine, type AddHandlers } from "./engine";
+import { TorrentEngine, message, type AddHandlers } from "./engine";
 import {
   saveQueue,
   saveQueueSync,
@@ -13,6 +13,8 @@ import {
   type SeedRecord,
 } from "./persist";
 import { saveHistory, saveHistorySync, type HistoryItem } from "./history";
+import { deleteSeedData } from "./delete-data";
+import { disarmBootMarker } from "./bootguard";
 import type { QueueItem, SeedItem } from "./types";
 import type { SourceId } from "../sources/types";
 
@@ -35,8 +37,20 @@ const STRAY_TICKS = 2; // consecutive stray polls before flagging missing (~1s)
 // missing file. 10 s covers most single-torrent verifications comfortably.
 const SEED_GRACE_MS = 10_000;
 
+// A magnet with no peers never fires onMetadata or onError, so a metadata-only
+// fetch (fetchAndExportTorrent) would otherwise hang forever. Give up after
+// this long and fall into the same "export failed" path as a real error.
+const FETCH_METADATA_TIMEOUT_MS = 20_000;
+
 const POLL_MS = 500;
 const HISTORY_MAX = 500;
+
+// Max torrents allowed to actively download at once. Overflow waits as "queued"
+// and starts automatically when a slot frees. 0 / unset = unlimited (default).
+function readMaxDownloads(): number {
+  const v = Number(process.env.TORLINK_MAX_DOWNLOADS);
+  return Number.isFinite(v) && v > 0 ? Math.floor(v) : 0;
+}
 
 export interface AddInput {
   id: string;
@@ -44,6 +58,13 @@ export interface AddInput {
   magnet: string;
   source?: SourceId;
   sizeBytes?: number;
+}
+
+export interface RestoreOptions {
+  // Safe mode: the previous boot died while restoring (see bootguard.ts), so
+  // bring every item back paused and start no engines. The list stays intact
+  // and visible; the user resumes each item on their own terms.
+  safe?: boolean;
 }
 
 export class DownloadQueue extends EventEmitter {
@@ -55,6 +76,14 @@ export class DownloadQueue extends EventEmitter {
   private strayHits = new Map<string, number>();
   private seedStartedAt = new Map<string, number>();
   private trackers: string[] = [];
+
+  // Max torrents allowed to download at once; overflow waits as "queued".
+  private readonly maxDownloads: number;
+
+  constructor(opts?: { maxDownloads?: number }) {
+    super();
+    this.maxDownloads = opts?.maxDownloads ?? readMaxDownloads();
+  }
 
   // Extra announce URLs appended to every torrent added from now on.
   // Existing running torrents aren't retro-updated — the change takes effect
@@ -115,15 +144,59 @@ export class DownloadQueue extends EventEmitter {
           peers: 0,
           addedAt: Date.now(),
         };
+    // Respect the concurrent-download cap: start now if a slot is free, else
+    // hold the torrent as "queued" until one frees (see promote()).
+    const start = this.maxDownloads === 0 || this.activeCount < this.maxDownloads;
+    item.status = start ? "downloading" : "queued";
     this.items.set(item.id, item);
-    this.startEngine(item);
-    this.ensurePoll();
+    if (start) {
+      this.startEngine(item);
+      this.ensurePoll();
+    }
     this.changed();
     void this.persist();
   }
 
   private startEngine(item: QueueItem): void {
-    this.engine.add(item.id, item.magnet, item.dir, this.engineHandlers(item.id), this.trackers);
+    try {
+      this.engine.add(item.id, item.magnet, item.dir, this.engineHandlers(item.id), this.trackers);
+    } catch (e) {
+      // engine.add routes webtorrent's own synchronous failures through
+      // onError, so the only throw that reaches here is the client failing to
+      // construct at all (a broken native module, a hostile environment). Fail
+      // this one item instead of the caller, which is usually a whole restore.
+      item.status = "failed";
+      item.error = message(e);
+      item.speed = 0;
+      item.peers = 0;
+    }
+  }
+
+  /**
+   * Start queued torrents (oldest first) while download slots are free. Called
+   * whenever a slot opens up — a download finishes, fails, is paused, or is
+   * cancelled. With no cap (maxDownloads 0) nothing queues in-session, but
+   * persisted "queued" items from an earlier capped run must still start, so
+   * 0 means no ceiling here rather than an early return.
+   */
+  private promote(): void {
+    const cap = this.maxDownloads === 0 ? Infinity : this.maxDownloads;
+    let started = false;
+    while (this.activeCount < cap) {
+      const next = [...this.items.values()]
+        .filter((it) => it.status === "queued")
+        .sort((a, b) => a.addedAt - b.addedAt)[0];
+      if (!next) break;
+      next.status = "downloading";
+      next.speed = 0;
+      this.startEngine(next);
+      started = true;
+    }
+    if (started) {
+      this.ensurePoll();
+      this.changed();
+      void this.persist();
+    }
   }
 
   // One torrent serves an item across its whole life (download -> seed ->
@@ -169,6 +242,7 @@ export class DownloadQueue extends EventEmitter {
           it.peers = 0;
           this.changed();
           void this.persist();
+          this.promote(); // a slot just freed
           this.maybeStopPoll();
           return;
         }
@@ -195,6 +269,7 @@ export class DownloadQueue extends EventEmitter {
     this.emit("completed", it.name);
     this.changed();
     void this.persist();
+    this.promote(); // a slot just freed
     this.maybeStopPoll();
   }
 
@@ -291,23 +366,33 @@ export class DownloadQueue extends EventEmitter {
 
   pause(id: string): void {
     const it = this.items.get(id);
-    if (!it || it.status !== "downloading") return;
+    // A queued (not-yet-started) item can be paused too; only a downloading one
+    // holds a live engine + frees a slot on pause.
+    if (!it || (it.status !== "downloading" && it.status !== "queued")) return;
+    const wasDownloading = it.status === "downloading";
     it.status = "paused";
     it.speed = 0;
     it.peers = 0;
     it.eta = undefined;
-    this.engine.remove(id);
+    if (wasDownloading) this.engine.remove(id);
     this.changed();
     void this.persist();
-    this.maybeStopPoll();
+    if (wasDownloading) {
+      this.promote(); // a slot just freed
+      this.maybeStopPoll();
+    }
   }
 
   resume(id: string): void {
     const it = this.items.get(id);
     if (!it || it.status !== "paused") return;
-    it.status = "downloading";
-    this.startEngine(it);
-    this.ensurePoll();
+    // Respect the cap on manual resume: start if a slot is free, else re-queue.
+    const start = this.maxDownloads === 0 || this.activeCount < this.maxDownloads;
+    it.status = start ? "downloading" : "queued";
+    if (start) {
+      this.startEngine(it);
+      this.ensurePoll();
+    }
     this.changed();
     void this.persist();
   }
@@ -315,7 +400,7 @@ export class DownloadQueue extends EventEmitter {
   togglePause(id: string): void {
     const it = this.items.get(id);
     if (!it) return;
-    if (it.status === "downloading") this.pause(id);
+    if (it.status === "downloading" || it.status === "queued") this.pause(id);
     else if (it.status === "paused") this.resume(id);
   }
 
@@ -325,6 +410,56 @@ export class DownloadQueue extends EventEmitter {
     return exportTorrentMeta(it.id, it.name, it.dir);
   }
 
+  // Fetch the .torrent metadata for a magnet-only result (e.g. a search hit
+  // that has never been downloaded) and export it to exportDir. If the metadata
+  // is already cached from a prior download it is exported immediately without
+  // touching the network. The torrent handle is destroyed as soon as metadata
+  // arrives — no file content is downloaded.
+  fetchAndExportTorrent(
+    input: { id: string; name: string; magnet: string },
+    exportDir: string,
+  ): Promise<string | null> {
+    // Fast path: cached from a previous download.
+    if (torrentMetaExists(input.id)) {
+      return exportTorrentMeta(input.id, input.name, exportDir);
+    }
+    // If this torrent is already in the engine (downloading / seeding), its
+    // metadata will arrive through the normal queue flow; don't double-add it.
+    if (this.items.has(input.id) || this.seeds.has(input.id)) {
+      return Promise.resolve(null);
+    }
+    return new Promise<string | null>((resolve) => {
+      const tempKey = `__meta__${input.id}`;
+      let done = false;
+      const timer = setTimeout(() => {
+        if (done) return;
+        done = true;
+        this.engine.remove(tempKey);
+        resolve(null);
+      }, FETCH_METADATA_TIMEOUT_MS);
+      this.engine.add(tempKey, input.magnet, exportDir, {
+        onMetadata: (meta) => {
+          if (done) return;
+          done = true;
+          clearTimeout(timer);
+          // Tear down synchronously before any file data can be written.
+          this.engine.remove(tempKey);
+          void (async () => {
+            if (meta.torrentFile) await saveTorrentMeta(input.id, meta.torrentFile);
+            resolve(await exportTorrentMeta(input.id, input.name, exportDir));
+          })();
+        },
+        onError: () => {
+          if (done) return;
+          done = true;
+          clearTimeout(timer);
+          this.engine.remove(tempKey);
+          resolve(null);
+        },
+      });
+    });
+  }
+
   cancel(id: string): void {
     if (!this.items.has(id)) return;
     this.engine.remove(id);
@@ -332,16 +467,58 @@ export class DownloadQueue extends EventEmitter {
     deleteTorrentMeta(id);
     this.changed();
     void this.persist();
+    this.promote(); // a slot may have freed
     this.maybeStopPoll();
+  }
+
+  // Remove a torrent from the daemon entirely, wherever it lives (active
+  // download, seed, or just history), and optionally delete its on-disk data.
+  // Unlike cancel() (downloads only) or stopSeeding() (which leaves a paused
+  // seed record behind), this forgets the torrent completely. Returns false if
+  // the id is unknown.
+  async remove(id: string, opts: { deleteFiles?: boolean } = {}): Promise<boolean> {
+    const it = this.items.get(id);
+    const seed = this.seeds.get(id);
+    const hist = this.history.find((h) => h.id === id);
+    if (!it && !seed && !hist) return false;
+
+    const dir = it?.dir ?? seed?.dir ?? hist?.dir;
+    const name = it?.name ?? seed?.name ?? hist?.name;
+
+    // Tear down any live engine handle + in-memory record.
+    if (it || seed) this.engine.remove(id);
+    if (it) this.items.delete(id);
+    if (seed) {
+      this.seeds.delete(id);
+      this.strayHits.delete(id);
+      this.seedStartedAt.delete(id);
+    }
+    deleteTorrentMeta(id);
+    this.removeHistory(id); // persists history
+
+    if (opts.deleteFiles && dir && name) {
+      await deleteSeedData(dir, name);
+    }
+
+    this.changed();
+    void this.persist();
+    void this.persistSeeds();
+    if (it) this.promote(); // a download slot may have freed
+    this.maybeStopPoll();
+    return true;
   }
 
   retry(id: string): void {
     const it = this.items.get(id);
     if (!it || it.status !== "failed") return;
-    it.status = "downloading";
     it.error = undefined;
-    this.startEngine(it);
-    this.ensurePoll();
+    // Respect the cap on retry: start if a slot is free, else queue.
+    const start = this.maxDownloads === 0 || this.activeCount < this.maxDownloads;
+    it.status = start ? "downloading" : "queued";
+    if (start) {
+      this.startEngine(it);
+      this.ensurePoll();
+    }
     this.changed();
     void this.persist();
   }
@@ -399,7 +576,16 @@ export class DownloadQueue extends EventEmitter {
     // Seed from the stored .torrent metadata when we have it (verifies the local
     // file immediately, no swarm needed); fall back to the magnet otherwise.
     const source = torrentMetaExists(h.id) ? torrentMetaPath(h.id) : h.magnet;
-    this.engine.add(h.id, source, h.dir, this.engineHandlers(h.id), this.trackers);
+    try {
+      this.engine.add(h.id, source, h.dir, this.engineHandlers(h.id), this.trackers);
+    } catch {
+      // Same narrow case as startEngine: only a client that won't construct
+      // lands here. Leave the seed paused so it stays visible and resumable.
+      this.seeds.set(h.id, { ...base, status: "paused" });
+      this.changed();
+      void this.persistSeeds();
+      return;
+    }
     this.ensurePoll();
     this.changed();
     void this.persistSeeds();
@@ -426,15 +612,17 @@ export class DownloadQueue extends EventEmitter {
     else this.startSeeding(h);
   }
 
-  restoreSeeds(records: SeedRecord[]): void {
+  restoreSeeds(records: SeedRecord[], opts: RestoreOptions = {}): void {
     for (const r of records) {
       const h = this.history.find((x) => x.id === r.id);
       if (!h) continue;
       // Respect the persisted choice: resume seeders, but leave a paused seed
-      // paused (and visibly so) instead of auto-starting it.
-      if (r.status === "seeding") this.startSeeding(h);
+      // paused (and visibly so) instead of auto-starting it. In safe mode even
+      // seeders come back paused, since re-seeding also feeds the engine.
+      if (r.status === "seeding" && !opts.safe) this.startSeeding(h);
       else this.restorePaused(h);
     }
+    if (opts.safe) void this.persistSeeds();
   }
 
   // Rebuild a paused seed from history without touching the engine, so it shows
@@ -471,13 +659,34 @@ export class DownloadQueue extends EventEmitter {
     return saveSeeds(this.seedRecords()).catch(() => {});
   }
 
-  restore(items: QueueItem[]): void {
+  restore(items: QueueItem[], opts: RestoreOptions = {}): void {
+    if (opts.safe) {
+      // Engines stay cold: pause everything that would have started and keep
+      // the rest as saved, then persist so the paused state is the new truth.
+      for (const raw of items) {
+        if (raw.status === "downloading" || raw.status === "queued") raw.status = "paused";
+        this.items.set(raw.id, raw);
+      }
+      this.changed();
+      void this.persist();
+      return;
+    }
+    let active = 0;
     for (const raw of items) {
       this.items.set(raw.id, raw);
-      if (raw.status === "downloading") this.startEngine(raw);
+      if (raw.status !== "downloading") continue;
+      if (this.maxDownloads === 0 || active < this.maxDownloads) {
+        this.startEngine(raw);
+        active++;
+      } else {
+        // Over the cap on boot → hold as queued (promoted as slots free).
+        raw.status = "queued";
+      }
     }
-    if (this.activeCount > 0) this.ensurePoll();
+    if (active > 0) this.ensurePoll();
     this.changed();
+    // Fill any remaining slots from persisted "queued" items.
+    this.promote();
   }
 
   restoreHistory(items: HistoryItem[]): void {
@@ -551,6 +760,9 @@ export class DownloadQueue extends EventEmitter {
     saveQueueSync(this.getItems());
     saveHistorySync(this.history);
     saveSeedsSync(this.seedRecords());
+    // A clean flush doubles as proof this run did not die mid-restore, so the
+    // crash-boot breaker stands down (see bootguard.ts).
+    disarmBootMarker();
   }
 
   suspend(): void {

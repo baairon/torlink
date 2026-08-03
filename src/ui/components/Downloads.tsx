@@ -23,13 +23,14 @@ const PAUSED = "#7c7785";
 
 function statusColor(status: QueueItem["status"]): string {
   if (status === "failed") return COLOR.bad;
-  if (status === "paused") return PAUSED;
+  if (status === "paused" || status === "queued") return PAUSED;
   return COLOR.accent;
 }
 
 function statusIcon(status: QueueItem["status"]): string {
   if (status === "failed") return ICON.error;
   if (status === "paused") return ICON.pause;
+  if (status === "queued") return ICON.pending;
   return ICON.down;
 }
 
@@ -40,6 +41,7 @@ function rightStats(it: QueueItem): string {
     return `${it.progress}%  ${speed}  ${ICON.peer}${it.peers}${eta}`;
   }
   if (it.status === "paused") return `paused  ${it.progress}%`;
+  if (it.status === "queued") return `queued  ${it.progress}%`;
   return truncate(it.error || "failed", 28);
 }
 
@@ -69,7 +71,6 @@ export function Downloads() {
       if (key.upArrow || input === "k") setCursor(wrapStep(clamped, -1, total));
       else if (key.downArrow || input === "j") setCursor(wrapStep(clamped, 1, total));
       else if (input === "f") queue.retryFailed();
-      else if (input === "x") queue.clearHistory();
       else if (input === "e") {
         const dir = inActive ? active[clamped]?.dir : recent[recentCursor]?.dir;
         if (dir) openDownloadFolder(dir);
@@ -93,6 +94,9 @@ export function Downloads() {
             sizeBytes: h.sizeBytes,
           });
         else if (input === "c") queue.removeHistory(h.id);
+        // Clear-all lives here, not at the top of the chain, so it can only
+        // fire while the cursor is actually on the recent list.
+        else if (input === "C") queue.clearHistory();
       }
     },
     { isActive: focused && total > 0 },

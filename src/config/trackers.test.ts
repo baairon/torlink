@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatTrackers, parseTrackers } from "./trackers";
+import { formatTrackers, parseTrackers, trackersStatus } from "./trackers";
 
 describe("parseTrackers", () => {
   it("returns empty for blank input", () => {
@@ -51,5 +51,47 @@ describe("formatTrackers", () => {
 
   it("returns empty string for empty array", () => {
     expect(formatTrackers([])).toBe("");
+  });
+});
+
+describe("trackersStatus", () => {
+  it("shows the idle hint when the field matches what is saved", () => {
+    expect(trackersStatus(["udp://a.example:1337"], "udp://a.example:1337")).toBe(
+      "1 saved · comma or space separated · empty clears",
+    );
+  });
+
+  it("shows the idle hint without the clear tail when nothing is saved", () => {
+    expect(trackersStatus([], "")).toBe("none saved · comma or space separated");
+  });
+
+  it("counts what a paste will save", () => {
+    expect(
+      trackersStatus(["udp://a.example:1337"], "udp://a.example:1337, udp://b.example:80"),
+    ).toBe("1 saved → will save 2");
+  });
+
+  it("announces that an empty field clears the saved list", () => {
+    expect(trackersStatus(["udp://a.example:1337", "udp://b.example:80"], "   ")).toBe(
+      "2 saved → empty clears all",
+    );
+  });
+
+  it("counts invalid tokens as ignored", () => {
+    expect(trackersStatus([], "udp://a.example:1337 garbage")).toBe(
+      "none saved → will save 1 · 1 ignored",
+    );
+  });
+
+  it("counts duplicates as ignored", () => {
+    expect(trackersStatus([], "udp://a.example:1337, udp://a.example:1337")).toBe(
+      "none saved → will save 1 · 1 ignored",
+    );
+  });
+
+  it("surfaces ignored tokens even when the valid list is unchanged", () => {
+    expect(trackersStatus(["udp://a.example:1337"], "udp://a.example:1337 nope")).toBe(
+      "1 saved → will save 1 · 1 ignored",
+    );
   });
 });

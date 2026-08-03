@@ -28,7 +28,7 @@ export interface AddHandlers {
   onError?: (message: string) => void;
 }
 
-function message(e: unknown): string {
+export function message(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
 }
 
@@ -113,16 +113,44 @@ export class TorrentEngine {
   stats(id: string): TorrentProgress | null {
     const t = this.torrents.get(id);
     if (!t) return null;
+
+    let progress = 0;
+    let downloaded = 0;
+    let total = 0;
+    let speed = 0;
+    let uploadSpeed = 0;
+    let uploaded = 0;
+    let peers = 0;
+    let timeRemaining = Infinity;
+    let name = "";
+
+    try {
+      progress = t.progress || 0;
+      downloaded = t.downloaded || 0;
+      total = t.length || 0;
+      speed = t.downloadSpeed || 0;
+      uploadSpeed = t.uploadSpeed || 0;
+      uploaded = t.uploaded || 0;
+      peers = t.numPeers || 0;
+      timeRemaining = typeof t.timeRemaining === "number" && !isNaN(t.timeRemaining) ? t.timeRemaining : Infinity;
+      name = t.name || "";
+    } catch {
+      // Every stat is read inside this try on purpose: webtorrent getters can
+      // throw before metadata parses and on a torrent in an error state, and
+      // stats() runs from the poll interval, where an escaping throw is an
+      // uncaught exception. Partial numbers beat a dead poller.
+    }
+
     return {
-      progress: t.progress,
-      downloaded: t.downloaded,
-      total: t.length,
-      speed: t.downloadSpeed,
-      uploadSpeed: t.uploadSpeed,
-      uploaded: t.uploaded,
-      peers: t.numPeers,
-      timeRemaining: t.timeRemaining,
-      name: t.name,
+      progress,
+      downloaded,
+      total,
+      speed,
+      uploadSpeed,
+      uploaded,
+      peers,
+      timeRemaining,
+      name,
     };
   }
 
