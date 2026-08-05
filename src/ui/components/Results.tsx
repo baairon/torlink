@@ -465,10 +465,11 @@ export function Results() {
                       {showStats ? (
                         <>
                           <Box width={10} flexShrink={0} marginLeft={1} justifyContent="flex-end">
-                            <Text 
-								dimColor={!here}
-								bold={here}
-							>{r.sizeBytes > 0 ? formatBytes(r.sizeBytes) : "-"}</Text>
+                            <Text
+                              dimColor={!here}
+                              bold={here}
+                            >{r.sizeBytes > 0 ? formatBytes(r.sizeBytes) : "-"}
+                            </Text>
                           </Box>
                           <Box width={9} flexShrink={0} marginLeft={1} justifyContent="flex-end">
                             <Text
@@ -483,19 +484,19 @@ export function Results() {
                         </>
                       ) : (
                         <Box width={12} flexShrink={0} marginLeft={1} justifyContent="flex-end">
-                          <Text 
-							dimColor={!here}
-							bold={here}
-						  >{formatRelative(r.added) || "-"}</Text>
+                          <Text
+                            dimColor={!here}
+                            bold={here}
+                          >{formatRelative(r.added) || "-"}
+                          </Text>
                         </Box>
                       )}
                       <Box width={4} flexShrink={0} marginLeft={1} justifyContent="flex-end">
-                        <Text 
-							color={ss.color} 
-							dimColor={!here}
-							bold={here}
-						>
-                          {ss.tag}
+                        <Text
+                          color={ss.color}
+                          dimColor={!here}
+                          bold={here}
+                        >{ss.tag}
                         </Text>
                       </Box>
                     </Box>

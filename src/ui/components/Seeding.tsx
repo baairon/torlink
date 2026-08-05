@@ -155,10 +155,11 @@ export function Seeding() {
                 </Text>
               </Box>
               <Box width={SIZE_W} flexShrink={0} marginLeft={1} justifyContent="flex-end">
-                <Text 
-					dimColor={!here}
-					bold={here}
-				>{h.sizeBytes > 0 ? formatBytes(h.sizeBytes) : "-"}</Text>
+                <Text
+                  dimColor={!here}
+                  bold={here}
+                >{h.sizeBytes > 0 ? formatBytes(h.sizeBytes) : "-"}
+                </Text>
               </Box>
               <Box width={STATUS_W} flexShrink={0} marginLeft={1} justifyContent="flex-end">
                 <Text 
@@ -167,12 +168,11 @@ export function Seeding() {
 				>{truncate(st.text, STATUS_W)}</Text>
               </Box>
               <Box width={SRC_W} flexShrink={0} marginLeft={1} justifyContent="flex-end">
-                <Text 
-					color={h.source ? ss.color : undefined} 
-					dimColor={!here}
-					bold={here}
-				>
-                  {h.source ? ss.tag : "mag"}
+                <Text
+                  color={h.source ? ss.color : undefined} 
+                  dimColor={!h.source || !here}
+                  bold={here}
+                >{h.source ? ss.tag : "mag"}
                 </Text>
               </Box>
             </Box>
