@@ -10,13 +10,6 @@ export const COLOR = {
   bright: "#d8b4fe",
 } as const;
 
-export const COLOR_HIGHLIGHTED = {
-  text: "#ffffff",
-  good: "#add7bc",
-  warn: "#f5dda5",
-  bad: "#f7adbb",
-} as const;
-
 export const ICON = {
   done: "✓",
   error: "✗",
