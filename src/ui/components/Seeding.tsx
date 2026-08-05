@@ -162,10 +162,12 @@ export function Seeding() {
                 </Text>
               </Box>
               <Box width={STATUS_W} flexShrink={0} marginLeft={1} justifyContent="flex-end">
-                <Text 
-					color={st.color} 
-					bold={here}
-				>{truncate(st.text, STATUS_W)}</Text>
+                <Text
+                  color={st.color}
+                  dimColor={!here}
+                  bold={here}
+                >{truncate(st.text, STATUS_W)}
+                </Text>
               </Box>
               <Box width={SRC_W} flexShrink={0} marginLeft={1} justifyContent="flex-end">
                 <Text
