@@ -51,6 +51,7 @@ export const HELP_GROUPS: HelpGroup[] = [
       { keys: "e", label: "Open folder" },
       { keys: "i", label: "Inspect files" },
       { keys: "s", label: "Export torrent file" },
+      { keys: "shift+s", label: "Toggle sequential downloading" },
     ],
   },
   {
@@ -150,6 +151,7 @@ export function footerHints(
           { keys: "i", label: "Files" },
           { keys: "p", label: "Pause" },
           { keys: "c", label: "Cancel" },
+          { keys: "shift+s", label: "Strategy" },
           FOLDER,
           TORRENT,
           SWITCH,
