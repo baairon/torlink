@@ -136,6 +136,10 @@ export class DownloadQueue extends EventEmitter {
     return this.items.has(id);
   }
 
+  hasSeen(id: string): boolean {
+    return this.items.has(id) || this.seeds.has(id) || this.history.some(h => h.id === id);
+  }
+
   add(input: AddInput, dir: string): void {
     if (this.seeds.has(input.id)) {
       this.engine.remove(input.id);
