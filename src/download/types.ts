@@ -55,4 +55,5 @@ export interface QueueItem {
   files?: number;
   error?: string;
   addedAt: number;
+  strategy?: "rarest" | "sequential";
 }

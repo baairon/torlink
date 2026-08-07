@@ -78,6 +78,7 @@ export class TorrentEngine {
     dir: string,
     handlers: AddHandlers,
     announce?: string[],
+    strategy?: "rarest" | "sequential",
   ): void {
     const client = this.ensureClient();
     const existing = this.torrents.get(id);
@@ -88,7 +89,8 @@ export class TorrentEngine {
       } catch {}
     }
 
-    const opts = announce && announce.length > 0 ? { path: dir, announce } : { path: dir };
+    const baseOpts = announce && announce.length > 0 ? { path: dir, announce } : { path: dir };
+    const opts = { ...baseOpts, strategy: strategy ?? "rarest" };
     let torrent: Torrent;
     try {
       torrent = client.add(source, opts);
@@ -287,6 +289,14 @@ export class TorrentEngine {
           }
         }
       }
+    }
+  }
+
+  setStrategy(id: string, strategy: "rarest" | "sequential"): void {
+    const t = this.torrents.get(id);
+    if (t) {
+      // @ts-ignore - strategy is an undocumented property of the torrent instance
+      t.strategy = strategy;
     }
   }
 

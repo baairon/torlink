@@ -39,7 +39,8 @@ function rightStats(it: QueueItem): string {
   if (it.status === "downloading") {
     const speed = formatBytesPerSec(it.speed) || "…";
     const eta = it.eta ? `  ${formatEtaShort(it.eta)}` : "";
-    return `${it.progress}%  ${speed}  ${ICON.peer}${it.peers}${eta}`;
+    const strat = it.strategy === "sequential" ? "  seq" : "";
+    return `${it.progress}%  ${speed}  ${ICON.peer}${it.peers}${eta}${strat}`;
   }
   if (it.status === "paused") return `paused  ${it.progress}%`;
   if (it.status === "queued") return `queued  ${it.progress}%`;
@@ -95,6 +96,9 @@ export function Downloads() {
       } else if (input === "w") {
         const item = inActive ? active[clamped] : null;
         if (item) setInspectingPeersId(item.id);
+      } else if (input === "S") {
+        const item = inActive ? active[clamped] : null;
+        if (item) queue.toggleStrategy(item.id);
       } else if (inActive) {
         const it = active[clamped];
         if (!it) return;

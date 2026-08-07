@@ -173,6 +173,7 @@ export class DownloadQueue extends EventEmitter {
           speed: 0,
           peers: 0,
           addedAt: Date.now(),
+          strategy: "rarest",
         };
     // Respect the concurrent-download cap: start now if a slot is free, else
     // hold the torrent as "queued" until one frees (see promote()).
@@ -191,7 +192,7 @@ export class DownloadQueue extends EventEmitter {
     if (item.name) migrateLegacyPathSync(item.dir, item.name, "Downloads");
     const source = torrentMetaExists(item.id) ? torrentMetaPath(item.id) : item.magnet;
     try {
-      this.engine.add(item.id, source, getDownloadsDir(item.dir), this.engineHandlers(item.id), this.trackers);
+      this.engine.add(item.id, source, getDownloadsDir(item.dir), this.engineHandlers(item.id), this.trackers, item.strategy);
     } catch (e) {
       // engine.add routes webtorrent's own synchronous failures through
       // onError, so the only throw that reaches here is the client failing to
@@ -525,6 +526,15 @@ export class DownloadQueue extends EventEmitter {
     if (!it) return;
     if (it.status === "downloading" || it.status === "queued") this.pause(id);
     else if (it.status === "paused") this.resume(id);
+  }
+
+  toggleStrategy(id: string): void {
+    const it = this.items.get(id);
+    if (!it) return;
+    it.strategy = it.strategy === "sequential" ? "rarest" : "sequential";
+    this.engine.setStrategy(id, it.strategy);
+    this.changed();
+    void this.persist();
   }
 
   exportTorrentFile(id: string): Promise<string | null> {
