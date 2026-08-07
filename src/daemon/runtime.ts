@@ -34,6 +34,9 @@ export interface Runtime {
 // back to the saved config's dir when the caller doesn't override it.
 export async function startRuntime(overrideDir?: string): Promise<Runtime> {
   const cfg = await loadConfig();
+  const { applyNetworkBinding } = await import("../download/network");
+  applyNetworkBinding(cfg);
+  
   const queue = new DownloadQueue();
   queue.setTrackers(cfg.trackers);
   // Crash-boot breaker, mirroring the TUI: a marker left by the previous run

@@ -13,6 +13,7 @@ import {
   disarmBootMarker,
   wasBootInterrupted,
 } from "../download/bootguard";
+import { applyNetworkBinding } from "../download/network";
 import { logCrash } from "../util/crashlog";
 import { parseInput } from "../sources/magnet";
 import { magnetFromTorrentFile } from "../sources/torrentFile";
@@ -50,6 +51,7 @@ import { Files } from "./components/Files";
 import { Splash } from "./views/Splash";
 import { FolderPrompt } from "./components/FolderPrompt";
 import { TrackersPrompt } from "./components/TrackersPrompt";
+import { NetworkPrompt } from "./components/NetworkPrompt";
 import { ConfirmPrompt } from "./components/ConfirmPrompt";
 import { footerHints } from "./keymap";
 import { COLOR, ICON } from "./theme";
@@ -106,7 +108,7 @@ export function App({
   const [showHelp, setShowHelp] = useState(false);
   const [editingFolder, setEditingFolder] = useState(false);
   const [editingTrackers, setEditingTrackers] = useState(false);
-  // A result waiting on the "download to" prompt (D); null when the prompt is
+  const [editingNetwork, setEditingNetwork] = useState(false);
   // closed. lastDownloadToDir pre-fills the next prompt so queueing a batch
   // into the same alternate folder only costs one typed path per session.
   const [pendingDownload, setPendingDownload] = useState<{
@@ -144,6 +146,7 @@ export function App({
     let alive = true;
     void (async () => {
       const cfg = await loadConfig();
+      applyNetworkBinding(cfg);
       const q = new DownloadQueue();
       q.setTrackers(cfg.trackers);
       // Crash-boot breaker: a marker left behind by the previous boot means it
@@ -255,6 +258,7 @@ export function App({
   const setConfig = useCallback(
     (c: Config) => {
       setConfigState(c);
+      applyNetworkBinding(c);
       queue?.setTrackers(c.trackers);
       if (autoDownloader) {
         autoDownloader.setConfig(c);
@@ -292,6 +296,24 @@ export function App({
   const closeTrackersPrompt = useCallback(() => {
     setEditingTrackers(false);
   }, []);
+
+  const closeNetworkPrompt = useCallback(() => {
+    setEditingNetwork(false);
+  }, []);
+
+  const setBindAddress = useCallback(
+    (address: string | null) => {
+      closeNetworkPrompt();
+      if (!config) return;
+      if (address === config.bindAddress) {
+        setNotice("Network binding unchanged.");
+        return;
+      }
+      setConfig({ ...config, bindAddress: address });
+      setNotice(address ? `Network bound to: ${address}` : "Network binding cleared.");
+    },
+    [config, setConfig, closeNetworkPrompt]
+  );
 
   const setTrackers = useCallback(
     (list: string[]) => {
@@ -537,7 +559,7 @@ export function App({
       submitQuery,
       section,
       setSection,
-      region: showHelp || editingFolder || editingTrackers || pendingDownload || pendingConfirm ? "help" : region,
+      region: showHelp || editingFolder || editingTrackers || editingNetwork || pendingDownload || pendingConfirm ? "help" : region,
       setRegion,
       captureMode,
       setCaptureMode,
@@ -586,6 +608,7 @@ export function App({
     showHelp,
     editingFolder,
     editingTrackers,
+    editingNetwork,
     pendingDownload,
     captureMode,
     downloadFocus,
@@ -620,7 +643,7 @@ export function App({
         quitAll();
         return;
       }
-      if (editingFolder || editingTrackers || pendingDownload || pendingConfirm) return; // the prompt owns input (its own esc + enter)
+      if (editingFolder || editingTrackers || editingNetwork || pendingDownload || pendingConfirm) return; // the prompt owns input (its own esc + enter)
       if (captureMode === "text") return;
       if (showHelp) {
         setShowHelp(false);
@@ -648,20 +671,17 @@ export function App({
         setEditingTrackers(true);
         return;
       }
+      if (input === "n") {
+        setShowHelp(false);
+        setEditingNetwork(true);
+        return;
+      }
       if (input === "m") {
         void pasteFromClipboard();
         return;
       }
       if (input === "w") {
         if (inspectingPeersId) setInspectingPeersId(null);
-        return;
-      }
-      if (input === "w") {
-        if (inspectingPeersId) setInspectingPeersId(null);
-        return;
-      }
-      if (input === "w") {
-        if (inspectingId) setInspectingId(null);
         return;
       }
       if (key.tab) {
@@ -792,6 +812,17 @@ export function App({
               value={store.config.trackers}
               onSubmit={setTrackers}
               onCancel={closeTrackersPrompt}
+            />
+          </Box>
+        ) : null}
+
+        {editingNetwork ? (
+          <Box marginTop={1}>
+            <NetworkPrompt
+              width={Math.max(24, Math.min(cols - 4, 62))}
+              value={store.config.bindAddress}
+              onSubmit={setBindAddress}
+              onCancel={closeNetworkPrompt}
             />
           </Box>
         ) : null}

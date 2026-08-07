@@ -24,6 +24,7 @@ describe("AutoDownloader", () => {
       throttleUploadLimit: 0,
       webServerEnabled: false,
       webServerPort: 8080,
+      bindAddress: null,
       autoDownloads: [],
       autoDownloadIntervalMs: 1000,
     };
