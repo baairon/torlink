@@ -20,6 +20,11 @@ Klink expands on upstream torlink with key power-user features:
 - 🔍 **Peer Inspector Pane**: Press `b` on an active download to view live swarm peer connections, IP addresses, client software strings, and individual peer transfer rates.
 - 🐢 **Turtle Mode (Bandwidth Throttling)**: Toggle global download and upload speed limits on the fly with a single keypress (`b`) for low-bandwidth or shared network environments.
 - 📁 **File Inspection & Selective Download**: Inspect multi-file torrent contents before or during download, view nested file trees, and toggle individual files on or off.
+- ℹ️ **Metadata Inspector**: View detailed metadata (like plot summaries, tracklists, or release notes) for a torrent before downloading.
+- 📻 **RSS Auto-Downloader**: A background daemon for subscribing to RSS feeds and automatically downloading new items as they are released.
+- ⚙️ **Advanced Search Filtering**: Filter and refine search results by properties like seeders, size, and category.
+- ⏯️ **Sequential Downloading**: Toggle sequential block downloading to prioritise early pieces, enabling immediate playback of media.
+- 🌐 **Network Interface Binding**: Force all torrent traffic through a specific network interface (like a VPN tunnel) to prevent IP leaks.
 - 🎬 **Direct Media Streaming & Themed Web UI**: Stream video files directly over HTTP while downloading (`klink serve` / `klink files`), with an integrated web interface featuring a dark/light theme switcher.
 - ✅ **Completed Tab & Smart File Organisation**: Cleanly separate active downloads, seeding items, and finished downloads with directory routing.
 - ⚠️ **Action Confirmation Dialogs**: Safety confirmation prompts before destructive actions like cancelling downloads or clearing history to prevent accidental data loss.
@@ -65,6 +70,8 @@ A short, hand-picked list of trusted sources:
 | Movies | YTS, The Pirate Bay, 1337x, BitTorrented |
 | TV | EZTV, The Pirate Bay, 1337x, BitTorrented |
 | Anime | Nyaa, SubsPlease |
+| E-Books | The Pirate Bay, 1337x, BitTorrented |
+| Audiobooks | The Pirate Bay, 1337x, BitTorrented |
 
 Games are the only category that can run code, so they come from FitGirl alone, a repacker with a long, trusted track record; everything else is plain video and subtitles. If a source is down, the search carries on without it, and Klink tells you which one is offline.
 
@@ -114,6 +121,11 @@ Before opening a PR, skim [CONTRIBUTING.md](CONTRIBUTING.md); it lays out the ba
 | Peer Inspector | ❌ | ✅ |
 | Turtle Mode | ❌ | ✅ |
 | File Inspection | ❌ | ✅ |
+| Metadata Inspector | ❌ | ✅ |
+| RSS Auto-Downloader | ❌ | ✅ |
+| Advanced Search Filtering | ❌ | ✅ |
+| Sequential Downloading | ❌ | ✅ |
+| Network Interface Binding | ❌ | ✅ |
 | Media Streaming | ❌ | ✅ |
 | Completion Tab | ❌ | ✅ |
 | Confirmation Dialogs | ❌ | ✅ |

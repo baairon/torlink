@@ -18,6 +18,7 @@ export interface Config {
   throttleUploadLimit: number;
   webServerEnabled: boolean;
   webServerPort: number;
+  bindAddress: string | null;
   autoDownloads: AutoDownloadRule[];
   autoDownloadIntervalMs: number;
 }
@@ -30,6 +31,7 @@ export const defaultConfig: Config = {
   throttleUploadLimit: 500000,
   webServerEnabled: false,
   webServerPort: 8080,
+  bindAddress: null,
   autoDownloads: [],
   autoDownloadIntervalMs: 3600000, // 1 hour default
 };
@@ -56,6 +58,7 @@ export async function loadConfig(): Promise<Config> {
       throttleUploadLimit: typeof parsed.throttleUploadLimit === "number" ? parsed.throttleUploadLimit : 500000,
       webServerEnabled: typeof parsed.webServerEnabled === "boolean" ? parsed.webServerEnabled : false,
       webServerPort: typeof parsed.webServerPort === "number" ? parsed.webServerPort : 8080,
+      bindAddress: typeof parsed.bindAddress === "string" ? parsed.bindAddress : null,
       autoDownloads: Array.isArray(parsed.autoDownloads)
         ? (parsed.autoDownloads.filter((a: any) => typeof a?.source === "string" && typeof a?.query === "string" && typeof a?.match === "string") as AutoDownloadRule[])
         : [],
