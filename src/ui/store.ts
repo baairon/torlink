@@ -90,6 +90,9 @@ export interface Store {
   setInspectingId: (id: string | null, magnet?: string) => void;
   inspectingPeersId: string | null;
   setInspectingPeersId: (id: string | null) => void;
+  inspectingMetaId: string | null;
+  inspectingMetaMagnet: string | null;
+  setInspectingMetaId: (id: string | null, magnet?: string) => void;
   inspectFocusSelected: boolean;
   setInspectFocusSelected: (s: boolean) => void;
   toggleFileSelection: (id: string, path: string, selected: boolean) => void;

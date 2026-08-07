@@ -164,6 +164,7 @@ export function footerHints(
       NAVIGATE,
       { keys: "d", label: "Download" },
       { keys: "i", label: "Files" },
+      { keys: "v", label: "Metadata" },
       { keys: "y", label: "Copy" },
       resultFocus === "detail" ? EXPORT : { keys: "s", label: "Sort" },
       { keys: "/", label: "Search" },
