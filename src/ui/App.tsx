@@ -19,6 +19,7 @@ import { magnetFromTorrentFile } from "../sources/torrentFile";
 import { readClipboard, writeClipboard } from "../util/clipboard";
 import { openFolder } from "../util/openFolder";
 import { startWebServer, stopWebServer } from "../server";
+import { AutoDownloader } from "../daemon/autodownload";
 import { cleanText, formatBytes, truncate } from "../util/format";
 import {
   StoreContext,
@@ -93,6 +94,7 @@ export function App({
 
   const [queue, setQueue] = useState<DownloadQueue | null>(null);
   const [config, setConfigState] = useState<Config | null>(null);
+  const [autoDownloader, setAutoDownloader] = useState<AutoDownloader | null>(null);
   const [view, setView] = useState<View>("splash");
   const [query, setQuery] = useState("");
   const [section, setSection] = useState<Section>("all");
@@ -168,6 +170,16 @@ export function App({
       }
       setConfigState(cfg);
       setQueue(q);
+      
+      let ad: AutoDownloader | null = null;
+      if (cfg.autoDownloads && cfg.autoDownloads.length > 0) {
+        ad = new AutoDownloader(q, cfg, (msg) => {
+          if (alive) setNotice(msg.replace("AutoDownloader: ", ""));
+        });
+        ad.start();
+        setAutoDownloader(ad);
+      }
+      
       if (safeBoot) {
         setRecovered(true);
         setNotice("Recovered from a crashed start · downloads paused");
@@ -225,26 +237,31 @@ export function App({
 
   useEffect(
     () => () => {
+      autoDownloader?.stop();
       queue?.suspend();
     },
-    [queue],
+    [queue, autoDownloader],
   );
 
   const quitAll = useCallback(() => {
     // Flush all state synchronously up front so nothing is lost to the hard
     // exit; the unmount effect still runs suspend() for the engine teardown.
+    autoDownloader?.stop();
     queue?.persistSync();
     if (onQuit) onQuit();
     else exit();
-  }, [queue, onQuit, exit]);
+  }, [queue, autoDownloader, onQuit, exit]);
 
   const setConfig = useCallback(
     (c: Config) => {
       setConfigState(c);
       queue?.setTrackers(c.trackers);
+      if (autoDownloader) {
+        autoDownloader.setConfig(c);
+      }
       void saveConfig(c);
     },
-    [queue],
+    [queue, autoDownloader],
   );
 
   useEffect(() => {

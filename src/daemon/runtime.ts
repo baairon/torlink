@@ -26,6 +26,7 @@ export interface Runtime {
   // True when the previous run died mid-restore and this boot came up in safe
   // mode: everything paused, no engines started (see download/bootguard.ts).
   recovered?: boolean;
+  autoDownloader?: import("./autodownload").AutoDownloader;
 }
 
 // Build a queue and restore persisted state, matching the TUI's boot order
@@ -47,7 +48,13 @@ export async function startRuntime(overrideDir?: string): Promise<Runtime> {
     console.error("[torlnk] recovered from a crashed start: restored downloads are paused");
   }
   const downloadDir = overrideDir && overrideDir.trim() ? overrideDir.trim() : cfg.downloadDir;
-  return { queue, downloadDir, recovered: safe };
+  let autoDownloader: import("./autodownload").AutoDownloader | undefined;
+  if (cfg.autoDownloads && cfg.autoDownloads.length > 0) {
+    const { AutoDownloader } = await import("./autodownload");
+    autoDownloader = new AutoDownloader(queue, cfg, (msg) => console.log(`[torlnk auto] ${msg}`));
+    autoDownloader.start();
+  }
+  return { queue, downloadDir, recovered: safe, autoDownloader };
 }
 
 export type AddOutcome = "added" | "duplicate" | "invalid";

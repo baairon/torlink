@@ -2,6 +2,14 @@ import { promises as fs } from "node:fs";
 import { configFile, defaultDownloadDir } from "./paths";
 import { serializeWrites, writeJsonAtomic } from "../util/atomic";
 
+import { SourceId } from "../sources/types";
+
+export interface AutoDownloadRule {
+  source: SourceId;
+  query: string;
+  match: string;
+}
+
 export interface Config {
   downloadDir: string;
   trackers: string[];
@@ -10,6 +18,8 @@ export interface Config {
   throttleUploadLimit: number;
   webServerEnabled: boolean;
   webServerPort: number;
+  autoDownloads: AutoDownloadRule[];
+  autoDownloadIntervalMs: number;
 }
 
 export const defaultConfig: Config = {
@@ -20,6 +30,8 @@ export const defaultConfig: Config = {
   throttleUploadLimit: 500000,
   webServerEnabled: false,
   webServerPort: 8080,
+  autoDownloads: [],
+  autoDownloadIntervalMs: 3600000, // 1 hour default
 };
 
 export async function loadConfig(): Promise<Config> {
@@ -44,6 +56,10 @@ export async function loadConfig(): Promise<Config> {
       throttleUploadLimit: typeof parsed.throttleUploadLimit === "number" ? parsed.throttleUploadLimit : 500000,
       webServerEnabled: typeof parsed.webServerEnabled === "boolean" ? parsed.webServerEnabled : false,
       webServerPort: typeof parsed.webServerPort === "number" ? parsed.webServerPort : 8080,
+      autoDownloads: Array.isArray(parsed.autoDownloads)
+        ? (parsed.autoDownloads.filter((a: any) => typeof a?.source === "string" && typeof a?.query === "string" && typeof a?.match === "string") as AutoDownloadRule[])
+        : [],
+      autoDownloadIntervalMs: typeof parsed.autoDownloadIntervalMs === "number" ? parsed.autoDownloadIntervalMs : 3600000,
     };
     return cfg;
   } catch {
