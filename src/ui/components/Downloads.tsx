@@ -60,6 +60,8 @@ export function Downloads() {
     setInspectingId,
     inspectingPeersId,
     setInspectingPeersId,
+    inspectingMetaId,
+    setInspectingMetaId,
     requestConfirm,
   } = useStore();
   const active = useQueueItems(queue);
@@ -103,6 +105,7 @@ export function Downloads() {
         }
         else if (input === "p") queue.togglePause(it.id);
         else if (input === "w") setInspectingPeersId(it.id);
+        else if (input === "v") setInspectingMetaId(it.id, it.magnet);
         else if (input === "i" || input === "Enter" || input === " ") setInspectingId(it.id);
       } else {
         const h = recent[recentCursor];
@@ -119,6 +122,7 @@ export function Downloads() {
           requestConfirm(`Remove and delete '${truncate(cleanText(h.name), 40)}'?`, () => queue.removeHistory(h.id));
         }
         else if (input === "i") setInspectingId(h.id);
+        else if (input === "v") setInspectingMetaId(h.id, h.magnet);
         // Clear-all lives here, not at the top of the chain, so it can only
         // fire while the cursor is actually on the recent list.
         else if (input === "C" || input === "x") {
@@ -126,7 +130,7 @@ export function Downloads() {
         }
       }
     },
-    { isActive: focused && total > 0 && !inspectingId && !inspectingPeersId },
+    { isActive: focused && total > 0 && !inspectingId && !inspectingPeersId && !inspectingMetaId },
   );
 
   let focusKind: DownloadFocus | null = null;

@@ -31,7 +31,7 @@ function statusCell(seed: SeedItem | undefined): { text: string; color?: string;
 }
 
 export function Seeding() {
-  const { queue, region, contentWidth, listRows, openDownloadFolder, setSeedFocus, setInspectingId, setInspectingPeersId, inspectingId, inspectingPeersId, setNotice, requestConfirm } =
+  const { queue, region, contentWidth, listRows, openDownloadFolder, setSeedFocus, setInspectingId, setInspectingPeersId, setInspectingMetaId, inspectingId, inspectingPeersId, inspectingMetaId, setNotice, requestConfirm } =
     useStore();
   const history = useQueueHistory(queue);
   const seeds = useSeeds(queue);
@@ -79,9 +79,12 @@ export function Seeding() {
       } else if (input === "w") {
         const h = activeHistory[clamped];
         if (h) setInspectingPeersId(h.id);
+      } else if (input === "v") {
+        const h = activeHistory[clamped];
+        if (h) setInspectingMetaId(h.id);
       }
     },
-    { isActive: focused && total > 0 && !inspectingId && !inspectingPeersId },
+    { isActive: focused && total > 0 && !inspectingId && !inspectingPeersId && !inspectingMetaId },
   );
 
   const panelH = Math.max(5, listRows - 1);

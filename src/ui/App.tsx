@@ -35,6 +35,7 @@ import {
 import { Logo } from "./components/Logo";
 import { Sidebar, RAIL_WIDTH } from "./components/Sidebar";
 import { PeerInspector } from "./components/PeerInspector";
+import { MetadataInspector } from "./components/MetadataInspector";
 import { Rule } from "./components/Rule";
 import { Footer } from "./components/Footer";
 import { HelpOverlay } from "./components/HelpOverlay";
@@ -119,10 +120,16 @@ export function App({
   const [inspectingId, setInspectingIdState] = useState<string | null>(null);
   const [inspectingMagnet, setInspectingMagnet] = useState<string | null>(null);
   const [inspectingPeersId, setInspectingPeersId] = useState<string | null>(null);
+  const [inspectingMetaId, setInspectingMetaIdState] = useState<string | null>(null);
+  const [inspectingMetaMagnet, setInspectingMetaMagnet] = useState<string | null>(null);
   const [inspectFocusSelected, setInspectFocusSelected] = useState<boolean>(true);  
   const setInspectingId = useCallback((id: string | null, magnet?: string) => {
     setInspectingIdState(id);
     setInspectingMagnet(magnet ?? null);
+  }, []);
+  const setInspectingMetaId = useCallback((id: string | null, magnet?: string) => {
+    setInspectingMetaIdState(id);
+    setInspectingMetaMagnet(magnet ?? null);
   }, []);
   
   const [updateVersion, setUpdateVersion] = useState<string | null>(null);
@@ -537,6 +544,9 @@ export function App({
       setInspectingId,
       inspectingPeersId,
       setInspectingPeersId,
+      inspectingMetaId,
+      inspectingMetaMagnet,
+      setInspectingMetaId,
       inspectFocusSelected,
       setInspectFocusSelected,
       toggleFileSelection,
@@ -574,6 +584,8 @@ export function App({
     inspectingId,
     inspectingMagnet,
     inspectingPeersId,
+    inspectingMetaId,
+    inspectingMetaMagnet,
     toggleFileSelection,
     toggleThrottle,
     listRows,
@@ -815,6 +827,7 @@ export function App({
           </Box>
         ) : null}
       </Box>
+      <MetadataInspector />
     </StoreContext.Provider>
   );
 }

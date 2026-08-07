@@ -1,5 +1,5 @@
 import { EventEmitter } from "node:events";
-import { TorrentEngine, message, type AddHandlers } from "./engine";
+import { TorrentEngine, message, type AddHandlers, type ExtendedTorrentMeta } from "./engine";
 import {
   saveQueue,
   saveQueueSync,
@@ -502,6 +502,48 @@ export class DownloadQueue extends EventEmitter {
       } catch {
         return null;
       }
+    }
+
+    return null;
+  }
+
+  async getMetadata(id: string, magnet?: string): Promise<ExtendedTorrentMeta | null> {
+    const live = this.engine.getMetadata(id);
+    if (live) return live;
+
+    if (torrentMetaExists(id)) {
+      try {
+        const buf = await fs.readFile(torrentMetaPath(id));
+        const parsed = await parseTorrent(buf) as any;
+        return {
+          infoHash: parsed.infoHash || id,
+          name: parsed.name || "",
+          announce: Array.isArray(parsed.announce) ? parsed.announce : [],
+          created: parsed.created,
+          createdBy: parsed.createdBy,
+          comment: parsed.comment,
+          pieceLength: parsed.pieceLength,
+          numPieces: Array.isArray(parsed.pieces) ? parsed.pieces.length : undefined,
+          length: parsed.length || 0,
+        };
+      } catch {}
+    }
+
+    if (magnet) {
+      try {
+        const parsed = await parseTorrent(magnet) as any;
+        return {
+          infoHash: parsed.infoHash || id,
+          name: parsed.name || "",
+          announce: Array.isArray(parsed.announce) ? parsed.announce : [],
+          created: parsed.created,
+          createdBy: parsed.createdBy,
+          comment: parsed.comment,
+          pieceLength: parsed.pieceLength,
+          numPieces: Array.isArray(parsed.pieces) ? parsed.pieces.length : undefined,
+          length: parsed.length || 0,
+        };
+      } catch {}
     }
 
     return null;

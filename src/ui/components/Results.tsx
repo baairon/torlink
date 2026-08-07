@@ -131,6 +131,7 @@ export function Results() {
     contentWidth,
     listRows,
     setInspectingId,
+    setInspectingMetaId,
   } = useStore();
 
   const search = useConcurrentSearch(query);
@@ -257,6 +258,9 @@ export function Results() {
       } else if (input === "y") {
         const r = results[clamped];
         if (r) copyResultMagnet(r);
+      } else if (input === "v") {
+        const r = results[clamped];
+        if (r) setInspectingMetaId(r.infoHash, r.magnet);
       }
     },
     { isActive: focused && mode === "list" },

@@ -29,6 +29,18 @@ export interface TorrentMeta {
   torrentFile?: Uint8Array;
 }
 
+export interface ExtendedTorrentMeta {
+  infoHash: string;
+  name: string;
+  announce: string[];
+  created?: Date;
+  createdBy?: string;
+  comment?: string;
+  pieceLength?: number;
+  numPieces?: number;
+  length?: number;
+}
+
 export interface AddHandlers {
   onMetadata?: (meta: TorrentMeta) => void;
   onDone?: () => void;
@@ -213,6 +225,30 @@ export class TorrentEngine {
       downloaded: f.downloaded,
       selected: !deselected.has(f.path),
     }));
+  }
+
+  getMetadata(id: string): ExtendedTorrentMeta | null {
+    const t = this.torrents.get(id);
+    if (!t) return null;
+    // Webtorrent's Torrent interface might not expose all of these explicitly in DT,
+    // so we cast to any for properties not in the types.
+    const anyT = t as any;
+    
+    // Webtorrent exposes the parsed torrent file internally as `t.parsedTorrent` or similar,
+    // but sometimes attributes are at the top level.
+    const announce: string[] = Array.isArray(anyT.announce) ? anyT.announce : [];
+    
+    return {
+      infoHash: t.infoHash || id,
+      name: t.name || "",
+      announce,
+      created: anyT.created,
+      createdBy: anyT.createdBy,
+      comment: anyT.comment,
+      pieceLength: anyT.pieceLength,
+      numPieces: Array.isArray(anyT.pieces) ? anyT.pieces.length : undefined,
+      length: t.length || 0,
+    };
   }
 
   async fetchMetadata(id: string, magnet: string): Promise<TorrentFileInfo[]> {
