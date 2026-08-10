@@ -1,7 +1,10 @@
+import { bigfangroup } from "./bigfangroup";
 import { bittorrented } from "./bittorrented";
 import { eztv } from "./eztv";
 import { fitgirl } from "./fitgirl";
+import { megapeer } from "./megapeer";
 import { nyaa } from "./nyaa";
+import { rutor } from "./rutor";
 import { subsplease } from "./subsplease";
 import { tpbMovies, tpbTv } from "./piratebay";
 import { x1337Movies, x1337Tv } from "./x1337";
@@ -19,6 +22,9 @@ export const SOURCES: readonly Source[] = [
   nyaa,
   subsplease,
   bittorrented,
+  rutor,
+  megapeer,
+  bigfangroup,
 ];
 
 export const DEFAULT_SOURCE: Source = SOURCES[0]!;

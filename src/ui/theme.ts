@@ -39,6 +39,9 @@ export const SOURCE_STYLE: Record<SourceId, { tag: string; color: string }> = {
   "x1337-movies": { tag: "1337", color: "#f6a55c" },
   "x1337-tv": { tag: "1337", color: "#f6a55c" },
   bittorrented: { tag: "BT", color: "#7db8f0" },
+  rutor: { tag: "RUT", color: "#e8a0bf" },
+  megapeer: { tag: "MP", color: "#8fd3c8" },
+  bigfangroup: { tag: "BFG", color: "#c9a0dc" },
 };
 
 // Tolerant lookup: a source id may be absent (a pasted magnet / bare infohash) or
