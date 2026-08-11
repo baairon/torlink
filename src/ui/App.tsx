@@ -16,6 +16,7 @@ import {
 import { logCrash } from "../util/crashlog";
 import { parseInput } from "../sources/magnet";
 import { magnetFromTorrentFile } from "../sources/torrentFile";
+import { resolveTorrentPath } from "../sources/torrentPath";
 import { readClipboard, writeClipboard } from "../util/clipboard";
 import { openFolder } from "../util/openFolder";
 import { cleanText, formatBytes, truncate } from "../util/format";
@@ -152,7 +153,7 @@ export function App({
       const launch = initialMagnet
         ? parseInput(initialMagnet)
         : initialTorrent
-          ? await magnetFromTorrentFile(initialTorrent)
+          ? await magnetFromTorrentFile(resolveTorrentPath(initialTorrent) ?? initialTorrent)
           : null;
       if (launch) {
         await fs.mkdir(cfg.downloadDir, { recursive: true }).catch(() => {});
@@ -384,6 +385,25 @@ export function App({
     [queue, config],
   );
 
+  // A .torrent dragged onto the terminal lands in the search field as a path.
+  // Read it, hand the queue the magnet built from its metadata, and say so when
+  // it can't be read rather than quietly searching for the path text.
+  const startFromTorrentFile = useCallback(
+    (file: string) => {
+      setNotice(`Reading torrent file: ${truncate(file, 48)}`);
+      void (async () => {
+        const parsed = await magnetFromTorrentFile(file);
+        if (!parsed) {
+          setNotice(`Couldn't read a torrent from ${truncate(file, 48)}.`);
+          return;
+        }
+        startDownload({ id: parsed.infoHash, name: parsed.name, magnet: parsed.magnet });
+      })();
+      setView("browser");
+    },
+    [startDownload],
+  );
+
   const submitQuery = useCallback(
     (raw: string) => {
       const q = raw.trim();
@@ -398,13 +418,18 @@ export function App({
           setView("browser");
           return;
         }
+        const file = resolveTorrentPath(q);
+        if (file) {
+          startFromTorrentFile(file);
+          return;
+        }
       }
       setQuery(q);
       setView("browser");
       if (section === "downloads") setSection("all");
       setRegion("content");
     },
-    [section, startDownload],
+    [section, startDownload, startFromTorrentFile],
   );
 
   const pasteFromClipboard = useCallback(async () => {
@@ -420,8 +445,15 @@ export function App({
       setView("browser");
       return;
     }
+    // Copying a file in a file manager puts its path on the clipboard, so paste
+    // takes one too — same handling as a drag onto the search field.
+    const file = resolveTorrentPath(text);
+    if (file) {
+      startFromTorrentFile(file);
+      return;
+    }
     setNotice("No magnet link on the clipboard.");
-  }, [startDownload]);
+  }, [startDownload, startFromTorrentFile]);
 
   useEffect(() => {
     if (!notice) return;
