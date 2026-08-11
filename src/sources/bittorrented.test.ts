@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { mapBittorrentedResults, bittorrented } from "./bittorrented";
+import { mapBittorrentedResults, bittorrented, bittorrentedBooks } from "./bittorrented";
 
 describe("mapBittorrentedResults", () => {
   it("maps an API row to a torrent result with a built magnet, tagged by source id", () => {
@@ -60,5 +60,18 @@ describe("bittorrented", () => {
     expect(bittorrented.groups).not.toContain("Games");
     expect(bittorrented.groups).not.toContain("Anime");
     expect(bittorrented.reportsHealth).toBe(true);
+  });
+});
+
+describe("BitTorrented media types", () => {
+  it("serves books from its own id, and never Games", () => {
+    expect(bittorrentedBooks.id).toBe("bittorrented-books");
+    expect(bittorrentedBooks.groups).toEqual(["Books"]);
+    // Games stay FitGirl's alone: a crawl can't vouch for what an installer runs.
+    for (const s of [bittorrented, bittorrentedBooks]) {
+      expect(s.groups).not.toContain("Games");
+    }
+    // One site, one label.
+    expect(bittorrentedBooks.label).toBe(bittorrented.label);
   });
 });

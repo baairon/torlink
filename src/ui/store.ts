@@ -7,7 +7,7 @@ import type { SourceGroup, SourceId } from "../sources/types";
 
 export type View = "splash" | "browser";
 
-export type Category = "all" | "games" | "movies" | "tv" | "anime";
+export type Category = "all" | "games" | "movies" | "tv" | "anime" | "books";
 
 export type Section = Category | "downloads" | "seeding";
 
@@ -17,6 +17,10 @@ export const CATEGORIES: { key: Category; label: string; group?: SourceGroup }[]
   { key: "movies", label: "Movies", group: "Movies" },
   { key: "tv", label: "TV", group: "TV" },
   { key: "anime", label: "Anime", group: "Anime" },
+  // One tab for everything you read or listen to: e-books, PDFs, comics and
+  // audio books. The format is already in the torrent's name, so splitting
+  // them would only ask the same sources twice.
+  { key: "books", label: "Books", group: "Books" },
 ];
 
 export type Region = "sidebar" | "content" | "help";
