@@ -83,7 +83,7 @@
     "vitest": "^4.1.8"
   },
   "allowScripts": {
-    "electron@39.8.10": true
+    "electron@39.2.7": true
   },
   "build": {
     "appId": "dev.bairon.torlink",
