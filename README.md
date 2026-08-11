@@ -46,8 +46,9 @@ A short, hand-picked list of trusted sources:
 | Movies | YTS, The Pirate Bay, 1337x, BitTorrented |
 | TV | EZTV, The Pirate Bay, 1337x, BitTorrented |
 | Anime | Nyaa, SubsPlease |
+| Music | The Pirate Bay, 1337x, BitTorrented |
 
-Games are the only category that can run code, so they come from FitGirl alone, a repacker with a long, trusted track record; everything else is plain video and subtitles. If a source is down, the search carries on without it, and torlink tells you which one is offline.
+Games are the only category that can run code, so they come from FitGirl alone, a repacker with a long, trusted track record; everything else is plain video, audio and subtitles. If a source is down, the search carries on without it, and torlink tells you which one is offline.
 
 ## Headless
 

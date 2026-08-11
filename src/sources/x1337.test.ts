@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseUploadDate } from "./x1337";
+import { parseUploadDate, x1337Movies, x1337Music, x1337Tv } from "./x1337";
 
 const detail = (span: string) =>
   `<ul class="list"><li><strong>Date uploaded</strong><span>${span}</span> </li></ul>`;
@@ -19,5 +19,20 @@ describe("parseUploadDate", () => {
   it("returns undefined when the field is missing or unparseable", () => {
     expect(parseUploadDate("<div>no date here</div>")).toBeUndefined();
     expect(parseUploadDate(detail("sometime"))).toBeUndefined();
+  });
+});
+
+describe("1337x category variants", () => {
+  it("gives each tab its own source id while sharing the site", () => {
+    expect([x1337Movies.id, x1337Tv.id, x1337Music.id]).toEqual([
+      "x1337-movies",
+      "x1337-tv",
+      "x1337-music",
+    ]);
+    expect(x1337Music.groups).toEqual(["Music"]);
+    // One site, one label: the tag answers who found a row, not what kind.
+    expect(new Set([x1337Movies.label, x1337Tv.label, x1337Music.label])).toEqual(
+      new Set(["1337x"]),
+    );
   });
 });

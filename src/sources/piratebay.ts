@@ -6,9 +6,16 @@ const API = "https://apibay.org";
 
 const MOVIE_CATS = new Set([201, 202, 207, 209]);
 const TV_CATS = new Set([205, 208]);
+// Music (101) and FLAC (104), which is where most lossless rips land. Music
+// videos (203) are video, and audio books (102) are not music at all, so
+// neither belongs on this tab.
+const MUSIC_CATS = new Set([101, 104]);
 
 const TOP_MOVIES = `${API}/precompiled/data_top100_207.json`;
 const TOP_TV = `${API}/precompiled/data_top100_208.json`;
+// 100 is the parent Audio feed: apibay publishes no top-100 for music alone, so
+// this one arrives mixed with audio books and the category filter sorts it out.
+const TOP_MUSIC = `${API}/precompiled/data_top100_100.json`;
 
 interface ApibayItem {
   id?: string;
@@ -67,7 +74,10 @@ async function search(
   );
   const out: TorrentResult[] = [];
   for (const it of items) {
-    if (q && !cats.has(Number(it.category))) continue;
+    // Browse feeds are filtered as well as searches: the parent Audio feed
+    // mixes music with audio books, which are not the same tab. A row with no
+    // category at all is kept — an unfiled row beats an empty tab.
+    if (it.category && !cats.has(Number(it.category))) continue;
     const r = toResult(it, source);
     if (r) out.push(r);
   }
@@ -90,4 +100,13 @@ export const tpbTv: Source = {
   homepage: "https://thepiratebay.org",
   reportsHealth: true,
   search: (query, opts = {}) => search(query, TV_CATS, TOP_TV, "tpb-tv", opts),
+};
+
+export const tpbMusic: Source = {
+  id: "tpb-music",
+  label: "TPB",
+  groups: ["Music"],
+  homepage: "https://thepiratebay.org",
+  reportsHealth: true,
+  search: (query, opts = {}) => search(query, MUSIC_CATS, TOP_MUSIC, "tpb-music", opts),
 };

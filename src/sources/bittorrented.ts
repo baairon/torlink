@@ -3,9 +3,9 @@ import { buildMagnet } from "./magnet";
 import type { SearchOptions, Source, SourceId, TorrentResult } from "./types";
 
 // BitTorrented is a general index (its own library plus a large DHT crawl).
-// torlink takes its video type only and feeds it to Movies and TV. Anime stays
-// with its dedicated sources (the API can't tell anime from any other video)
-// and Games stays FitGirl's alone. Its JSON API returns real swarm counts, so
+// torlink asks it one media type per tab: video for Movies and TV, audio for
+// Music. Anime stays with its dedicated sources (the API can't tell anime from
+// any other video) and Games stays FitGirl's alone. Its JSON API returns real swarm counts, so
 // reportsHealth is true.
 const BASE = "https://bittorrented.com";
 
@@ -57,15 +57,24 @@ export function mapBittorrentedResults(results: BtResult[], id: SourceId): Torre
   return out;
 }
 
-async function search(query: string, opts: SearchOptions = {}): Promise<TorrentResult[]> {
+// The API's own type names. It rejects anything else with a 400, so these are
+// the ones the registry can ask for.
+type MediaType = "video" | "audio";
+
+async function search(
+  query: string,
+  type: MediaType,
+  id: SourceId,
+  opts: SearchOptions = {},
+): Promise<TorrentResult[]> {
   const q = query.trim();
   if (q.length < MIN_QUERY) return [];
 
-  // Video only: keeps the category tabs plain video and structurally excludes
-  // the index's other media types. One request per search.
+  // One media type per request, so a tab structurally cannot show another's
+  // rows. One request per search.
   const params = new URLSearchParams({
     q,
-    type: "video",
+    type,
     limit: "50",
     sortBy: "seeders",
     sortOrder: "desc",
@@ -78,7 +87,7 @@ async function search(query: string, opts: SearchOptions = {}): Promise<TorrentR
   if (!res.ok) throw new HttpError(res.status, `BitTorrented returned ${res.status}`);
 
   const json = (await res.json()) as BtResponse;
-  return mapBittorrentedResults(json.results ?? [], "bittorrented");
+  return mapBittorrentedResults(json.results ?? [], id);
 }
 
 export const bittorrented: Source = {
@@ -87,5 +96,14 @@ export const bittorrented: Source = {
   groups: ["Movies", "TV"],
   homepage: BASE,
   reportsHealth: true,
-  search,
+  search: (query, opts = {}) => search(query, "video", "bittorrented", opts),
+};
+
+export const bittorrentedAudio: Source = {
+  id: "bittorrented-audio",
+  label: "BitTorrented",
+  groups: ["Music"],
+  homepage: BASE,
+  reportsHealth: true,
+  search: (query, opts = {}) => search(query, "audio", "bittorrented-audio", opts),
 };

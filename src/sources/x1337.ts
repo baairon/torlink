@@ -79,16 +79,26 @@ async function detailInfo(
   }
 }
 
+// The site's own category names, used verbatim in its search paths.
+type Category = "Movies" | "TV" | "Music";
+
+// Where each category's empty-query browse lives.
+const POPULAR: Record<Category, string> = {
+  Movies: "/popular-movies",
+  TV: "/popular-tv",
+  Music: "/popular-music",
+};
+
 async function search(
   query: string,
-  cat: "Movies" | "TV",
+  cat: Category,
   source: SourceId,
   opts: SearchOptions = {},
 ): Promise<TorrentResult[]> {
   const q = query.trim();
   const path = q
     ? `/category-search/${encodeURIComponent(q).replace(/%20/g, "+")}/${cat}/1/`
-    : `/popular-${cat === "Movies" ? "movies" : "tv"}`;
+    : POPULAR[cat];
 
   let base = "";
   let html = "";
@@ -157,4 +167,13 @@ export const x1337Tv: Source = {
   homepage: "https://1337x.to",
   reportsHealth: true,
   search: (query, opts = {}) => search(query, "TV", "x1337-tv", opts),
+};
+
+export const x1337Music: Source = {
+  id: "x1337-music",
+  label: "1337x",
+  groups: ["Music"],
+  homepage: "https://1337x.to",
+  reportsHealth: true,
+  search: (query, opts = {}) => search(query, "Music", "x1337-music", opts),
 };
