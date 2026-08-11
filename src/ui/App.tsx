@@ -43,6 +43,7 @@ import { TabTitle } from "./components/TabTitle";
 import { Splash } from "./views/Splash";
 import { FolderPrompt } from "./components/FolderPrompt";
 import { TrackersPrompt } from "./components/TrackersPrompt";
+import { Settings } from "./components/Settings";
 import { footerHints } from "./keymap";
 import { COLOR, ICON } from "./theme";
 import { useMouseWheel } from "./hooks/useMouseWheel";
@@ -173,7 +174,7 @@ export function App({
   // Best-effort, once per launch, off the hot path: if a newer release exists,
   // surface a quiet banner. Any failure (offline, opt-out) just leaves it hidden.
   useEffect(() => {
-    if (process.env.TORLINK_NO_UPDATE_CHECK) return;
+    if (!config?.checkForUpdates) return;
     let alive = true;
     void (async () => {
       const latest = await fetchLatestVersion();
@@ -213,10 +214,21 @@ export function App({
     (c: Config) => {
       setConfigState(c);
       queue?.setTrackers(c.trackers);
+      queue?.setMaxDownloads(c.maxDownloads);
       void saveConfig(c);
     },
     [queue],
   );
+
+  const openFolderPrompt = useCallback(() => {
+    setShowHelp(false);
+    setEditingFolder(true);
+  }, []);
+
+  const openTrackersPrompt = useCallback(() => {
+    setShowHelp(false);
+    setEditingTrackers(true);
+  }, []);
 
   const closeFolderPrompt = useCallback(() => {
     setEditingFolder(false);
@@ -470,6 +482,8 @@ export function App({
       openDownloadFolder,
       exportTorrent,
       fetchAndExportTorrent,
+      openFolderPrompt,
+      openTrackersPrompt,
       notice,
       setNotice,
       quitAll,
@@ -495,6 +509,8 @@ export function App({
     downloadFocus,
     seedFocus,
     resultFocus,
+    openFolderPrompt,
+    openTrackersPrompt,
     startDownload,
     requestDownloadTo,
     copyMagnet,
@@ -528,13 +544,11 @@ export function App({
         return;
       }
       if (input === "o") {
-        setShowHelp(false);
-        setEditingFolder(true);
+        openFolderPrompt();
         return;
       }
       if (input === "t") {
-        setShowHelp(false);
-        setEditingTrackers(true);
+        openTrackersPrompt();
         return;
       }
       if (input === "m") {
@@ -545,11 +559,15 @@ export function App({
         setRegion(region === "sidebar" ? "content" : "sidebar");
         return;
       }
+      // A pane in "lateral" capture reads ←/→ itself (the settings values), so
+      // the global "move between panes" meaning steps aside while it has focus.
       if (key.rightArrow || input === "l") {
+        if (captureMode === "lateral") return;
         if (region === "sidebar") setRegion("content");
         return;
       }
       if (key.leftArrow || input === "h") {
+        if (captureMode === "lateral") return;
         if (region === "content") setRegion("sidebar");
         return;
       }
@@ -661,7 +679,9 @@ export function App({
         >
           <Sidebar />
           <Box flexGrow={1} flexDirection="column">
-            {section === "downloads" ? (
+            {section === "settings" ? (
+              <Settings />
+            ) : section === "downloads" ? (
               <Downloads />
             ) : section === "seeding" ? (
               <Seeding />

@@ -17,6 +17,7 @@ import { deleteSeedData } from "./delete-data";
 import { disarmBootMarker } from "./bootguard";
 import type { QueueItem, SeedItem } from "./types";
 import type { SourceId } from "../sources/types";
+import { envMaxDownloads } from "../config/config";
 
 /**
  * A real seed never pulls data off the network: verifying on-disk files reads
@@ -45,13 +46,6 @@ const FETCH_METADATA_TIMEOUT_MS = 20_000;
 const POLL_MS = 500;
 const HISTORY_MAX = 500;
 
-// Max torrents allowed to actively download at once. Overflow waits as "queued"
-// and starts automatically when a slot frees. 0 / unset = unlimited (default).
-function readMaxDownloads(): number {
-  const v = Number(process.env.TORLINK_MAX_DOWNLOADS);
-  return Number.isFinite(v) && v > 0 ? Math.floor(v) : 0;
-}
-
 export interface AddInput {
   id: string;
   name: string;
@@ -78,11 +72,11 @@ export class DownloadQueue extends EventEmitter {
   private trackers: string[] = [];
 
   // Max torrents allowed to download at once; overflow waits as "queued".
-  private readonly maxDownloads: number;
+  private maxDownloads: number;
 
   constructor(opts?: { maxDownloads?: number }) {
     super();
-    this.maxDownloads = opts?.maxDownloads ?? readMaxDownloads();
+    this.maxDownloads = opts?.maxDownloads ?? envMaxDownloads();
   }
 
   // Extra announce URLs appended to every torrent added from now on.
@@ -90,6 +84,21 @@ export class DownloadQueue extends EventEmitter {
   // for the next add / resume / re-seed.
   setTrackers(trackers: string[]): void {
     this.trackers = trackers;
+  }
+
+  /**
+   * Change the concurrency cap (0 = no limit).
+   *
+   * Raising it starts whatever was waiting. Lowering it does not stop anything
+   * already running — a download is not interrupted for a setting — so the
+   * count settles as items finish.
+   */
+  setMaxDownloads(n: number): void {
+    const next = Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
+    if (next === this.maxDownloads) return;
+    this.maxDownloads = next;
+    this.promote();
+    this.changed();
   }
 
   getItems(): QueueItem[] {

@@ -81,6 +81,8 @@ function makeStore(
   return {
     config: { downloadDir: "~/Downloads/torlink" } as Config,
     setConfig: noop,
+    openFolderPrompt: noop,
+    openTrackersPrompt: noop,
     queue: fakeQueue(items, history, seeds),
     view: "browser",
     setView: noop,

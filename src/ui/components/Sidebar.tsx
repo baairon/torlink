@@ -16,10 +16,13 @@ const LIBRARY: NavItem[] = [
   { key: "downloads", label: "Downloads" },
   { key: "seeding", label: "Seeding" },
 ];
+// Its own group at the foot of the rail: it is not a place torrents live, so
+// it does not belong beside Downloads and Seeding.
+const APP: NavItem[] = [{ key: "settings", label: "Settings" }];
 
 const BADGED = (key: Section): boolean => key === "downloads" || key === "seeding";
 
-const GROUPS: NavItem[][] = [FILTERS, LIBRARY];
+const GROUPS: NavItem[][] = [FILTERS, LIBRARY, APP];
 
 const NAV: NavItem[] = GROUPS.flat();
 

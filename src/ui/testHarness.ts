@@ -142,6 +142,8 @@ export function makeTestStore(overrides: Partial<Store> = {}): Store {
   return {
     config: { downloadDir: "~/Downloads/torlink" } as Config,
     setConfig: noop,
+    openFolderPrompt: noop,
+    openTrackersPrompt: noop,
     queue: fakeQueue(),
     view: "browser",
     setView: noop,
