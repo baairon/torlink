@@ -1,0 +1,31 @@
+# Managed by sh1pt Actions Fleet
+# pack: coinpay-invoice@1.0.0
+# install: sh1pt-actions-store
+# hash: sha256:34ad3313699d6a34845801f6d1c0963e36bee5d375678ffdd2a4bf0f46a17fa2
+name: CoinPayPortal invoice command
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  issues: write
+  pull-requests: write
+
+concurrency:
+  group: coinpay-${{ github.workflow }}-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  coinpay:
+    # Only spin up when a comment actually invokes the bot.
+    if: startsWith(github.event.comment.body, '/coinpay')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: profullstack/coinpaybot@v0
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          coinpay-api-key: ${{ secrets.COINPAY_API_KEY }}
+          coinpay-business-id: ${{ secrets.COINPAY_BUSINESS_ID }}
+          coinpay-base-url: https://coinpayportal.com
