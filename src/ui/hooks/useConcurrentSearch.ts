@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { SOURCES } from "../../sources/registry";
 import { cachedSearch } from "../../sources/cache";
 import { HttpError } from "../../util/net";
-import type { SourceId, TorrentResult } from "../../sources/types";
+import type { Source, SourceId, TorrentResult } from "../../sources/types";
 
 export interface SourceState {
   loading: boolean;
@@ -24,9 +24,12 @@ export interface ConcurrentSearchState {
   total: number;
 }
 
-function blankPerSource(loading: boolean): Record<SourceId, SourceState> {
+function blankPerSource(
+  loading: boolean,
+  sources: readonly Source[],
+): Record<SourceId, SourceState> {
   const out = {} as Record<SourceId, SourceState>;
-  for (const s of SOURCES) out[s.id] = { loading, error: null, code: null, count: 0 };
+  for (const s of sources) out[s.id] = { loading, error: null, code: null, count: 0 };
   return out;
 }
 
@@ -48,13 +51,13 @@ function defaultOrder(list: TorrentResult[]): TorrentResult[] {
   });
 }
 
-function idleState(): ConcurrentSearchState {
+function idleState(sources: readonly Source[]): ConcurrentSearchState {
   return {
     results: [],
-    perSource: blankPerSource(false),
+    perSource: blankPerSource(false, sources),
     loading: false,
     done: 0,
-    total: SOURCES.length,
+    total: sources.length,
   };
 }
 
@@ -65,14 +68,34 @@ function idleState(): ConcurrentSearchState {
 // leading-throttle the queue hooks in store.ts use for `update` events.
 const RESULT_FLUSH_MS = 150;
 
-export function useConcurrentSearch(query: string): ConcurrentSearchState {
-  const [state, setState] = useState<ConcurrentSearchState>(idleState);
+/**
+ * Searches `sources` for `query`, streaming results in as each one answers.
+ *
+ * The caller passes the active tab's sources rather than the whole registry: a
+ * category tab renders its own group and nothing else, so querying the rest is
+ * work no one sees — and every source added from here on would otherwise cost
+ * every search another request. Defaults to the whole registry, which is what
+ * the All tab wants.
+ *
+ * Switching tabs re-runs the search, but cachedSearch holds each source+query
+ * for five minutes, so a tab already visited answers without touching the
+ * network.
+ */
+export function useConcurrentSearch(
+  query: string,
+  sources: readonly Source[] = SOURCES,
+): ConcurrentSearchState {
+  // The array identity changes on every render (the caller derives it from the
+  // active tab), so the effect keys off the ids instead. Same tab, same key,
+  // no re-search.
+  const sourceKey = sources.map((s) => s.id).join(",");
+  const [state, setState] = useState<ConcurrentSearchState>(() => idleState(sources));
 
   useEffect(() => {
     const ctrl = new AbortController();
     let alive = true;
     const collected: TorrentResult[] = [];
-    const per = blankPerSource(true);
+    const per = blankPerSource(true, sources);
     let done = 0;
     let timer: ReturnType<typeof setTimeout> | null = null;
 
@@ -80,16 +103,16 @@ export function useConcurrentSearch(query: string): ConcurrentSearchState {
       setState({
         results: defaultOrder(dedupe(collected.slice())),
         perSource: { ...per },
-        loading: done < SOURCES.length,
+        loading: done < sources.length,
         done,
-        total: SOURCES.length,
+        total: sources.length,
       });
     };
 
     // Push the accumulated state to the UI, but no more than once per window.
     // The final source flushes immediately so "done" / loading:false is prompt.
     const scheduleFlush = (): void => {
-      if (done >= SOURCES.length) {
+      if (done >= sources.length) {
         if (timer) {
           clearTimeout(timer);
           timer = null;
@@ -109,10 +132,10 @@ export function useConcurrentSearch(query: string): ConcurrentSearchState {
       perSource: { ...per },
       loading: true,
       done: 0,
-      total: SOURCES.length,
+      total: sources.length,
     });
 
-    for (const source of SOURCES) {
+    for (const source of sources) {
       cachedSearch(source, query, { signal: ctrl.signal })
         .then((res) => {
           if (!alive) return;
@@ -140,7 +163,8 @@ export function useConcurrentSearch(query: string): ConcurrentSearchState {
       ctrl.abort();
       if (timer) clearTimeout(timer);
     };
-  }, [query]);
+    // sources is read through sourceKey, which is what actually identifies it.
+  }, [query, sourceKey]);
 
   return state;
 }

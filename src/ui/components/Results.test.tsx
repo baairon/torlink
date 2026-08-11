@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { SOURCES } from "../../sources/registry";
-import { StoreContext } from "../store";
+import { StoreContext, type Section } from "../store";
 import {
   KEY,
   makeTestStore,
@@ -13,9 +13,14 @@ import type { ConcurrentSearchState } from "../hooks/useConcurrentSearch";
 import type { TorrentResult } from "../../sources/types";
 
 const searchState = vi.hoisted(() => ({ current: null as unknown }));
+// Every set of sources the component has asked to search, newest last.
+const searched = vi.hoisted(() => ({ calls: [] as string[][] }));
 
 vi.mock("../hooks/useConcurrentSearch", () => ({
-  useConcurrentSearch: () => searchState.current,
+  useConcurrentSearch: (_query: string, sources?: readonly { id: string }[]) => {
+    searched.calls.push((sources ?? []).map((s) => s.id));
+    return searchState.current;
+  },
 }));
 
 const t = (infoHash: string, name: string): TorrentResult => ({
@@ -53,6 +58,7 @@ let ui: RenderedUI | null = null;
 afterEach(() => {
   ui?.unmount();
   ui = null;
+  searched.calls.length = 0;
 });
 
 async function mount(results: TorrentResult[] = LIST): Promise<RenderedUI> {
@@ -183,5 +189,51 @@ describe("Results filter UI", () => {
     u.press(KEY.enter);
     await vi.waitFor(() => expect(u.frame()).not.toContain("Filter"));
     expect(u.frame()).toContain("Results (8)");
+  });
+});
+
+describe("Results source scope", () => {
+  async function mountOn(section: Section): Promise<RenderedUI> {
+    searchState.current = settled(LIST);
+    ui = renderUI(
+      <StoreContext.Provider value={makeTestStore({ query: "linux iso", section })}>
+        <Results />
+      </StoreContext.Provider>,
+    );
+    const u = ui;
+    await vi.waitFor(() => expect(u.frame()).toContain("Results"));
+    return u;
+  }
+
+  const asked = (): string[] => searched.calls.at(-1) ?? [];
+
+  it("searches only the active tab's sources", async () => {
+    await mountOn("anime");
+    // Anime is served by its two dedicated indexes; the movie and TV sources
+    // have nothing to contribute to the tab, so they are never asked.
+    expect([...asked()].sort()).toEqual(["nyaa", "subsplease"]);
+  });
+
+  it("searches a tab's shared sources too, not just its exclusive ones", async () => {
+    await mountOn("tv");
+    // BitTorrented serves both Movies and TV: being shared is not a reason to
+    // skip it here.
+    expect(asked()).toContain("bittorrented");
+    expect(asked()).not.toContain("fitgirl");
+  });
+
+  it("searches every source on the All tab", async () => {
+    await mountOn("all");
+    expect([...asked()].sort()).toEqual(SOURCES.map((s) => s.id).sort());
+  });
+
+  it("keeps the source set stable across re-renders of the same tab", async () => {
+    const u = await mountOn("movies");
+    const first = asked();
+    u.press("s"); // re-sort: a render with no change of tab
+    await vi.waitFor(() => expect(searched.calls.length).toBeGreaterThan(1));
+    // Same ids in the same order, so the hook's effect key does not change and
+    // a repaint never re-runs the search.
+    expect(asked()).toEqual(first);
   });
 });

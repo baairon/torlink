@@ -132,7 +132,18 @@ export function Results() {
     listRows,
   } = useStore();
 
-  const search = useConcurrentSearch(query);
+  // The tab picks what gets searched, not only what gets shown: a category tab
+  // renders its own group and nothing else, so asking the other sources is work
+  // no one sees. Stable while the tab is — CATEGORIES and SOURCES are module
+  // constants.
+  const activeCat = CATEGORIES.find((c) => c.key === section);
+  const tabSources = useMemo(
+    () =>
+      activeCat?.group ? SOURCES.filter((s) => s.groups?.includes(activeCat.group!)) : SOURCES,
+    [activeCat],
+  );
+
+  const search = useConcurrentSearch(query, tabSources);
 
   const [sort, setSort] = useState<Sort>("none");
   const [hideDead, setHideDead] = useState(false);
@@ -289,10 +300,6 @@ export function Results() {
     () => Object.values(search.perSource).filter((s) => s.error).length,
     [search.perSource],
   );
-  const activeCat = CATEGORIES.find((c) => c.key === section);
-  const tabSources = activeCat?.group
-    ? SOURCES.filter((s) => s.groups?.includes(activeCat.group!))
-    : SOURCES;
   const tabErrored =
     tabSources.length > 0 && tabSources.every((s) => search.perSource[s.id]?.error);
   // Only the active tab's sources hold its spinner; other groups' stragglers
@@ -331,20 +338,23 @@ export function Results() {
       return <Spinner label={browsing ? "Loading…" : "Searching…"} />;
     }
     if (results.length === 0) {
-      if (erroredCount >= search.total) {
-        const downAll = SOURCES.filter((s) => search.perSource[s.id]?.error);
-        return (
-          <Text color={COLOR.warn}>
-            {`Couldn't reach any source. They may be down${outageCodes(downAll)}.`}
-          </Text>
-        );
-      }
-      if (tabErrored && activeCat) {
+      // The named-tab message comes first now. A category tab only queries its
+      // own group, so "every source errored" and "this tab's sources errored"
+      // are the same event there, and naming the tab says more.
+      if (tabErrored && activeCat?.group) {
         const down = tabSources.filter((s) => search.perSource[s.id]?.error);
         const who = down.length === 1 ? "The source" : `All ${down.length} sources`;
         return (
           <Text color={COLOR.warn}>
             {`Couldn't reach ${activeCat.label}. ${who} may be down${outageCodes(down)}.`}
+          </Text>
+        );
+      }
+      if (erroredCount >= search.total) {
+        const downAll = tabSources.filter((s) => search.perSource[s.id]?.error);
+        return (
+          <Text color={COLOR.warn}>
+            {`Couldn't reach any source. They may be down${outageCodes(downAll)}.`}
           </Text>
         );
       }
@@ -361,8 +371,6 @@ export function Results() {
           );
         }
       }
-      if (search.results.length > 0 && activeCat?.group)
-        return <Text dimColor>{`No ${activeCat.label.toLowerCase()} results yet. Try another tab or a search.`}</Text>;
       return (
         <Text dimColor>
           {browsing ? "Nothing new right now." : `No results for "${truncate(query, 28)}".`}
