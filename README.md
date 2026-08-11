@@ -38,13 +38,10 @@ When a download first starts, Windows may ask whether Torlink can use private ne
 - If downloads remain at `0 peers`, ask the network administrator about the organisation's policy for peer-to-peer traffic.
 
 The temporary path shown in the Windows message is normal for the portable version of Torlink.
-'@ | Add-Content "C:\Users\steve\Documents\Torlink\README.md"
 
 ## Screenshot
 
-Add your screenshot as `docs/screenshot.png`.
-
-![Torlink desktop app](docs/screenshot.png)
+![Torlink desktop app](screenshot.png)
 
 ## Build from source
 
