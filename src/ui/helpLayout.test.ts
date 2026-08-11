@@ -4,7 +4,7 @@ import { MEASURED, pickLayout } from "./helpLayout";
 describe("help layout measurement", () => {
   it("derives packing widths and grid heights from HELP_GROUPS", () => {
     expect(MEASURED.map((m) => m.width)).toEqual([134, 108, 77, 41]);
-    expect(MEASURED.map((m) => m.gridH)).toEqual([10, 15, 19, 32]);
+    expect(MEASURED.map((m) => m.gridH)).toEqual([10, 15, 20, 33]);
   });
 
   it("picks the widest packing that fits inside cols - 2", () => {

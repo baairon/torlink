@@ -43,8 +43,9 @@ import { TabTitle } from "./components/TabTitle";
 import { Splash } from "./views/Splash";
 import { FolderPrompt } from "./components/FolderPrompt";
 import { TrackersPrompt } from "./components/TrackersPrompt";
+import { ThemePrompt } from "./components/ThemePrompt";
 import { footerHints } from "./keymap";
-import { COLOR, ICON } from "./theme";
+import { applyTheme, COLOR, currentTheme, ICON, type ThemeId } from "./theme";
 import { useMouseWheel } from "./hooks/useMouseWheel";
 import { VERSION } from "../version";
 import { fetchLatestVersion, isNewer } from "../update/version";
@@ -97,6 +98,7 @@ export function App({
   const [showHelp, setShowHelp] = useState(false);
   const [editingFolder, setEditingFolder] = useState(false);
   const [editingTrackers, setEditingTrackers] = useState(false);
+  const [editingTheme, setEditingTheme] = useState(false);
   // A result waiting on the "download to" prompt (D); null when the prompt is
   // closed. lastDownloadToDir pre-fills the next prompt so queueing a batch
   // into the same alternate folder only costs one typed path per session.
@@ -119,6 +121,9 @@ export function App({
     let alive = true;
     void (async () => {
       const cfg = await loadConfig();
+      // Before anything renders: the palette is read at render time, so a
+      // saved theme applied later would show one frame of the default.
+      applyTheme(cfg.theme);
       const q = new DownloadQueue();
       q.setTrackers(cfg.trackers);
       // Crash-boot breaker: a marker left behind by the previous boot means it
@@ -216,6 +221,22 @@ export function App({
       void saveConfig(c);
     },
     [queue],
+  );
+
+  const closeThemePrompt = useCallback(() => {
+    setEditingTheme(false);
+  }, []);
+
+  const setTheme = useCallback(
+    (id: ThemeId) => {
+      closeThemePrompt();
+      if (!config) return;
+      applyTheme(id);
+      if (id === config.theme) return;
+      setConfig({ ...config, theme: id });
+      setNotice(`Theme: ${currentTheme().name}.`);
+    },
+    [config, setConfig, closeThemePrompt],
   );
 
   const closeFolderPrompt = useCallback(() => {
@@ -454,7 +475,7 @@ export function App({
       submitQuery,
       section,
       setSection,
-      region: showHelp || editingFolder || editingTrackers || pendingDownload ? "help" : region,
+      region: showHelp || editingFolder || editingTrackers || editingTheme || pendingDownload ? "help" : region,
       setRegion,
       captureMode,
       setCaptureMode,
@@ -490,6 +511,7 @@ export function App({
     showHelp,
     editingFolder,
     editingTrackers,
+    editingTheme,
     pendingDownload,
     captureMode,
     downloadFocus,
@@ -517,7 +539,7 @@ export function App({
         quitAll();
         return;
       }
-      if (editingFolder || editingTrackers || pendingDownload) return; // the prompt owns input (its own esc + enter)
+      if (editingFolder || editingTrackers || editingTheme || pendingDownload) return; // the prompt owns input (its own esc + enter)
       if (captureMode === "text") return;
       if (showHelp) {
         setShowHelp(false);
@@ -535,6 +557,11 @@ export function App({
       if (input === "t") {
         setShowHelp(false);
         setEditingTrackers(true);
+        return;
+      }
+      if (input === "T") {
+        setShowHelp(false);
+        setEditingTheme(true);
         return;
       }
       if (input === "m") {
@@ -635,6 +662,17 @@ export function App({
           </Box>
         ) : null}
 
+        {editingTheme ? (
+          <Box marginTop={1}>
+            <ThemePrompt
+              width={Math.max(24, Math.min(cols - 4, 52))}
+              value={store.config.theme}
+              onSubmit={setTheme}
+              onCancel={closeThemePrompt}
+            />
+          </Box>
+        ) : null}
+
         {pendingDownload ? (
           <Box marginTop={1}>
             <FolderPrompt
@@ -656,7 +694,7 @@ export function App({
         <Box
           height={bodyH}
           marginTop={compact ? 0 : 1}
-          display={showHelp || editingFolder || editingTrackers || pendingDownload ? "none" : "flex"}
+          display={showHelp || editingFolder || editingTrackers || editingTheme || pendingDownload ? "none" : "flex"}
           overflow="hidden"
         >
           <Sidebar />
@@ -672,7 +710,7 @@ export function App({
         </Box>
 
         {showFooter ? (
-          <Box display={showHelp || editingFolder || editingTrackers || pendingDownload ? "none" : "flex"}>
+          <Box display={showHelp || editingFolder || editingTrackers || editingTheme || pendingDownload ? "none" : "flex"}>
             <Footer hints={footerHints(region, section, downloadFocus, seedFocus, resultFocus)} />
           </Box>
         ) : null}

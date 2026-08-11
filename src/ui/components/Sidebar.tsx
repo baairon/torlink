@@ -1,7 +1,7 @@
 import { Box, Text, useInput } from "ink";
 import { useStore, useQueueItems, CATEGORIES, type Section } from "../store";
 import { wrapStep } from "../move";
-import { ACCENT_RAMP, COLOR, GUTTER, ICON, RULE } from "../theme";
+import { accentRamp, COLOR, GUTTER, ICON, rule } from "../theme";
 
 interface NavItem {
   key: Section;
@@ -55,7 +55,7 @@ export function Sidebar() {
               <Box key={item.key}>
                 <Box width={GUTTER} flexShrink={0}>
                   {selected ? (
-                    <Text color={focused ? ACCENT_RAMP[1] : RULE} bold={focused}>
+                    <Text color={focused ? accentRamp()[1] : rule()} bold={focused}>
                       {ICON.bar}
                     </Text>
                   ) : null}

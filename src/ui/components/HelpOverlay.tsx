@@ -2,9 +2,11 @@ import { Box, Text } from "ink";
 import { COL_GAP, FRAME, KEY_W, pickLayout } from "../helpLayout";
 import { HELP_GROUPS } from "../keymap";
 import { useStore } from "../store";
-import { COLOR, ICON, RULE, lerpHex } from "../theme";
+import { COLOR, ICON, rule, lerpHex } from "../theme";
 
-const CARD_BORDER = lerpHex(COLOR.accent, RULE, 0.55);
+// Derived at render time: a module constant would hold the palette that was
+// active at import, which is before any saved theme is applied.
+const cardBorder = (): string => lerpHex(COLOR.accent, rule(), 0.55);
 
 const FOOT_FULL = "Your downloaded files always stay on disk.";
 
@@ -22,7 +24,7 @@ export function HelpOverlay() {
       alignSelf="flex-start"
       width={width}
       borderStyle="round"
-      borderColor={CARD_BORDER}
+      borderColor={cardBorder()}
       paddingX={1}
       paddingY={short ? 0 : 1}
     >

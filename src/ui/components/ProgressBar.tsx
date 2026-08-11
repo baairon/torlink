@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Text } from "ink";
-import { COLOR, RULE, lerpHex } from "../theme";
+import { COLOR, rule, lerpHex } from "../theme";
 import { SHEEN_PEAK, SHEEN_TICK_MS, sheenCenter, sheenIntensity, sheenPeriod } from "../sheen";
 
 const DEEP = "#7c5cd6";
@@ -56,7 +56,7 @@ export function ProgressBar({
     return () => clearInterval(timer);
   }, [animate]);
 
-  const track = empty > 0 ? <Text color={RULE}>{"░".repeat(empty)}</Text> : null;
+  const track = empty > 0 ? <Text color={rule()}>{"░".repeat(empty)}</Text> : null;
 
   if (filled === 0) return <Text>{track}</Text>;
 

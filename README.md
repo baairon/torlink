@@ -18,6 +18,8 @@ torlink is a torrent finder that lives in your terminal, with zero setup and not
 
 That's the only thing you'll type. torlink opens straight to a search bar: search for what you want, paste in a magnet link or a bare infohash, or just press Enter on an empty box to browse the curated library. From there it's all keypresses, nothing to memorize, and `?` brings up the full list anytime.
 
+torlink looks the way it always has out of the box. If you'd rather it didn't, `shift+t` arrows through eight palettes and repaints as you go, so you see each one on the real interface before committing; `esc` puts back what you had.
+
 ## Finding something
 
 Type what you're looking for and press Enter. Results stream in from every source as they answer, tagged with size and how many people are sharing each one, so you can see what'll come down fast. Arrow to what you want and press `d` to save it, or `shift+d` to pick a different folder for just that download.

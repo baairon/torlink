@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { Box, Text } from "ink";
-import { COLOR, RULE } from "../theme";
+import { COLOR, rule } from "../theme";
 
 interface PanelProps {
   title: string;
@@ -12,7 +12,7 @@ interface PanelProps {
 }
 
 export function Panel({ title, width, focused, count, height, children }: PanelProps) {
-  const color = focused ? COLOR.accent : RULE;
+  const color = focused ? COLOR.accent : rule();
   const w = Math.max(10, width);
   const cap = title.charAt(0).toUpperCase() + title.slice(1);
   const label = count ? `${cap} ${count}` : cap;
