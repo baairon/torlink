@@ -3,6 +3,7 @@
   "version": "1.6.0",
   "description": "A sleek, zero-setup torrent finder and downloader that lives right in your terminal.",
   "type": "module",
+  "main": "dist/gui/main.js",
   "bin": {
     "torlnk": "./dist/cli.cjs"
   },
@@ -16,7 +17,9 @@
   },
   "scripts": {
     "dev": "tsx src/index.tsx",
-    "build": "tsup",
+    "gui": "npm run build && electron dist/gui/main.js",
+    "package:win": "npm run build && electron-builder --win portable",
+    "build": "tsup && tsup --config tsup.gui.config.ts",
     "postbuild": "node scripts/postbuild.cjs",
     "start": "node dist/index.js",
     "typecheck": "tsc --noEmit",
@@ -71,10 +74,33 @@
   "devDependencies": {
     "@types/node": "^25.9.2",
     "@types/react": "^19.2.17",
+    "electron": "^39.2.7",
+    "electron-builder": "^26.0.12",
     "ink-testing-library": "^4.0.0",
     "tsup": "^8.5.1",
     "tsx": "^4.22.4",
     "typescript": "^6.0.3",
     "vitest": "^4.1.8"
+  },
+  "allowScripts": {
+    "electron@39.8.10": true
+  },
+  "build": {
+    "appId": "dev.bairon.torlink",
+    "productName": "Torlink",
+    "directories": {
+      "output": "release"
+    },
+    "npmRebuild": false,
+    "files": [
+      "dist/gui/**",
+      "package.json"
+    ],
+    "asarUnpack": [
+      "node_modules/node-datachannel/**",
+      "node_modules/utp-native/**",
+      "node_modules/bufferutil/**",
+      "node_modules/utf-8-validate/**"
+    ]
   }
 }

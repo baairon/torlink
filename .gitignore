@@ -1,5 +1,7 @@
 node_modules/
 dist/
+release/*
+!release/README.md
 .DS_Store
 package-lock.json
 !nix/package-lock.json
