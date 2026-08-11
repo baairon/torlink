@@ -92,6 +92,13 @@ export class DownloadQueue extends EventEmitter {
     this.trackers = trackers;
   }
 
+  // Global download / upload throttles in bytes/sec (0 = unlimited). Unlike
+  // setTrackers, this one does reach what is already running: the engine
+  // applies it to the live client as well as to every client built after it.
+  setSpeedLimits(down: number, up: number): void {
+    this.engine.setSpeedLimits(down, up);
+  }
+
   getItems(): QueueItem[] {
     return [...this.items.values()].sort((a, b) => b.addedAt - a.addedAt);
   }

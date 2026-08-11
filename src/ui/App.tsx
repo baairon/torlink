@@ -18,7 +18,7 @@ import { parseInput } from "../sources/magnet";
 import { magnetFromTorrentFile } from "../sources/torrentFile";
 import { readClipboard, writeClipboard } from "../util/clipboard";
 import { openFolder } from "../util/openFolder";
-import { cleanText, formatBytes, truncate } from "../util/format";
+import { cleanText, formatBytes, formatBytesPerSec, truncate } from "../util/format";
 import {
   StoreContext,
   type CaptureMode,
@@ -43,6 +43,7 @@ import { TabTitle } from "./components/TabTitle";
 import { Splash } from "./views/Splash";
 import { FolderPrompt } from "./components/FolderPrompt";
 import { TrackersPrompt } from "./components/TrackersPrompt";
+import { SpeedPrompt } from "./components/SpeedPrompt";
 import { footerHints } from "./keymap";
 import { COLOR, ICON } from "./theme";
 import { useMouseWheel } from "./hooks/useMouseWheel";
@@ -97,6 +98,7 @@ export function App({
   const [showHelp, setShowHelp] = useState(false);
   const [editingFolder, setEditingFolder] = useState(false);
   const [editingTrackers, setEditingTrackers] = useState(false);
+  const [editingSpeed, setEditingSpeed] = useState(false);
   // A result waiting on the "download to" prompt (D); null when the prompt is
   // closed. lastDownloadToDir pre-fills the next prompt so queueing a batch
   // into the same alternate folder only costs one typed path per session.
@@ -121,6 +123,7 @@ export function App({
       const cfg = await loadConfig();
       const q = new DownloadQueue();
       q.setTrackers(cfg.trackers);
+      q.setSpeedLimits(cfg.downloadLimit, cfg.uploadLimit);
       // Crash-boot breaker: a marker left behind by the previous boot means it
       // died mid-restore, so this one restores everything paused with the
       // engine cold (safe mode) instead of walking into the same explosion.
@@ -213,6 +216,7 @@ export function App({
     (c: Config) => {
       setConfigState(c);
       queue?.setTrackers(c.trackers);
+      queue?.setSpeedLimits(c.downloadLimit, c.uploadLimit);
       void saveConfig(c);
     },
     [queue],
@@ -225,6 +229,26 @@ export function App({
   const closeTrackersPrompt = useCallback(() => {
     setEditingTrackers(false);
   }, []);
+
+  const closeSpeedPrompt = useCallback(() => {
+    setEditingSpeed(false);
+  }, []);
+
+  const setSpeedLimits = useCallback(
+    (limits: { down: number; up: number }) => {
+      closeSpeedPrompt();
+      if (!config) return;
+      if (limits.down === config.downloadLimit && limits.up === config.uploadLimit) {
+        setNotice("Speed limits unchanged.");
+        return;
+      }
+      setConfig({ ...config, downloadLimit: limits.down, uploadLimit: limits.up });
+      const down = limits.down > 0 ? formatBytesPerSec(limits.down) : "unlimited";
+      const up = limits.up > 0 ? formatBytesPerSec(limits.up) : "unlimited";
+      setNotice(`Speed limits: ${down} down, ${up} up.`);
+    },
+    [config, setConfig, closeSpeedPrompt],
+  );
 
   const setTrackers = useCallback(
     (list: string[]) => {
@@ -454,7 +478,7 @@ export function App({
       submitQuery,
       section,
       setSection,
-      region: showHelp || editingFolder || editingTrackers || pendingDownload ? "help" : region,
+      region: showHelp || editingFolder || editingTrackers || editingSpeed || pendingDownload ? "help" : region,
       setRegion,
       captureMode,
       setCaptureMode,
@@ -490,6 +514,7 @@ export function App({
     showHelp,
     editingFolder,
     editingTrackers,
+    editingSpeed,
     pendingDownload,
     captureMode,
     downloadFocus,
@@ -517,7 +542,7 @@ export function App({
         quitAll();
         return;
       }
-      if (editingFolder || editingTrackers || pendingDownload) return; // the prompt owns input (its own esc + enter)
+      if (editingFolder || editingTrackers || editingSpeed || pendingDownload) return; // the prompt owns input (its own esc + enter)
       if (captureMode === "text") return;
       if (showHelp) {
         setShowHelp(false);
@@ -535,6 +560,11 @@ export function App({
       if (input === "t") {
         setShowHelp(false);
         setEditingTrackers(true);
+        return;
+      }
+      if (input === "r") {
+        setShowHelp(false);
+        setEditingSpeed(true);
         return;
       }
       if (input === "m") {
@@ -635,6 +665,18 @@ export function App({
           </Box>
         ) : null}
 
+        {editingSpeed ? (
+          <Box marginTop={1}>
+            <SpeedPrompt
+              width={Math.max(24, Math.min(cols - 4, 68))}
+              down={store.config.downloadLimit}
+              up={store.config.uploadLimit}
+              onSubmit={setSpeedLimits}
+              onCancel={closeSpeedPrompt}
+            />
+          </Box>
+        ) : null}
+
         {pendingDownload ? (
           <Box marginTop={1}>
             <FolderPrompt
@@ -656,7 +698,7 @@ export function App({
         <Box
           height={bodyH}
           marginTop={compact ? 0 : 1}
-          display={showHelp || editingFolder || editingTrackers || pendingDownload ? "none" : "flex"}
+          display={showHelp || editingFolder || editingTrackers || editingSpeed || pendingDownload ? "none" : "flex"}
           overflow="hidden"
         >
           <Sidebar />
@@ -672,7 +714,7 @@ export function App({
         </Box>
 
         {showFooter ? (
-          <Box display={showHelp || editingFolder || editingTrackers || pendingDownload ? "none" : "flex"}>
+          <Box display={showHelp || editingFolder || editingTrackers || editingSpeed || pendingDownload ? "none" : "flex"}>
             <Footer hints={footerHints(region, section, downloadFocus, seedFocus, resultFocus)} />
           </Box>
         ) : null}

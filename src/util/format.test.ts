@@ -1,6 +1,9 @@
 import { describe, it, expect } from "vitest";
 import {
   formatBytes,
+  parseRate,
+  parseRates,
+  formatRates,
   parseSize,
   formatBytesPerSec,
   formatCount,
@@ -116,5 +119,87 @@ describe("stripControl", () => {
     expect(stripControl(hash)).toBe(hash);
     expect(stripControl("a  b")).toBe("a  b");
     expect(stripControl("")).toBe("");
+  });
+});
+
+describe("parseRate", () => {
+  it("reads a bare number as MB/s — the unit anyone capping a line thinks in", () => {
+    expect(parseRate("5")).toBe(5 * 1024 ** 2);
+    expect(parseRate("0.5")).toBe(0.5 * 1024 ** 2);
+  });
+
+  it("round-trips what formatBytesPerSec prints", () => {
+    for (const bytes of [256 * 1024, 1024 ** 2, 12 * 1024 ** 2]) {
+      expect(parseRate(formatBytesPerSec(bytes))).toBe(bytes);
+    }
+  });
+
+  it("takes the unit with or without the /s and the space", () => {
+    const half = 512 * 1024;
+    expect(parseRate("512KB")).toBe(half);
+    expect(parseRate("512 KB/s")).toBe(half);
+    expect(parseRate("512 kb / s")).toBe(half);
+    expect(parseRate("512 KiB/sec")).toBe(half);
+  });
+
+  it("uses powers of 1024, unlike parseSize's decimal KB", () => {
+    expect(parseRate("1 KB")).toBe(1024);
+    expect(parseSize("1 KB")).toBe(1000);
+  });
+
+  it("reads a comma as a decimal separator", () => {
+    expect(parseRate("1,5 MB/s")).toBe(1.5 * 1024 ** 2);
+  });
+
+  it("returns 0 for empty input — the field's emptiness clears the cap", () => {
+    expect(parseRate("")).toBe(0);
+    expect(parseRate("   ")).toBe(0);
+    expect(parseRate("0")).toBe(0);
+  });
+
+  it("returns null for anything unreadable, so a caller can tell it apart from 0", () => {
+    expect(parseRate("fast")).toBeNull();
+    expect(parseRate("-5")).toBeNull();
+    expect(parseRate("5 TB/s")).toBeNull();
+    expect(parseRate("5 MB/s please")).toBeNull();
+  });
+});
+
+describe("parseRates", () => {
+  it("takes both directions, download first", () => {
+    expect(parseRates("5 MB/s, 1 MB/s")).toEqual({
+      down: 5 * 1024 ** 2,
+      up: 1024 ** 2,
+    });
+  });
+
+  it("leaves upload unlimited when only one side is given", () => {
+    expect(parseRates("5 MB/s")).toEqual({ down: 5 * 1024 ** 2, up: 0 });
+  });
+
+  it("clears both on an empty field", () => {
+    expect(parseRates("")).toEqual({ down: 0, up: 0 });
+  });
+
+  it("caps upload alone when the download side is 0", () => {
+    expect(parseRates("0, 1 MB/s")).toEqual({ down: 0, up: 1024 ** 2 });
+  });
+
+  it("rejects the whole input when either side is unreadable", () => {
+    expect(parseRates("5 MB/s, fast")).toBeNull();
+    expect(parseRates("fast, 1 MB/s")).toBeNull();
+    expect(parseRates("1, 2, 3")).toBeNull();
+  });
+
+  it("round-trips through formatRates", () => {
+    const pairs = [
+      { down: 0, up: 0 },
+      { down: 5 * 1024 ** 2, up: 0 },
+      { down: 0, up: 1024 ** 2 },
+      { down: 256 * 1024, up: 512 * 1024 },
+    ];
+    for (const pair of pairs) {
+      expect(parseRates(formatRates(pair.down, pair.up))).toEqual(pair);
+    }
   });
 });

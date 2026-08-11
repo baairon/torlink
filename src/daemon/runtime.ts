@@ -35,6 +35,9 @@ export async function startRuntime(overrideDir?: string): Promise<Runtime> {
   const cfg = await loadConfig();
   const queue = new DownloadQueue();
   queue.setTrackers(cfg.trackers);
+  // Headless runs honour the same saved limits the TUI does: a seedbox left
+  // running is exactly where a capped upstream matters most.
+  queue.setSpeedLimits(cfg.downloadLimit, cfg.uploadLimit);
   // Crash-boot breaker, mirroring the TUI: a marker left by the previous run
   // means it died mid-restore, so restore paused with the engine cold.
   const safe = wasBootInterrupted();

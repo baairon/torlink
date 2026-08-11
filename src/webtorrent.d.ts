@@ -44,6 +44,10 @@ declare module "webtorrent" {
     lsd?: boolean;
     natPmp?: boolean;
     natUpnp?: boolean | "permanent";
+    // Global throttle rates in bytes/sec. -1 (webtorrent's own sentinel) leaves
+    // the direction unthrottled; the client reads these once, at construction.
+    downloadLimit?: number;
+    uploadLimit?: number;
   }
 
   class WebTorrent extends EventEmitter {
@@ -63,6 +67,10 @@ declare module "webtorrent" {
       cb?: (torrent: Torrent) => void,
     ): Torrent;
     get(torrentId: string): Torrent | null;
+    // Change a global throttle rate on a live client, in bytes/sec. -1 disables
+    // the limiter for that direction.
+    throttleDownload(rate: number): void;
+    throttleUpload(rate: number): void;
     remove(torrentId: string, cb?: (err?: Error) => void): void;
     destroy(cb?: (err?: Error) => void): void;
   }

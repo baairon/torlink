@@ -32,6 +32,8 @@ Active downloads sit up top with their progress, speed, and time left; when one 
 
 Downloads run in the background while you keep searching, so you can queue up as many as you want. They save to your downloads folder, and the Downloads pane keeps tabs on each one; press `o` anytime to change where that is, or grab one result with `shift+d` to send it somewhere else without touching the default. When something finishes it keeps seeding automatically so the next person can find it too, and the Seeding tab lets you pause or stop that anytime.
 
+If a download is eating the whole line, press `r` and cap it: type `5 MB/s` to limit downloads, or `5 MB/s, 1 MB/s` to cap uploads too. An empty field lifts the cap. The change applies right away, to whatever is already running, and it sticks across launches — the upload side matters as much as the download one, since a finished torrent keeps seeding and a saturated upstream slows everything else on the connection. `TORLINK_DOWNLOAD_LIMIT` and `TORLINK_UPLOAD_LIMIT` set the starting values for a headless run.
+
 <p align="center">
   <img src="preview/downloads.svg" alt="torlink's Downloads pane: live progress on top, recently downloaded below" style="max-width: 832px; width: 100%; height: auto;">
 </p>

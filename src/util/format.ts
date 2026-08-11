@@ -40,6 +40,63 @@ export function formatBytesPerSec(bytes?: number): string {
   return `${n.toFixed(n < 10 && i > 0 ? 1 : 0)} ${units[i]}`;
 }
 
+const RATE_UNITS: Record<string, number> = {
+  B: 1,
+  KB: 1024,
+  KIB: 1024,
+  MB: 1024 ** 2,
+  MIB: 1024 ** 2,
+  GB: 1024 ** 3,
+  GIB: 1024 ** 3,
+};
+
+/**
+ * A typed speed limit, in bytes/sec. Returns 0 for empty input (no cap) and
+ * null for anything unreadable, so a caller can tell "clear it" from "I don't
+ * know what you meant".
+ *
+ * Powers of 1024, unlike parseSize's decimal KB: this is the inverse of
+ * formatBytesPerSec, and someone who types "512 KB/s" has to read "512 KB/s"
+ * back. A bare number is megabytes per second — the unit anyone capping a line
+ * is thinking in. The trailing "/s" is optional, and so is the space.
+ */
+export function parseRate(input: string): number | null {
+  const s = input.trim().toUpperCase();
+  if (!s) return 0;
+  const m = s.match(/^([\d.,]+)\s*(B|[KMG]I?B)?(?:\s*\/?\s*S(?:EC)?)?$/);
+  if (!m) return null;
+  const n = Number(m[1]!.replace(",", "."));
+  if (!Number.isFinite(n) || n < 0) return null;
+  if (n === 0) return 0;
+  const unit = m[2] ? RATE_UNITS[m[2]] : RATE_UNITS.MB;
+  return unit ? Math.round(n * unit) : null;
+}
+
+/**
+ * Both halves of the speed-limit prompt: "down, up", each side taking what
+ * parseRate takes. One field rather than two prompts because the pair is one
+ * setting — the same shape TrackersPrompt uses for a comma-separated list.
+ *
+ * An omitted upload side leaves upload unlimited; an empty field clears both.
+ * Returns null if either side is unreadable, so the prompt can say so rather
+ * than saving half of what was typed.
+ */
+export function parseRates(input: string): { down: number; up: number } | null {
+  const parts = input.split(",");
+  if (parts.length > 2) return null;
+  const down = parseRate(parts[0] ?? "");
+  if (down === null) return null;
+  const up = parts.length === 2 ? parseRate(parts[1]!) : 0;
+  if (up === null) return null;
+  return { down, up };
+}
+
+/** The inverse of parseRates, for pre-filling the prompt. */
+export function formatRates(down: number, up: number): string {
+  if (down <= 0 && up <= 0) return "";
+  return `${formatBytesPerSec(down) || "0"}, ${formatBytesPerSec(up) || "0"}`;
+}
+
 export function formatCount(n: number): string {
   if (!Number.isFinite(n) || n <= 0) return "0";
   if (n < 10_000) return String(Math.round(n));

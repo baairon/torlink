@@ -20,6 +20,7 @@ export const HELP_GROUPS: HelpGroup[] = [
       { keys: "esc", label: "Back" },
       { keys: "o", label: "Default download folder" },
       { keys: "t", label: "Extra trackers" },
+      { keys: "r", label: "Speed limits" },
       { keys: "q", label: "Quit" },
     ],
   },
@@ -60,7 +61,9 @@ export const HELP_GROUPS: HelpGroup[] = [
 
 // Footer labels stay terse so the contextual hint row never wraps; the `?`
 // overlay (HELP_GROUPS) carries the full, descriptive list. Rare or
-// self-announcing actions (z) stay `?`-only to keep every row inside 80 cols.
+// self-announcing actions (z) stay `?`-only to keep every row inside 80 cols,
+// and so do the global settings prompts (o, t, r) — they apply everywhere, so
+// no one context is the right one to advertise them from.
 const NAVIGATE: Hint = { keys: "↑↓←→", label: "Move" };
 
 const ALWAYS: Hint = { keys: "?", label: "Keys" };

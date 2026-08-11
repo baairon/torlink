@@ -32,9 +32,41 @@ export function message(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
 }
 
+// torlink stores a speed limit as bytes/sec with 0 meaning unlimited (the same
+// shape as TORLINK_MAX_DOWNLOADS). webtorrent spells unlimited as -1, so every
+// rate crosses that boundary through here.
+function rate(limit: number): number {
+  return Number.isFinite(limit) && limit > 0 ? Math.floor(limit) : -1;
+}
+
 export class TorrentEngine {
   private client: WebTorrent | null = null;
   private torrents = new Map<string, Torrent>();
+
+  // Global throttle rates in torlink's units (bytes/sec, 0 = unlimited). Held
+  // on the engine rather than the client: the client is created lazily and
+  // recreated after destroy(), and both have to come up already throttled.
+  private downLimit = 0;
+  private upLimit = 0;
+
+  /**
+   * Set the global download / upload throttles, in bytes/sec (0 = unlimited).
+   * Applies to every torrent at once, live: unlike the concurrency cap, a
+   * tightened limit does slow whatever is already running, which is the whole
+   * point of capping a background download while you work.
+   */
+  setSpeedLimits(down: number, up: number): void {
+    this.downLimit = down;
+    this.upLimit = up;
+    const client = this.client;
+    if (!client) return;
+    try {
+      client.throttleDownload(rate(down));
+      client.throttleUpload(rate(up));
+    } catch {
+      // A throttle is a preference, never a reason to take the engine down.
+    }
+  }
 
   private ensureClient(): WebTorrent {
     if (!this.client) {
@@ -45,7 +77,14 @@ export class TorrentEngine {
       // the app the moment a download starts. NAT-PMP can never succeed
       // on macOS because the port is permanently taken, so disable it
       // and let UPnP handle NAT traversal instead.
-      const opts = process.platform === "darwin" ? { natPmp: false } : {};
+      // The throttles go in as constructor options rather than being applied
+      // after the fact: a limit set at launch has to hold for the very first
+      // torrent, and the client is only built once one is added.
+      const opts = {
+        downloadLimit: rate(this.downLimit),
+        uploadLimit: rate(this.upLimit),
+        ...(process.platform === "darwin" ? { natPmp: false } : {}),
+      };
       this.client = new WebTorrent(opts);
       this.client.on("error", () => {});
     }
