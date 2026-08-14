@@ -39,6 +39,7 @@ export const SOURCE_STYLE: Record<SourceId, { tag: string; color: string }> = {
   "tpb-music": { tag: "TPB", color: "#5fd0c5" },
   "x1337-movies": { tag: "1337", color: "#f6a55c" },
   "x1337-tv": { tag: "1337", color: "#f6a55c" },
+  "x1337-music": { tag: "1337", color: "#f6a55c" },
   bittorrented: { tag: "BT", color: "#7db8f0" },
 };
 
