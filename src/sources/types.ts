@@ -10,7 +10,8 @@ export type SourceId =
   | "x1337-movies"
   | "x1337-tv"
   | "x1337-music"
-  | "bittorrented";
+  | "bittorrented"
+  | "bittorrented-music";
 
 export type SourceGroup = "Games" | "Movies" | "TV" | "Anime" | "Music";
 

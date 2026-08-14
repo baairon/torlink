@@ -1,5 +1,28 @@
-import { describe, it, expect } from "vitest";
-import { mapBittorrentedResults, bittorrented } from "./bittorrented";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { mapBittorrentedResults, bittorrented, bittorrentedMusic } from "./bittorrented";
+import { fetchResilient } from "../util/net";
+
+vi.mock("../util/net", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../util/net")>();
+  return { ...actual, fetchResilient: vi.fn() };
+});
+
+const mockFetch = vi.mocked(fetchResilient);
+
+const apiPage = (results: unknown[]): Response =>
+  ({ ok: true, status: 200, json: async () => ({ results }) }) as unknown as Response;
+
+const row = (hash: string, name: string): unknown => ({
+  torrent_infohash: hash,
+  torrent_name: name,
+});
+
+const askedFor = (call: number): URLSearchParams =>
+  new URL(String(mockFetch.mock.calls[call]![0])).searchParams;
+
+beforeEach(() => {
+  mockFetch.mockReset();
+});
 
 describe("mapBittorrentedResults", () => {
   it("maps an API row to a torrent result with a built magnet, tagged by source id", () => {
@@ -53,12 +76,58 @@ describe("mapBittorrentedResults", () => {
   });
 });
 
+// The two sources are one search() apart: they differ only in the media type
+// they ask the API for and the id they stamp on the rows that come back. Swap
+// either half and the tabs still fill, just with the wrong media — so both
+// halves are asserted together, per source.
 describe("bittorrented", () => {
-  it("feeds Movies and TV only, never Games or Anime", () => {
+  it("feeds Movies and TV only, never Games, Anime or Music", () => {
     expect(bittorrented.id).toBe("bittorrented");
     expect(bittorrented.groups).toEqual(["Movies", "TV"]);
     expect(bittorrented.groups).not.toContain("Games");
     expect(bittorrented.groups).not.toContain("Anime");
+    expect(bittorrented.groups).not.toContain("Music");
     expect(bittorrented.reportsHealth).toBe(true);
+  });
+
+  it("asks the API for video and tags the rows bittorrented", async () => {
+    mockFetch.mockResolvedValueOnce(apiPage([row("b".repeat(40), "Old School (2003)")]));
+    const results = await bittorrented.search("old school");
+    expect(askedFor(0).get("type")).toBe("video");
+    expect(askedFor(0).get("q")).toBe("old school");
+    expect(results.map((r) => r.source)).toEqual(["bittorrented"]);
+  });
+});
+
+describe("bittorrentedMusic", () => {
+  it("feeds Music only, never the video categories", () => {
+    expect(bittorrentedMusic.id).toBe("bittorrented-music");
+    expect(bittorrentedMusic.groups).toEqual(["Music"]);
+    expect(bittorrentedMusic.groups).not.toContain("Movies");
+    expect(bittorrentedMusic.groups).not.toContain("TV");
+    expect(bittorrentedMusic.reportsHealth).toBe(true);
+  });
+
+  it("asks the API for audio and tags the rows bittorrented-music", async () => {
+    mockFetch.mockResolvedValueOnce(
+      apiPage([row("a".repeat(40), "Daft Punk - Discovery (2001) [FLAC]")]),
+    );
+    const results = await bittorrentedMusic.search("daft punk");
+    expect(askedFor(0).get("type")).toBe("audio");
+    expect(askedFor(0).get("q")).toBe("daft punk");
+    expect(results.map((r) => r.source)).toEqual(["bittorrented-music"]);
+  });
+
+  // "audio" is the API's own vocabulary and a 400 otherwise: it rejects the
+  // obvious "music" outright, so the value is pinned rather than inferred.
+  it("never sends the category name as the media type", async () => {
+    mockFetch.mockResolvedValueOnce(apiPage([]));
+    await bittorrentedMusic.search("daft punk");
+    expect(askedFor(0).get("type")).not.toBe("music");
+  });
+
+  it("skips the request entirely for queries the API would reject", async () => {
+    expect(await bittorrentedMusic.search("ab")).toEqual([]);
+    expect(mockFetch).not.toHaveBeenCalled();
   });
 });

@@ -41,6 +41,7 @@ export const SOURCE_STYLE: Record<SourceId, { tag: string; color: string }> = {
   "x1337-tv": { tag: "1337", color: "#f6a55c" },
   "x1337-music": { tag: "1337", color: "#f6a55c" },
   bittorrented: { tag: "BT", color: "#7db8f0" },
+  "bittorrented-music": { tag: "BT", color: "#7db8f0" },
 };
 
 // Tolerant lookup: a source id may be absent (a pasted magnet / bare infohash) or

@@ -1,4 +1,4 @@
-import { bittorrented } from "./bittorrented";
+import { bittorrented, bittorrentedMusic } from "./bittorrented";
 import { eztv } from "./eztv";
 import { fitgirl } from "./fitgirl";
 import { nyaa } from "./nyaa";
@@ -21,6 +21,7 @@ export const SOURCES: readonly Source[] = [
   bittorrented,
   tpbMusic,
   x1337Music,
+  bittorrentedMusic,
 ];
 
 export const DEFAULT_SOURCE: Source = SOURCES[0]!;
