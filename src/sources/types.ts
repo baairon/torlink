@@ -10,7 +10,7 @@ export type SourceId =
   | "x1337-tv"
   | "bittorrented";
 
-export type SourceGroup = "Games" | "Movies" | "TV" | "Anime";
+export type SourceGroup = "Games" | "Movies" | "TV" | "Anime" | "Music";
 
 export interface TorrentResult {
   infoHash: string;
