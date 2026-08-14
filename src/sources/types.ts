@@ -6,6 +6,7 @@ export type SourceId =
   | "subsplease"
   | "tpb-movies"
   | "tpb-tv"
+  | "tpb-music"
   | "x1337-movies"
   | "x1337-tv"
   | "bittorrented";

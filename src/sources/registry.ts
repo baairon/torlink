@@ -3,7 +3,7 @@ import { eztv } from "./eztv";
 import { fitgirl } from "./fitgirl";
 import { nyaa } from "./nyaa";
 import { subsplease } from "./subsplease";
-import { tpbMovies, tpbTv } from "./piratebay";
+import { tpbMovies, tpbTv, tpbMusic } from "./piratebay";
 import { x1337Movies, x1337Tv } from "./x1337";
 import { yts } from "./yts";
 import type { Source, SourceGroup, SourceId } from "./types";
@@ -19,6 +19,7 @@ export const SOURCES: readonly Source[] = [
   nyaa,
   subsplease,
   bittorrented,
+  tpbMusic,
 ];
 
 export const DEFAULT_SOURCE: Source = SOURCES[0]!;
