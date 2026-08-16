@@ -6,6 +6,7 @@ import {
   saveSeeds,
   saveSeedsSync,
   saveTorrentMeta,
+  loadTorrentMeta,
   torrentMetaPath,
   torrentMetaExists,
   exportTorrentMeta,
@@ -15,7 +16,8 @@ import {
 import { saveHistory, saveHistorySync, type HistoryItem } from "./history";
 import { deleteSeedData } from "./delete-data";
 import { disarmBootMarker } from "./bootguard";
-import type { QueueItem, SeedItem } from "./types";
+import parseTorrent from "parse-torrent";
+import type { QueueItem, SeedItem, TorrentFileEntry } from "./types";
 import type { SourceId } from "../sources/types";
 
 /**
@@ -58,6 +60,9 @@ export interface AddInput {
   magnet: string;
   source?: SourceId;
   sizeBytes?: number;
+  // File indices to skip (see the exclude-before-download picker). Omitted or
+  // empty downloads every file.
+  excludedFiles?: number[];
 }
 
 export interface RestoreOptions {
@@ -116,6 +121,10 @@ export class DownloadQueue extends EventEmitter {
     }
     const existing = this.items.get(input.id);
     if (existing && existing.status !== "failed") return;
+    // Empty selections mean "download everything" — store nothing so persisted
+    // items stay clean and the engine takes its normal all-files path.
+    const excludedFiles =
+      input.excludedFiles && input.excludedFiles.length > 0 ? input.excludedFiles : undefined;
     const item: QueueItem = existing
       ? {
           ...existing,
@@ -126,6 +135,8 @@ export class DownloadQueue extends EventEmitter {
           status: "downloading",
           error: undefined,
           speed: 0,
+          // A re-add is a fresh request, so it also adopts the new exclusion set.
+          excludedFiles,
           ...(existing.dir === dir
             ? {}
             : { progress: 0, downloadedBytes: 0, eta: undefined }),
@@ -142,6 +153,7 @@ export class DownloadQueue extends EventEmitter {
           downloadedBytes: 0,
           speed: 0,
           peers: 0,
+          excludedFiles,
           addedAt: Date.now(),
         };
     // Respect the concurrent-download cap: start now if a slot is free, else
@@ -159,7 +171,14 @@ export class DownloadQueue extends EventEmitter {
 
   private startEngine(item: QueueItem): void {
     try {
-      this.engine.add(item.id, item.magnet, item.dir, this.engineHandlers(item.id), this.trackers);
+      this.engine.add(
+        item.id,
+        item.magnet,
+        item.dir,
+        this.engineHandlers(item.id),
+        this.trackers,
+        item.excludedFiles,
+      );
     } catch (e) {
       // engine.add routes webtorrent's own synchronous failures through
       // onError, so the only throw that reaches here is the client failing to
@@ -410,34 +429,32 @@ export class DownloadQueue extends EventEmitter {
     return exportTorrentMeta(it.id, it.name, it.dir);
   }
 
-  // Fetch the .torrent metadata for a magnet-only result (e.g. a search hit
-  // that has never been downloaded) and export it to exportDir. If the metadata
-  // is already cached from a prior download it is exported immediately without
-  // touching the network. The torrent handle is destroyed as soon as metadata
-  // arrives — no file content is downloaded.
-  fetchAndExportTorrent(
-    input: { id: string; name: string; magnet: string },
-    exportDir: string,
-  ): Promise<string | null> {
+  // Ensure the .torrent metadata for a magnet is cached on disk, fetching it
+  // from the swarm if needed. The torrent handle is destroyed as soon as
+  // metadata arrives — no file content is downloaded. Resolves true when the
+  // metadata is available afterwards, false when it couldn't be obtained.
+  // `dir` is only where webtorrent would place files; nothing is written there.
+  private ensureMeta(
+    input: { id: string; magnet: string },
+    dir: string,
+  ): Promise<boolean> {
     // Fast path: cached from a previous download.
-    if (torrentMetaExists(input.id)) {
-      return exportTorrentMeta(input.id, input.name, exportDir);
-    }
+    if (torrentMetaExists(input.id)) return Promise.resolve(true);
     // If this torrent is already in the engine (downloading / seeding), its
     // metadata will arrive through the normal queue flow; don't double-add it.
     if (this.items.has(input.id) || this.seeds.has(input.id)) {
-      return Promise.resolve(null);
+      return Promise.resolve(false);
     }
-    return new Promise<string | null>((resolve) => {
+    return new Promise<boolean>((resolve) => {
       const tempKey = `__meta__${input.id}`;
       let done = false;
       const timer = setTimeout(() => {
         if (done) return;
         done = true;
         this.engine.remove(tempKey);
-        resolve(null);
+        resolve(false);
       }, FETCH_METADATA_TIMEOUT_MS);
-      this.engine.add(tempKey, input.magnet, exportDir, {
+      this.engine.add(tempKey, input.magnet, dir, {
         onMetadata: (meta) => {
           if (done) return;
           done = true;
@@ -446,7 +463,7 @@ export class DownloadQueue extends EventEmitter {
           this.engine.remove(tempKey);
           void (async () => {
             if (meta.torrentFile) await saveTorrentMeta(input.id, meta.torrentFile);
-            resolve(await exportTorrentMeta(input.id, input.name, exportDir));
+            resolve(torrentMetaExists(input.id));
           })();
         },
         onError: () => {
@@ -454,10 +471,72 @@ export class DownloadQueue extends EventEmitter {
           done = true;
           clearTimeout(timer);
           this.engine.remove(tempKey);
-          resolve(null);
+          resolve(false);
         },
       });
     });
+  }
+
+  // Fetch the .torrent metadata for a magnet-only result (e.g. a search hit
+  // that has never been downloaded) and export it to exportDir. If the metadata
+  // is already cached from a prior download it is exported immediately without
+  // touching the network.
+  async fetchAndExportTorrent(
+    input: { id: string; name: string; magnet: string },
+    exportDir: string,
+  ): Promise<string | null> {
+    if (!(await this.ensureMeta(input, exportDir))) return null;
+    return exportTorrentMeta(input.id, input.name, exportDir);
+  }
+
+  // Resolve the file list for a magnet so the user can choose what to exclude
+  // before downloading. Uses cached metadata when present, otherwise fetches it
+  // from the swarm (no file content downloaded). Returns null if it can't be
+  // read. `dir` is only a placeholder path for the metadata fetch.
+  async fetchFiles(
+    input: { id: string; magnet: string },
+    dir: string,
+  ): Promise<TorrentFileEntry[] | null> {
+    if (!(await this.ensureMeta(input, dir))) return null;
+    const buf = await loadTorrentMeta(input.id);
+    if (!buf) return null;
+    try {
+      const parsed = await parseTorrent(buf);
+      const files = parsed.files;
+      if (!files || files.length === 0) return null;
+      // Prefer the full relative path so nested files stay distinguishable;
+      // index order matches webtorrent's torrent.files, which the exclusion
+      // relies on.
+      return files.map((f, index) => ({ index, name: f.path || f.name, length: f.length }));
+    } catch {
+      return null;
+    }
+  }
+
+  // Change a queued/active download's file selection after it has started. For a
+  // live download the change is applied to the running torrent immediately (no
+  // restart); for a paused or queued item it's stored and applied when it next
+  // starts. Returns false if the id isn't a current download.
+  reselect(id: string, exclude: number[]): boolean {
+    const it = this.items.get(id);
+    if (!it) return false;
+    it.excludedFiles = exclude.length > 0 ? exclude : undefined;
+    if (it.status === "downloading") {
+      const selected = this.engine.reselect(id, exclude);
+      if (selected !== null && selected > 0) {
+        it.totalBytes = selected;
+        // The selected set changed, so progress against it did too; pull the
+        // engine's fresh view instead of showing a stale percentage.
+        const s = this.engine.stats(id);
+        if (s) {
+          it.progress = Math.min(100, Math.round(s.progress * 100));
+          it.downloadedBytes = s.downloaded;
+        }
+      }
+    }
+    this.changed();
+    void this.persist();
+    return true;
   }
 
   cancel(id: string): void {
@@ -577,7 +656,7 @@ export class DownloadQueue extends EventEmitter {
     // file immediately, no swarm needed); fall back to the magnet otherwise.
     const source = torrentMetaExists(h.id) ? torrentMetaPath(h.id) : h.magnet;
     try {
-      this.engine.add(h.id, source, h.dir, this.engineHandlers(h.id), this.trackers);
+      this.engine.add(h.id, source, h.dir, this.engineHandlers(h.id), this.trackers, h.excludedFiles);
     } catch {
       // Same narrow case as startEngine: only a client that won't construct
       // lands here. Leave the seed paused so it stays visible and resumable.
@@ -706,6 +785,7 @@ export class DownloadQueue extends EventEmitter {
       magnet: it.magnet,
       dir: it.dir,
       completedAt: Date.now(),
+      excludedFiles: it.excludedFiles,
     };
     this.history = [rec, ...this.history.filter((h) => h.id !== it.id)].slice(0, HISTORY_MAX);
     void saveHistory(this.history).catch(() => {});

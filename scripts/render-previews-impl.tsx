@@ -100,6 +100,8 @@ function makeStore(
     setResultFocus: noop,
     startDownload: noop,
     requestDownloadTo: noop,
+    requestFileSelection: noop,
+    requestReselect: noop,
     copyMagnet: noop,
     openDownloadFolder: noop,
     exportTorrent: noop,

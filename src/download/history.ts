@@ -14,6 +14,9 @@ export interface HistoryItem {
   magnet: string;
   dir: string;
   completedAt: number;
+  // Carried from the download so a later re-seed from the .torrent re-applies
+  // the same exclusions instead of trying to fetch the skipped files.
+  excludedFiles?: number[];
 }
 
 const write = serializeWrites();

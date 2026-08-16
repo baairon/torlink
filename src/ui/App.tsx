@@ -44,12 +44,22 @@ import { TabTitle } from "./components/TabTitle";
 import { Splash } from "./views/Splash";
 import { FolderPrompt } from "./components/FolderPrompt";
 import { TrackersPrompt } from "./components/TrackersPrompt";
+import { FilePicker } from "./components/FilePicker";
 import { footerHints } from "./keymap";
 import { COLOR, ICON } from "./theme";
 import { useMouseWheel } from "./hooks/useMouseWheel";
 import { VERSION } from "../version";
 import { fetchLatestVersion, isNewer } from "../update/version";
 import type { SourceId } from "../sources/types";
+import type { TorrentFileEntry } from "../download/types";
+
+interface DownloadRequest {
+  id: string;
+  name: string;
+  magnet: string;
+  source?: SourceId;
+  sizeBytes?: number;
+}
 
 export function App({
   initialMagnet,
@@ -109,6 +119,23 @@ export function App({
     sizeBytes?: number;
   } | null>(null);
   const [lastDownloadToDir, setLastDownloadToDir] = useState<string | null>(null);
+  // The file picker's pending target, with its resolved file list; null when
+  // closed. "start" is a not-yet-queued download; "reselect" is an existing
+  // download whose selection is being changed. fileFetchSeq drops a slow
+  // file-list fetch whose result arrives after a newer request superseded it.
+  const [pendingFilePick, setPendingFilePick] = useState<
+    | { kind: "start"; input: DownloadRequest; files: TorrentFileEntry[]; initialExcluded: number[] }
+    | {
+        kind: "reselect";
+        id: string;
+        name: string;
+        sizeBytes?: number;
+        files: TorrentFileEntry[];
+        initialExcluded: number[];
+      }
+    | null
+  >(null);
+  const fileFetchSeq = useRef(0);
   const [notice, setNotice] = useState<string | null>(null);
   const [updateVersion, setUpdateVersion] = useState<string | null>(null);
   const [recovered, setRecovered] = useState(false);
@@ -332,6 +359,108 @@ export function App({
     [queue, pendingDownload],
   );
 
+  const requestFileSelection = useCallback(
+    (input: DownloadRequest) => {
+      if (!config || !queue) return;
+      const seq = ++fileFetchSeq.current;
+      setNotice("Reading file list…");
+      void (async () => {
+        const files = await queue.fetchFiles(
+          { id: input.id, magnet: input.magnet },
+          config.downloadDir,
+        );
+        if (seq !== fileFetchSeq.current) return; // superseded by a newer pick
+        if (!files) {
+          // Can't know what to exclude, so honour the intent to download and say so.
+          startDownload(input);
+          setNotice(`Couldn't read files; downloading all of ${truncate(cleanText(input.name), 28)}.`);
+          return;
+        }
+        if (files.length <= 1) {
+          startDownload(input);
+          setNotice(`Only one file — downloading ${truncate(cleanText(input.name), 32)}.`);
+          return;
+        }
+        setNotice(null);
+        setPendingFilePick({ kind: "start", input, files, initialExcluded: [] });
+      })();
+    },
+    [config, queue, startDownload],
+  );
+
+  // Re-open the picker for a download already in the queue. Its .torrent is
+  // cached from the download, so the file list resolves without touching the
+  // network. Preloads the item's current exclusions.
+  const requestReselect = useCallback(
+    (id: string) => {
+      if (!config || !queue) return;
+      const it = queue.getItems().find((i) => i.id === id);
+      if (!it) return;
+      const seq = ++fileFetchSeq.current;
+      setNotice("Reading file list…");
+      void (async () => {
+        const files = await queue.fetchFiles({ id: it.id, magnet: it.magnet }, config.downloadDir);
+        if (seq !== fileFetchSeq.current) return; // superseded
+        if (!files) {
+          setNotice(`File list not ready for ${truncate(cleanText(it.name), 32)}.`);
+          return;
+        }
+        if (files.length <= 1) {
+          setNotice(`${truncate(cleanText(it.name), 32)} has a single file — nothing to change.`);
+          return;
+        }
+        setNotice(null);
+        setPendingFilePick({
+          kind: "reselect",
+          id: it.id,
+          name: it.name,
+          sizeBytes: it.totalBytes,
+          files,
+          initialExcluded: it.excludedFiles ?? [],
+        });
+      })();
+    },
+    [config, queue],
+  );
+
+  const closeFilePick = useCallback(() => {
+    // Any in-flight fetch is now stale; bump the seq so its result is dropped.
+    fileFetchSeq.current++;
+    setPendingFilePick(null);
+  }, []);
+
+  const confirmFilePick = useCallback(
+    (excluded: number[]) => {
+      const pick = pendingFilePick;
+      setPendingFilePick(null);
+      if (!pick || !config || !queue) return;
+      if (pick.kind === "reselect") {
+        queue.reselect(pick.id, excluded);
+        setNotice(
+          excluded.length === 0
+            ? `Now downloading all files of ${truncate(cleanText(pick.name), 28)}.`
+            : `Updated ${truncate(cleanText(pick.name), 28)} (skipping ${excluded.length} file${excluded.length === 1 ? "" : "s"})`,
+        );
+        setSection("downloads");
+        setRegion("content");
+        return;
+      }
+      const input = pick.input;
+      if (excluded.length === 0) {
+        startDownload(input);
+        return;
+      }
+      void fs.mkdir(config.downloadDir, { recursive: true }).catch(() => {});
+      queue.add({ ...input, excludedFiles: excluded }, config.downloadDir);
+      setNotice(
+        `Added: ${truncate(cleanText(input.name), 32)} (skipped ${excluded.length} file${excluded.length === 1 ? "" : "s"})`,
+      );
+      setSection("downloads");
+      setRegion("content");
+    },
+    [pendingFilePick, config, queue, startDownload],
+  );
+
   const copyMagnet = useCallback((input: { name: string; magnet: string }) => {
     void (async () => {
       const ok = await writeClipboard(input.magnet);
@@ -486,7 +615,10 @@ export function App({
       submitQuery,
       section,
       setSection,
-      region: showHelp || editingFolder || editingTrackers || pendingDownload ? "help" : region,
+      region:
+        showHelp || editingFolder || editingTrackers || pendingDownload || pendingFilePick
+          ? "help"
+          : region,
       setRegion,
       captureMode,
       setCaptureMode,
@@ -498,6 +630,8 @@ export function App({
       setResultFocus,
       startDownload,
       requestDownloadTo,
+      requestFileSelection,
+      requestReselect,
       copyMagnet,
       openDownloadFolder,
       exportTorrent,
@@ -523,12 +657,15 @@ export function App({
     editingFolder,
     editingTrackers,
     pendingDownload,
+    pendingFilePick,
     captureMode,
     downloadFocus,
     seedFocus,
     resultFocus,
     startDownload,
     requestDownloadTo,
+    requestFileSelection,
+    requestReselect,
     copyMagnet,
     openDownloadFolder,
     exportTorrent,
@@ -549,7 +686,7 @@ export function App({
         quitAll();
         return;
       }
-      if (editingFolder || editingTrackers || pendingDownload) return; // the prompt owns input (its own esc + enter)
+      if (editingFolder || editingTrackers || pendingDownload || pendingFilePick) return; // the prompt owns input (its own esc + enter)
       if (captureMode === "text") return;
       if (showHelp) {
         setShowHelp(false);
@@ -685,10 +822,39 @@ export function App({
           </Box>
         ) : null}
 
+        {pendingFilePick
+          ? (() => {
+              const fp = pendingFilePick;
+              const name = fp.kind === "start" ? fp.input.name : fp.name;
+              const sizeBytes = fp.kind === "start" ? fp.input.sizeBytes : fp.sizeBytes;
+              return (
+                <Box marginTop={1}>
+                  <FilePicker
+                    width={Math.max(30, Math.min(cols - 4, 78))}
+                    subject={
+                      sizeBytes
+                        ? `${cleanText(name)}  ${ICON.dot}  ${formatBytes(sizeBytes)}`
+                        : cleanText(name)
+                    }
+                    files={fp.files}
+                    listRows={Math.max(3, listRows - 3)}
+                    initialExcluded={fp.initialExcluded}
+                    onSubmit={confirmFilePick}
+                    onCancel={closeFilePick}
+                  />
+                </Box>
+              );
+            })()
+          : null}
+
         <Box
           height={bodyH}
           marginTop={compact ? 0 : 1}
-          display={showHelp || editingFolder || editingTrackers || pendingDownload ? "none" : "flex"}
+          display={
+            showHelp || editingFolder || editingTrackers || pendingDownload || pendingFilePick
+              ? "none"
+              : "flex"
+          }
           overflow="hidden"
         >
           <Sidebar />
@@ -704,7 +870,13 @@ export function App({
         </Box>
 
         {showFooter ? (
-          <Box display={showHelp || editingFolder || editingTrackers || pendingDownload ? "none" : "flex"}>
+          <Box
+            display={
+              showHelp || editingFolder || editingTrackers || pendingDownload || pendingFilePick
+                ? "none"
+                : "flex"
+            }
+          >
             <Footer hints={footerHints(region, section, downloadFocus, seedFocus, resultFocus)} />
           </Box>
         ) : null}

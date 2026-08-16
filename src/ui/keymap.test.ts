@@ -7,11 +7,22 @@ const rowWidth = (hints: Hint[]): number =>
   hints.reduce((n, h) => n + h.keys.length + 1 + h.label.length, 0) + (hints.length - 1) * 3;
 
 describe("downloads/seeding key vocabulary", () => {
-  it("folds clear-all into shift+c on the c row and drops x", () => {
+  it("folds clear-all into shift+c on the c row and offers x to re-pick files", () => {
     const downloads = HELP_GROUPS.find((g) => g.title === "Downloads")!;
-    expect(downloads.hints.some((h) => h.keys === "x")).toBe(false);
+    // x re-opens the exclude-files picker for a download in progress.
+    expect(downloads.hints.find((h) => h.keys === "x")?.label).toContain("exclude");
     expect(downloads.hints.some((h) => h.keys === "shift+c")).toBe(false);
     expect(downloads.hints.find((h) => h.keys === "c")?.label).toContain("(shift+c");
+  });
+
+  it("shows the files key in the active download footers but not on recent", () => {
+    for (const focus of ["downloading", "paused", "failed"] as const) {
+      const row = footerHints("content", "downloads", focus, null);
+      expect(row.find((h) => h.keys === "x")?.label).toBe("Files");
+    }
+    expect(footerHints("content", "downloads", "recent", null).some((h) => h.keys === "x")).toBe(
+      false,
+    );
   });
 
   it("labels one-entry removal as list bookkeeping in the footers", () => {

@@ -99,6 +99,11 @@ function Detail({ r, width }: { r: TorrentResult; width: number }) {
         <Text color={COLOR.text}> Download</Text>
         <Text dimColor>{`  ${ICON.dot}  `}</Text>
         <Text color={COLOR.accent} bold>
+          x
+        </Text>
+        <Text color={COLOR.text}> Files</Text>
+        <Text dimColor>{`  ${ICON.dot}  `}</Text>
+        <Text color={COLOR.accent} bold>
           y
         </Text>
         <Text color={COLOR.text}> Copy</Text>
@@ -125,6 +130,7 @@ export function Results() {
     setCaptureMode,
     startDownload,
     requestDownloadTo,
+    requestFileSelection,
     copyMagnet,
     fetchAndExportTorrent,
     setResultFocus,
@@ -205,6 +211,15 @@ export function Results() {
       sizeBytes: r.sizeBytes,
     });
 
+  const openFilePick = (r: TorrentResult): void =>
+    requestFileSelection({
+      id: r.infoHash,
+      name: r.name,
+      magnet: r.magnet,
+      source: r.source,
+      sizeBytes: r.sizeBytes,
+    });
+
   const copyResultMagnet = (r: TorrentResult): void =>
     copyMagnet({ name: r.name, magnet: r.magnet });
 
@@ -253,6 +268,9 @@ export function Results() {
       } else if (input === "y") {
         const r = results[clamped];
         if (r) copyResultMagnet(r);
+      } else if (input === "x") {
+        const r = results[clamped];
+        if (r) openFilePick(r);
       }
     },
     { isActive: focused && mode === "list" },
@@ -265,6 +283,7 @@ export function Results() {
         setDetail(null);
       } else if (input === "d" && detail) openDownload(detail);
       else if (input === "D" && detail) openDownloadTo(detail);
+      else if (input === "x" && detail) openFilePick(detail);
       else if (input === "y" && detail) copyResultMagnet(detail);
       else if (input === "e" && detail)
         fetchAndExportTorrent({ id: detail.infoHash, name: detail.name, magnet: detail.magnet });

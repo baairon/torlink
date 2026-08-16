@@ -55,6 +55,7 @@ export function Downloads() {
     openDownloadFolder,
     setDownloadFocus,
     exportTorrent,
+    requestReselect,
   } = useStore();
   const active = useQueueItems(queue);
   const recent = useQueueHistory(queue);
@@ -82,6 +83,9 @@ export function Downloads() {
         if (!it) return;
         if (input === "c") queue.cancel(it.id);
         else if (input === "p") queue.togglePause(it.id);
+        // Re-pick files on a download in progress; a completed one is a seed and
+        // has no selection left to change.
+        else if (input === "x") requestReselect(it.id);
       } else {
         const h = recent[recentCursor];
         if (!h) return;
