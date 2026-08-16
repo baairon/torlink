@@ -1,7 +1,10 @@
-# Managed by sh1pt Actions Fleet
-# pack: vu1nz-scan@1.0.1
-# install: sh1pt-actions-store
-# hash: sha256:69dca6b225e64533cd02750003f56fd1ccb4f178c37f48d4398a8254a3fe887b
+# Derived from the `vu1nz-scan@1.0.1` pack, with third-party references pinned
+# to immutable commits (see the steps below).
+#
+# The sh1pt fleet header is dropped for the same reason threatcrush-scan.yml
+# drops it: this file is no longer byte-identical to the pack, so the pack's
+# content hash no longer describes it, and a stale hash that nothing verifies
+# is worse than no hash at all.
 name: vu1nz security scan
 
 on:
@@ -18,14 +21,25 @@ jobs:
     timeout-minutes: 15
 
     steps:
-      - uses: actions/checkout@v4
+      # Pinned to commit SHAs, not tags — see the note in ci.yml. checkout moves
+      # v4 -> v7 here to match ci.yml and threatcrush-scan.yml; the step passes
+      # no inputs, so the bump is the version number and nothing else.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.12"
 
+      # Pinned to a commit, not the default branch. `pip install git+…` with no
+      # rev installs whatever HEAD happens to be at the moment the job runs, and
+      # this step's output later executes with ANTHROPIC_API_KEY and a repo
+      # token in scope. The pin is not an endorsement of the code at this
+      # commit — it only guarantees the job keeps running the same code, so a
+      # change upstream is a visible diff here rather than a silent swap.
       - name: Install vu1nz
-        run: pip install --quiet git+https://github.com/profullstack/vu1nz-gh-actions.git
+        run: |
+          pip install --quiet \
+            "git+https://github.com/profullstack/vu1nz-gh-actions.git@a6055f69d6fedd4d1a7355088dc5c06b84fa3e24"
 
       - name: Load env file
         env:
@@ -172,7 +186,7 @@ jobs:
         # always written to the job summary.
         if: always() && github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]'
         continue-on-error: true
-        uses: actions/github-script@v7
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
         with:
           script: |
             const fs = require('fs');

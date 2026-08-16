@@ -25,9 +25,13 @@ jobs:
         node: [22, 24]
 
     steps:
-      - uses: actions/checkout@v7
+      # Actions are pinned to commit SHAs, not tags: a tag is a mutable pointer
+      # its owner can repoint at any commit, so `@v7` is an open invitation to
+      # run code nobody here reviewed. The trailing comment is the human-readable
+      # version, and Dependabot rewrites both halves together on an update.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: ${{ matrix.node }}
           cache: npm
