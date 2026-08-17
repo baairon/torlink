@@ -1,4 +1,5 @@
 import { fetchResilient, HttpError, USER_AGENT } from "../util/net";
+import { normalizeImdbId } from "../meta/cinemeta";
 import { buildMagnet } from "./magnet";
 import type { SearchOptions, Source, TorrentResult } from "./types";
 
@@ -15,6 +16,7 @@ interface YtsTorrent {
 interface YtsMovie {
   title_long?: string;
   title?: string;
+  imdb_code?: string;
   date_uploaded_unix?: number;
   torrents?: YtsTorrent[];
 }
@@ -51,6 +53,9 @@ async function search(query: string, opts: SearchOptions = {}): Promise<TorrentR
   const out: TorrentResult[] = [];
   for (const movie of json.data?.movies ?? []) {
     const base = movie.title_long || movie.title || "Unknown";
+    // One id per film, shared by its quality rows: hoisted so the metadata cache collapses all
+    // four of them onto one entry. Validated here, at the trust boundary, not at the point of use.
+    const imdbId = normalizeImdbId(movie.imdb_code);
     for (const t of movie.torrents ?? []) {
       if (!t.hash) continue;
       const infoHash = t.hash.toLowerCase();
@@ -65,6 +70,7 @@ async function search(query: string, opts: SearchOptions = {}): Promise<TorrentR
         source: "yts",
         magnet: buildMagnet(infoHash, name),
         added: movie.date_uploaded_unix,
+        imdbId,
       });
     }
   }
