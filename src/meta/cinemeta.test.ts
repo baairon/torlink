@@ -9,6 +9,7 @@ import {
   posterUrlFor,
   searchCatalog,
   searchUrl,
+  widenPosterUrl,
 } from "./cinemeta";
 import { fetchResilient } from "../util/net";
 
@@ -197,6 +198,24 @@ describe("posterUrlFor", () => {
 
   it("returns nothing when the id would not be safe in a url path", () => {
     expect(posterUrlFor("../../etc")).toBeUndefined();
+  });
+
+  it("asks Amazon for a bigger rendition when the terminal draws real pixels", () => {
+    // ~120 pixels is right for two dozen half-blocks and a visible upscale for a native image,
+    // which is drawn at roughly eight pixels a column.
+    expect(widenPosterUrl("https://m.media-amazon.com/images/M/MV5Babc@._V1_SX120.jpg")).toBe(
+      "https://m.media-amazon.com/images/M/MV5Babc@._V1_SX480.jpg",
+    );
+  });
+
+  it("leaves every url it did not validate exactly as it found it", () => {
+    // Metahub carries its size in the path, and inventing one for a host that answers 404 with a
+    // body would lose the poster rather than sharpen it.
+    const metahub = "https://images.metahub.space/poster/small/tt0133093/img?format=jpeg";
+    expect(widenPosterUrl(metahub)).toBe(metahub);
+    // The same anchoring posterUrlFor relies on: right host, wrong shape, left alone.
+    const query = "https://m.media-amazon.com/images/M/x._V1_SX120.jpg?q=1";
+    expect(widenPosterUrl(query)).toBe(query);
   });
 });
 

@@ -102,6 +102,28 @@ export function posterUrlFor(imdbId: string, rawPoster?: string): string | undef
   return `${METAHUB}/${id}/img?format=jpeg`;
 }
 
+// What the graphics tier asks Amazon for instead. A terminal drawing real pixels wants roughly
+// eight of them per cell column, so a full-height poster is ~400 wide and the 120-pixel thumbnail
+// above would be a visible upscale — the blur would be the *only* thing separating it from the
+// half-block art it replaced. Metahub is deliberately left alone: its size lives in the path
+// rather than the filename, and inventing a path for a host that answers 404 with a body would
+// cost the picture entirely rather than sharpen it.
+const GRAPHICS_POSTER_WIDTH = "SX480";
+
+/**
+ * The same poster at a rendition worth drawing natively, or the URL untouched.
+ *
+ * Applied at the point of use rather than in posterUrlFor, because which rendition is wanted is a
+ * fact about the terminal and mapMeta has no business knowing about terminals. Only the Amazon
+ * form this module already validated is rewritten, and only its suffix, so the result is still a
+ * URL posterUrlFor could have produced.
+ */
+export function widenPosterUrl(url: string): string {
+  return AMAZON_POSTER.test(url)
+    ? url.replace(/\._V1_SX\d+\.jpg$/, `._V1_${GRAPHICS_POSTER_WIDTH}.jpg`)
+    : url;
+}
+
 // Remote strings reach a terminal, so they go through cleanText() at the boundary. cleanText()
 // substitutes "Untitled" for an empty result, which is right for a title and wrong for every
 // optional field — hence the blank check before, and the return of undefined rather than a

@@ -225,24 +225,32 @@ export function toHalfBlockLines(grid: Uint8Array, cols: number, rows: number): 
 }
 
 /**
- * JPEG bytes to drawable cells, or null for anything that is not a JPEG we can render.
+ * JPEG bytes to pixels, or null for anything that is not a JPEG we can decode.
  *
  * jpeg-js throws for a missing SOI, an unknown marker, a truncated scan and an over-budget frame
- * alike, and all of those mean the same thing here: draw the text card without art. Nothing is
- * rethrown, because the only caller is a React effect feeding a render.
+ * alike, and all of those mean the same thing to every caller: draw the text card without art.
+ * Nothing is rethrown, because the callers are React effects feeding a render. Shared with the
+ * kitty encoder so the memory ceiling and the swallowed-throw contract are stated once.
  */
+export function decodeBitmap(bytes: Uint8Array): Bitmap | null {
+  try {
+    const img = jpeg.decode(bytes, { useTArray: true, maxMemoryUsageInMB: MAX_DECODE_MB });
+    return { width: img.width, height: img.height, data: img.data };
+  } catch {
+    return null;
+  }
+}
+
+/** JPEG bytes to drawable cells, or null for anything that is not a JPEG we can render. */
 export function decodePoster(
   bytes: Uint8Array,
   maxCols: number,
   maxRows: number,
 ): PosterCells | null {
-  try {
-    const img = jpeg.decode(bytes, { useTArray: true, maxMemoryUsageInMB: MAX_DECODE_MB });
-    const { cols, rows } = fitCells(img.width, img.height, maxCols, maxRows);
-    if (cols < 1 || rows < 1) return null;
-    const grid = sampleGrid({ width: img.width, height: img.height, data: img.data }, cols, rows * 2);
-    return { cols, rows, lines: toHalfBlockLines(grid, cols, rows) };
-  } catch {
-    return null;
-  }
+  const img = decodeBitmap(bytes);
+  if (img === null) return null;
+  const { cols, rows } = fitCells(img.width, img.height, maxCols, maxRows);
+  if (cols < 1 || rows < 1) return null;
+  const grid = sampleGrid(img, cols, rows * 2);
+  return { cols, rows, lines: toHalfBlockLines(grid, cols, rows) };
 }
