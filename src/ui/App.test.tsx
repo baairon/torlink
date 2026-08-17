@@ -170,7 +170,7 @@ describe("App region walk", () => {
     expect(inList(u)).toBe(true);
     expect(paneStartsAt(u)).toBe(paneStartFor(WIDE, false));
 
-    u.press("[C");
+    u.press(KEY.right);
     await vi.waitFor(() => expect(inPane(u)).toBe(true));
     // Not just a footer swap: the split moved to the focused widths under it.
     expect(paneStartsAt(u)).toBe(paneStartFor(WIDE, true));
@@ -185,23 +185,23 @@ describe("App region walk", () => {
 
   it("steps ← back to the list, never past it to the sidebar", async () => {
     const u = await boot();
-    u.press("[C");
+    u.press(KEY.right);
     await vi.waitFor(() => expect(inPane(u)).toBe(true));
 
-    u.press("[D");
+    u.press(KEY.left);
     await vi.waitFor(() => expect(inList(u)).toBe(true));
     // The whole point of a three-column model: one key, one column.
     expect(inSidebar(u)).toBe(false);
     expect(paneStartsAt(u)).toBe(paneStartFor(WIDE, false));
 
     // And the step after it lands where ← always landed.
-    u.press("[D");
+    u.press(KEY.left);
     await vi.waitFor(() => expect(inSidebar(u)).toBe(true));
   });
 
   it("steps esc left exactly as ← does, all the way out to the splash", async () => {
     const u = await boot();
-    u.press("[C");
+    u.press(KEY.right);
     await vi.waitFor(() => expect(inPane(u)).toBe(true));
 
     u.press(KEY.esc);
@@ -217,7 +217,7 @@ describe("App region walk", () => {
 
   it("leaves tab the two-way toggle it has always been", async () => {
     const u = await boot();
-    u.press("[C");
+    u.press(KEY.right);
     await vi.waitFor(() => expect(inPane(u)).toBe(true));
 
     u.press("\t");
@@ -228,7 +228,7 @@ describe("App region walk", () => {
     const u = await boot(80);
     expect(u.frame()).not.toContain("╭─ Info");
 
-    u.press("[C");
+    u.press(KEY.right);
     await new Promise((r) => setTimeout(r, 30));
     expect(inPane(u)).toBe(false);
     expect(inList(u)).toBe(true);
@@ -239,13 +239,13 @@ describe("App region walk", () => {
     u.press("i");
     await vi.waitFor(() => expect(u.frame()).not.toContain("╭─ Info"));
 
-    u.press("[C");
+    u.press(KEY.right);
     await new Promise((r) => setTimeout(r, 30));
     expect(inPane(u)).toBe(false);
 
     u.press("i");
     await vi.waitFor(() => expect(u.frame()).toContain("╭─ Info"));
-    u.press("[C");
+    u.press(KEY.right);
     await vi.waitFor(() => expect(inPane(u)).toBe(true));
   });
 });
@@ -265,7 +265,7 @@ describe("App footer for the info pane", () => {
 describe("App modals over a focused pane", () => {
   it("returns the keyboard to the pane after the ? sheet closes", async () => {
     const u = await boot();
-    u.press("[C");
+    u.press(KEY.right);
     await vi.waitFor(() => expect(inPane(u)).toBe(true));
 
     u.press("?");
@@ -281,7 +281,7 @@ describe("App modals over a focused pane", () => {
 
   it("returns it after the folder prompt is cancelled", async () => {
     const u = await boot();
-    u.press("[C");
+    u.press(KEY.right);
     await vi.waitFor(() => expect(inPane(u)).toBe(true));
 
     u.press("o");
@@ -294,7 +294,7 @@ describe("App modals over a focused pane", () => {
 
   it("returns it after the trackers prompt is cancelled", async () => {
     const u = await boot();
-    u.press("[C");
+    u.press(KEY.right);
     await vi.waitFor(() => expect(inPane(u)).toBe(true));
 
     u.press("t");
@@ -308,7 +308,7 @@ describe("App modals over a focused pane", () => {
 describe("App rescues focus from a pane that disappears", () => {
   it("hands the keyboard back to the list when a resize takes the pane away", async () => {
     const u = await boot();
-    u.press("[C");
+    u.press(KEY.right);
     await vi.waitFor(() => expect(inPane(u)).toBe(true));
 
     // 80 columns is below the width the split exists at: the pane goes, and the keyboard cannot
@@ -328,7 +328,7 @@ describe("App rescues focus from a pane that disappears", () => {
 
   it("leaves nothing stranded when the results view itself goes away", async () => {
     const u = await boot();
-    u.press("[C");
+    u.press(KEY.right);
     await vi.waitFor(() => expect(inPane(u)).toBe(true));
 
     // Out to the sidebar and up into Downloads, which has no pane at any width. One key per
@@ -343,7 +343,7 @@ describe("App rescues focus from a pane that disappears", () => {
     await vi.waitFor(() => expect(u.frame()).toContain("p Pause"));
 
     // → here must find no third column: the results view reported its pane gone on the way out.
-    u.press("[C");
+    u.press(KEY.right);
     await new Promise((r) => setTimeout(r, 30));
     expect(inPane(u)).toBe(false);
     expect(u.frame()).toContain("p Pause");

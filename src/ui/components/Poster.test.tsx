@@ -55,10 +55,10 @@ describe("Poster", () => {
     // pairs. Asserting on them is what proves the background half of the cell is actually painted:
     // without it a poster renders as a monochrome silhouette and still passes a width check.
     const raw = ui.rawFrame();
-    expect(raw).toContain("[38;2;255;0;0m");
-    expect(raw).toContain("[48;2;0;0;255m");
-    expect(raw).toContain("[38;2;0;255;0m");
-    expect(raw).toContain("[48;2;0;0;0m");
+    expect(raw).toContain("\u001b[38;2;255;0;0m");
+    expect(raw).toContain("\u001b[48;2;0;0;255m");
+    expect(raw).toContain("\u001b[38;2;0;255;0m");
+    expect(raw).toContain("\u001b[48;2;0;0;0m");
     ui.unmount();
   });
 

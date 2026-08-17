@@ -59,7 +59,7 @@ function art(cols: number, rows: number): PosterCells {
 }
 
 // Panel's focused frame colour, as chalk emits COLOR.accent (#a78bfa) in truecolour.
-const ACCENT = "[38;2;167;139;250m";
+const ACCENT = "\u001b[38;2;167;139;250m";
 
 // The CSI sequences ink's input parser turns into key.downArrow, key.pageUp and key.pageDown.
 const DOWN = `${KEY.esc}[B`;

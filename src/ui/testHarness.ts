@@ -23,6 +23,12 @@ export const KEY = {
   enter: "\r",
   esc: "\u001b",
   ctrlU: "\u0015",
+  // CSI cursor keys. Ink parses a raw ESC + "[" + letter as the corresponding arrow, matching
+  // what a real terminal emits for the unmodified key.
+  right: "\u001b[C",
+  left: "\u001b[D",
+  up: "\u001b[A",
+  down: "\u001b[B",
 } as const;
 
 // SGR/CSI sequences only. util/format's stripControl drops the ESC byte but
