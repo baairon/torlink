@@ -9,6 +9,7 @@ import { scrollStart } from "../move";
 import { planPaneLines } from "../paneCard";
 import { COLUMN_GAP, MAX_TEXT_COLS, posterBudget, splitTextCols } from "../previewLayout";
 import { COLOR, ICON } from "../theme";
+import { sliceArt } from "../../meta/image";
 import type { PosterCells } from "../../meta/image";
 import type { TorrentResult } from "../../sources/types";
 
@@ -155,16 +156,13 @@ export function MetaPane({
     { isActive: focused },
   );
 
-  // Sliced rather than re-decoded, and identity-preserved in the common case where the whole
-  // poster is on screen: Poster is memoised, and a fresh object every render would defeat that
-  // for the one thing in this pane expensive enough to reconcile.
+  // Sliced rather than re-decoded, by the seam that owns what a window into art means — clamping
+  // and identity preservation included. Whatever shape the art is, the window into it is rows of
+  // it, which is what keeps a half-scrolled poster on screen instead of abandoning it.
   const artWindow = useMemo<PosterCells | null>(() => {
     if (art === null) return null;
-    const from = Math.min(start, art.rows);
-    const to = Math.min(end, art.rows);
-    if (to <= from) return null;
-    if (from === 0 && to === art.rows) return art;
-    return { cols: art.cols, rows: to - from, lines: art.lines.slice(from, to) };
+    const window = sliceArt(art, start, end);
+    return window.rows < 1 ? null : window;
   }, [art, start, end]);
 
   // The spacer row only exists in the stacked layout, and only while the window is over it.

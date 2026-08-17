@@ -29,6 +29,67 @@ export interface PosterCells {
   readonly lines: readonly (readonly PosterRun[])[];
 }
 
+/**
+ * The same picture as text a graphics-capable terminal resolves into a real image.
+ *
+ * Deliberately the same shape as PosterCells — a cell grid whose rows are independent strings —
+ * because that is what keeps the pane's scroll window a slice. Each line is a run of cells that
+ * name their own row and column inside an image the terminal already holds, so row *i* of this
+ * array is row *i* of the picture wherever it is drawn on screen: no placement to fix up, nothing
+ * to re-encode when the window moves. `color` carries the image id in its 24 bits, which is how
+ * the id reaches the terminal at all — it rides through Ink's own SGR rather than through an
+ * escape Ink would strip.
+ */
+export interface GraphicsCells {
+  readonly cols: number;
+  readonly rows: number;
+  readonly lines: readonly string[];
+  readonly color: string;
+  readonly imageId: number;
+}
+
+/** Either art shape. Every consumer past the decoder is written against this, not against one. */
+export type PosterArt = PosterCells | GraphicsCells;
+
+/**
+ * Narrows on a field only one shape has. `in` rather than a `kind` tag so PosterCells stays
+ * exactly the interface it already was — the cell grid is what four test files and the previews
+ * script build by hand, and a discriminant added to it would be a discriminant added to all of
+ * them.
+ */
+export function isGraphics(art: PosterArt): art is GraphicsCells {
+  return "imageId" in art;
+}
+
+export function sliceArt(art: PosterCells, from: number, to: number): PosterCells;
+export function sliceArt(art: GraphicsCells, from: number, to: number): GraphicsCells;
+export function sliceArt(art: PosterArt, from: number, to: number): PosterArt;
+/**
+ * The rows of `art` between `from` and `to`, clamped to the art that exists.
+ *
+ * The one place the pane's scroll window is expressed, and the reason the poster scrolls *with*
+ * the pane instead of hovering over it: art is text, a window into it is a slice of rows, and both
+ * shapes answer that the same way. Written once against the union so a shape that scrolled by
+ * some other mechanism could not be added without changing this function — the property holds by
+ * construction rather than by whoever touches MetaPane next remembering it.
+ *
+ * Identity is preserved when the whole picture is inside the window, which is the common case:
+ * Poster is memoised, and a fresh object every render would defeat that for the one thing in the
+ * pane expensive enough to reconcile. An empty window comes back as zero rows rather than null —
+ * "no rows visible" is a slice, not a failure, and the caller decides what to draw for it.
+ */
+export function sliceArt(art: PosterArt, from: number, to: number): PosterArt {
+  const lo = Math.max(0, Math.min(Math.trunc(from), art.rows));
+  const hi = Math.max(lo, Math.min(Math.trunc(to), art.rows));
+  if (lo === 0 && hi === art.rows) return art;
+  const rows = hi - lo;
+  // Twice the same slice, because `lines` is a union of two array types and TypeScript will not
+  // call `.slice` across one: each half of the union has a signature, and neither is assignable to
+  // the other. Narrowing first is what makes both calls resolvable without a cast.
+  if (isGraphics(art)) return { ...art, rows, lines: art.lines.slice(lo, hi) };
+  return { ...art, rows, lines: art.lines.slice(lo, hi) };
+}
+
 // jpeg-js allocates the whole decoded frame before anything here gets to downsample it, so the
 // only useful ceiling sits on the decoder. 32 MB is far above any poster rendition either host
 // serves (120x180 decodes to 86 KB) and far below what a header claiming a 20000x20000 frame

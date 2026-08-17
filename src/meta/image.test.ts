@@ -1,7 +1,7 @@
 import { Buffer } from "node:buffer";
 import { describe, expect, it } from "vitest";
-import { decodePoster, fitCells, sampleGrid, toHalfBlockLines } from "./image";
-import type { Bitmap } from "./image";
+import { decodePoster, fitCells, isGraphics, sampleGrid, sliceArt, toHalfBlockLines } from "./image";
+import type { Bitmap, GraphicsCells, PosterCells } from "./image";
 
 // Two real JPEGs, inlined rather than committed as fixtures — the repo carries no binary files and
 // a 400-byte constant is easier to reason about than one. They exist because the two poster hosts
@@ -242,5 +242,54 @@ describe("decodePoster", () => {
   it("returns null when there is no room to draw", () => {
     expect(decodePoster(bytes(BASELINE_JPEG), 0, 18)).toBeNull();
     expect(decodePoster(bytes(BASELINE_JPEG), 24, 0)).toBeNull();
+  });
+});
+
+describe("the poster seam", () => {
+  const blocks = (rows: number): PosterCells => ({
+    cols: 3,
+    rows,
+    lines: Array.from({ length: rows }, (_, i) => [{ fg: `#00000${i}`, bg: "#000000", n: 3 }]),
+  });
+  const graphics = (rows: number): GraphicsCells => ({
+    cols: 3,
+    rows,
+    lines: Array.from({ length: rows }, (_, i) => `row${i}`),
+    color: "#0a0b0c",
+    imageId: 0x0a0b0c,
+  });
+
+  it("tells the two shapes apart without either carrying a tag", () => {
+    expect(isGraphics(graphics(2))).toBe(true);
+    expect(isGraphics(blocks(2))).toBe(false);
+  });
+
+  it("takes the same row window out of either shape", () => {
+    expect(sliceArt(blocks(6), 2, 4).lines).toEqual(blocks(6).lines.slice(2, 4));
+    expect(sliceArt(graphics(6), 2, 4).lines).toEqual(["row2", "row3"]);
+    // Rows follow the window; columns and the image id are properties of the picture, not of the
+    // part of it on screen, so they survive a slice untouched.
+    const cut = sliceArt(graphics(6), 2, 4);
+    expect(cut.rows).toBe(2);
+    expect(cut.cols).toBe(3);
+    expect(cut.imageId).toBe(0x0a0b0c);
+    expect(cut.color).toBe("#0a0b0c");
+  });
+
+  it("returns the art itself when the whole picture is inside the window", () => {
+    // Identity, not equality: Poster is memoised and a fresh object every render would defeat it.
+    const cells = blocks(4);
+    expect(sliceArt(cells, 0, 4)).toBe(cells);
+    expect(sliceArt(cells, 0, 99)).toBe(cells);
+    const image = graphics(4);
+    expect(sliceArt(image, 0, 4)).toBe(image);
+  });
+
+  it("clamps a window that runs off either end", () => {
+    expect(sliceArt(blocks(4), -3, 2).rows).toBe(2);
+    expect(sliceArt(blocks(4), 2, 99).rows).toBe(2);
+    expect(sliceArt(blocks(4), 9, 12).rows).toBe(0);
+    expect(sliceArt(blocks(4), 3, 1).rows).toBe(0);
+    expect(sliceArt(graphics(4), 9, 12).lines).toEqual([]);
   });
 });
