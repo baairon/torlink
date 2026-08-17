@@ -22,6 +22,14 @@ vi.mock("../hooks/usePoster", () => ({ usePoster: vi.fn() }));
 const mockMeta = vi.mocked(useResultMeta);
 const mockPoster = vi.mocked(usePoster);
 
+// The exhaustive sweep at the bottom of this file mounts the pane a few thousand times, which
+// costs seconds even on an idle machine and rather more on a busy one. Vitest's five-second
+// default is a number nobody here chose; this one is chosen, with room for a contributor's laptop
+// running a build in the next window. A sweep that overruns it is a machine under load, not a
+// slow test hiding a problem — so raise this rather than thinning the sweep, which is what caught
+// the off-by-one layout bugs the cases below pin.
+const SWEEP_MS = 20_000;
+
 // The widest tier: pane 34 columns, and the panel height the results view hands it.
 const PANE_W = 34;
 const PANE_H = 20;
@@ -544,6 +552,7 @@ describe("MetaPane side by side", () => {
     ui.unmount();
   });
 
+  // The sweep SWEEP_MS was chosen for: every width the pane can be given, against every height.
   it("holds its frame across the widths and heights either layout can land on", () => {
     fitted();
     for (let w = 34; w <= 90; w += 2) {
@@ -557,5 +566,5 @@ describe("MetaPane side by side", () => {
         ui.unmount();
       }
     }
-  });
+  }, SWEEP_MS);
 });

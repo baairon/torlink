@@ -1006,6 +1006,14 @@ describe("Results info pane on Games", () => {
 // with the gap column between them still blank. This sweeps the sizes and content shapes that
 // each broke a different assumption while this feature was built.
 describe("Results frame integrity", () => {
+  // The sweep below mounts both panels at every size, focus and metadata shape in the matrix,
+  // which costs seconds even on an idle machine and rather more on a busy one. Vitest's
+  // five-second default is a number nobody here chose; this one is chosen, with room for a
+  // contributor's laptop running a build in the next window. A sweep that overruns it is a
+  // machine under load, not a slow test hiding a problem — so raise this rather than thinning
+  // the matrix, which is what caught the frames that only broke at one width.
+  const SWEEP_MS = 20_000;
+
   const CJK_META: Meta = {
     imdbId: "tt0245429",
     kind: "movie",
@@ -1134,7 +1142,7 @@ describe("Results frame integrity", () => {
       }
     }
     posterOn.current = false;
-  });
+  }, SWEEP_MS);
 
   // Mid-scroll is where the two panels are easiest to break, because the pane's contents change
   // shape under a fixed frame while the list beside it does not move at all. Both of the focused

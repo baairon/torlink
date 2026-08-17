@@ -93,8 +93,7 @@ describe("usePoster", () => {
     const url = nextUrl();
     const ui = renderUI(<Probe url={url} first={WIDE} />);
     try {
-      await tick(5);
-      expect(ui.frame()).toContain("ART 24x18");
+      await vi.waitFor(() => expect(ui.frame()).toContain("ART 24x18"));
       expect(mockFetch).toHaveBeenCalledTimes(1);
 
       // Held in flight so the frame between the resize and the new art is observable.
@@ -102,14 +101,17 @@ describe("usePoster", () => {
       mockFetch.mockReturnValueOnce(slow.promise);
 
       resize?.(NARROW);
-      await tick(5);
-      expect(mockFetch).toHaveBeenCalledTimes(2);
+      // Wait on the two positive facts that pin the intermediate state, then read the negative
+      // off the same frame: the probe only ever renders one of LOADING/NONE/"TIER WxH", so a
+      // frame that just satisfied "contains LOADING" cannot also contain "ART 24x18".
+      await vi.waitFor(() => {
+        expect(mockFetch).toHaveBeenCalledTimes(2);
+        expect(ui.frame()).toContain("LOADING");
+      });
       expect(ui.frame()).not.toContain("ART 24x18");
-      expect(ui.frame()).toContain("LOADING");
 
       slow.settle(BYTES);
-      await tick(5);
-      expect(ui.frame()).toContain("ART 18x13");
+      await vi.waitFor(() => expect(ui.frame()).toContain("ART 18x13"));
     } finally {
       ui.unmount();
     }
@@ -122,14 +124,12 @@ describe("usePoster", () => {
     const url = nextUrl();
     const ui = renderUI(<Probe url={url} first={NARROW} />);
     try {
-      await tick(5);
-      expect(ui.frame()).toContain("ART 18x13");
+      await vi.waitFor(() => expect(ui.frame()).toContain("ART 18x13"));
       expect(mockFetch).toHaveBeenCalledTimes(1);
 
       resize?.(WIDE);
-      await tick(5);
+      await vi.waitFor(() => expect(ui.frame()).toContain("ART 24x18"));
       expect(mockFetch).toHaveBeenCalledTimes(2);
-      expect(ui.frame()).toContain("ART 24x18");
       expect(ui.frame()).not.toContain("ART 18x13");
       expect(mockDecode).toHaveBeenLastCalledWith(BYTES, 24, 18);
     } finally {
@@ -140,8 +140,7 @@ describe("usePoster", () => {
   it("serves a remount at the same budget from cache, with no second fetch or decode", async () => {
     const url = nextUrl();
     const first = renderUI(<Probe url={url} first={WIDE} />);
-    await tick(5);
-    expect(first.frame()).toContain("ART 24x18");
+    await vi.waitFor(() => expect(first.frame()).toContain("ART 24x18"));
     first.unmount();
 
     expect(mockFetch).toHaveBeenCalledTimes(1);
@@ -149,12 +148,11 @@ describe("usePoster", () => {
 
     const second = renderUI(<Probe url={url} first={WIDE} />);
     try {
-      await tick(5);
+      await vi.waitFor(() => expect(second.frame()).toContain("ART 24x18"));
       // The whole point of caching the decoded cells rather than the bytes: scrolling back onto a
       // row costs neither the request nor the synchronous decode.
       expect(mockFetch).toHaveBeenCalledTimes(1);
       expect(mockDecode).toHaveBeenCalledTimes(1);
-      expect(second.frame()).toContain("ART 24x18");
       expect(second.frame()).not.toContain("LOADING");
     } finally {
       second.unmount();
@@ -163,23 +161,35 @@ describe("usePoster", () => {
 
   it("negative-caches a poster that could not be fetched", async () => {
     const url = nextUrl();
-    mockFetch.mockResolvedValue(null);
+    // Held in flight, the way the pane-narrows test holds its resize: the mount frame and the
+    // settled frame both read "NONE", so only a LOADING frame between them tells "the fetch has
+    // not started" apart from "the fetch finished with nothing".
+    const miss = deferred();
+    mockFetch.mockReturnValue(miss.promise);
 
     const first = renderUI(<Probe url={url} first={WIDE} />);
-    await tick(5);
-    expect(first.frame()).toContain("NONE");
+    await vi.waitFor(() => expect(first.frame()).toContain("LOADING"));
+
+    miss.settle(null);
+    await vi.waitFor(() => expect(first.frame()).toContain("NONE"));
     // A null body never reaches the decoder — there is nothing to decode.
     expect(mockDecode).not.toHaveBeenCalled();
     first.unmount();
 
+    // What a remount that missed the negative cache would get: a request that never answers. It
+    // would sit on LOADING, so the frame below fails on a broken cache as directly as the count.
+    mockFetch.mockReturnValue(deferred().promise);
     const second = renderUI(<Probe url={url} first={WIDE} />);
     try {
+      // A cache hit is served synchronously inside the effect, so there is no intermediate state
+      // to wait on here — a real sleep instead, the same precedent as the unmount test below,
+      // giving a miss the chance to render the LOADING frame that would disprove the cache.
       await tick(5);
       // A row whose poster is a 404 or a WebP must not re-ask on every revisit, and must render
       // its final answer without flashing a spinner first.
-      expect(mockFetch).toHaveBeenCalledTimes(1);
       expect(second.frame()).toContain("NONE");
       expect(second.frame()).not.toContain("LOADING");
+      expect(mockFetch).toHaveBeenCalledTimes(1);
     } finally {
       second.unmount();
     }
@@ -188,24 +198,40 @@ describe("usePoster", () => {
   it("caches a decoded null so a broken image is not re-decoded either", async () => {
     const url = nextUrl();
     mockDecode.mockReturnValue(null);
+    // Held in flight for the reason the negative-cache test holds its own: a decoded null renders
+    // the same "NONE" the mount frame already shows, so LOADING is the only proof of the fetch.
+    const slow = deferred();
+    mockFetch.mockReturnValue(slow.promise);
 
     const first = renderUI(<Probe url={url} first={WIDE} />);
-    await tick(5);
-    expect(first.frame()).toContain("NONE");
+    await vi.waitFor(() => expect(first.frame()).toContain("LOADING"));
+
+    slow.settle(BYTES);
+    await vi.waitFor(() => expect(first.frame()).toContain("NONE"));
     first.unmount();
 
+    // Again: a remount that re-fetched would park on LOADING rather than answer.
+    mockFetch.mockReturnValue(deferred().promise);
     const second = renderUI(<Probe url={url} first={WIDE} />);
     try {
+      // Cache hit, so nothing asynchronous to wait on — a real sleep, as above.
       await tick(5);
+      expect(second.frame()).toContain("NONE");
+      expect(second.frame()).not.toContain("LOADING");
       expect(mockFetch).toHaveBeenCalledTimes(1);
       expect(mockDecode).toHaveBeenCalledTimes(1);
-      expect(second.frame()).toContain("NONE");
     } finally {
       second.unmount();
     }
   });
 
   it("asks for nothing while disabled, with no url, or with no room to draw", async () => {
+    // Every shape below takes the effect's early return, which sets IDLE synchronously — the same
+    // state, and the same "NONE" frame, the probe already renders on mount. There is no
+    // intermediate state here and no asynchronous fact to wait on, so a waitFor could only ever
+    // pass on its first attempt. A real sleep instead, the same precedent as the unmount test
+    // below: it gives a hook that wrongly asked the chance to answer, and the default mock answers
+    // with art, which would replace every "NONE" below as well as tripping the counts at the end.
     const off = renderUI(<Probe url={nextUrl()} first={WIDE} enabled={false} />);
     await tick(5);
     expect(off.frame()).toContain("NONE");
@@ -241,11 +267,14 @@ describe("usePoster", () => {
     mockFetch.mockReturnValue(slow.promise);
 
     const ui = renderUI(<Probe url={nextUrl()} first={WIDE} />);
-    await tick(5);
-    expect(mockFetch).toHaveBeenCalledTimes(1);
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(1));
     ui.unmount();
 
     slow.settle(BYTES);
+    // Purely negative with no positive fact to pin it — the point is that nothing happens, so a
+    // waitFor here would pass on its first attempt and prove nothing. Same precedent as
+    // MetaPane.test.tsx:374: a real sleep gives the (mocked, synchronous) decode a chance to run
+    // if the unmounted row's late response were wrongly accepted.
     await tick(5);
     expect(mockDecode).not.toHaveBeenCalled();
   });
@@ -254,13 +283,12 @@ describe("usePoster", () => {
     mockFetch.mockReturnValue(deferred().promise);
     const ui = renderUI(<Probe url={nextUrl()} first={WIDE} />);
     try {
-      await tick(5);
+      await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(1));
       const signal = mockFetch.mock.calls[0]?.[1]?.signal;
       expect(signal?.aborted).toBe(false);
 
       resize?.(NARROW);
-      await tick(5);
-      expect(signal?.aborted).toBe(true);
+      await vi.waitFor(() => expect(signal?.aborted).toBe(true));
     } finally {
       ui.unmount();
     }
