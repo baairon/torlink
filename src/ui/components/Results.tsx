@@ -566,7 +566,12 @@ export function Results() {
         </Panel>
         {pane ? (
           <Box marginLeft={PANE_GAP}>
-            <MetaPane result={selected} width={pane.pane} height={panelOuter} />
+            <MetaPane
+              result={selected}
+              width={pane.pane}
+              height={panelOuter}
+              poster={pane.poster}
+            />
           </Box>
         ) : null}
       </Box>

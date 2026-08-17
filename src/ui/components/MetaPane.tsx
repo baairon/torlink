@@ -1,7 +1,10 @@
 import { Box, Text } from "ink";
 import { Panel } from "./Panel";
+import { Poster } from "./Poster";
 import { Spinner } from "./Spinner";
+import { usePoster } from "../hooks/usePoster";
 import { useResultMeta } from "../hooks/useResultMeta";
+import { posterBudget } from "../previewLayout";
 import { ellipsizeToWidth, wordWrapLines } from "../textWidth";
 import { COLOR, ICON } from "../theme";
 import type { Meta } from "../../meta/types";
@@ -116,15 +119,21 @@ function planPaneLines(meta: Meta, width: number, budget: number): PaneLine[] {
  * too narrow for the split) stops it. The lookup keeps the hook's default debounce: holding an
  * arrow key down sweeps past rows the user never asked about, and that delay is what makes those
  * rows free.
+ *
+ * `poster` is the tier's answer from previewLayout, not a preference: the narrowest split has the
+ * columns for art but not enough of them for it to read as a picture, and that call belongs with
+ * the widths it was made from.
  */
 export function MetaPane({
   result,
   width,
   height,
+  poster,
 }: {
   result: TorrentResult | null;
   width: number;
   height: number;
+  poster: boolean;
 }) {
   const { loading, meta } = useResultMeta(result, true);
 
@@ -132,11 +141,37 @@ export function MetaPane({
   // pads one column each side inside a 1-column border.
   const innerWidth = Math.max(1, width - 4);
   const innerRows = Math.max(0, height - 1);
-  const lines = meta === null ? [] : planPaneLines(meta, innerWidth, innerRows);
+
+  // Two independent vetoes: the tier says whether art belongs at this width at all, posterBudget
+  // says whether the rows left over from the text card are worth spending on it. Both have to
+  // agree before a single byte goes over the wire.
+  const budget = poster ? posterBudget(width, innerRows) : null;
+  const { cells } = usePoster(
+    meta?.posterUrl,
+    budget?.cols ?? 0,
+    budget?.rows ?? 0,
+    budget !== null,
+  );
+
+  // Art is drawn only once it demonstrably fits the budget it is being drawn into. Cells outgrow
+  // their pane for exactly one frame on a resize — the hook re-keys in an effect, so the render
+  // that first sees the new width still holds the old grid — and one frame of a too-tall poster is
+  // a fused row through Yoga's shrink math, in the pane *and* in the list beside it.
+  const art =
+    cells !== null && budget !== null && cells.cols <= budget.cols && cells.rows <= budget.rows
+      ? cells
+      : null;
+
+  // The card is laid out around the art that actually rendered, never around art that is merely
+  // expected. A poster still in flight, refused by the host sniff or rejected by the decoder
+  // therefore leaves the text exactly where it sits without it — no reserved hole, no gap, and no
+  // second layout to get wrong. The cost is that the text settles downward once when art lands.
+  const artRows = art === null ? 0 : art.rows + 1; // + the blank row between art and text
+  const textRows = Math.max(0, innerRows - artRows);
+  const lines = meta === null ? [] : planPaneLines(meta, innerWidth, textRows);
 
   return (
     <Panel title="info" width={width} height={height} focused={false}>
-      {/* Task 6 fills this slot with poster art; previewLayout's posterBudget already sizes it. */}
       {loading ? (
         <Spinner />
       ) : meta === null ? (
@@ -146,6 +181,12 @@ export function MetaPane({
         <Text dimColor>No metadata</Text>
       ) : (
         <Box flexDirection="column">
+          {art !== null && (
+            <>
+              <Poster cells={art} />
+              <Box height={1} flexShrink={0} />
+            </>
+          )}
           {lines.map((l) => (
             <Text
               key={l.key}

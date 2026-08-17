@@ -86,7 +86,10 @@ export function metaUrl(kind: MetaKind, imdbId: string): string {
  * Pick a poster URL we are willing to fetch. Never the raw `meta.poster`: it varies by host and
  * can be WebP, which the terminal renderer cannot decode. A known Amazon rendition is rewritten
  * down to a thumbnail; anything else falls back to metahub, which is keyed by the (validated)
- * IMDb id and always answers baseline JPEG.
+ * IMDb id. Metahub answers *progressive* JPEG for `?format=jpeg`, not baseline — verified live —
+ * so the decoder behind this URL has to handle both scan types, and image.test.ts pins that with
+ * an inlined progressive fixture. It can also still answer WebP despite the parameter, which is
+ * why poster.ts sniffs the magic bytes rather than trusting either the host or the query string.
  */
 export function posterUrlFor(imdbId: string, rawPoster?: string): string | undefined {
   const id = normalizeImdbId(imdbId);
