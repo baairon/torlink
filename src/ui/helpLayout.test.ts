@@ -4,7 +4,10 @@ import { MEASURED, pickLayout } from "./helpLayout";
 describe("help layout measurement", () => {
   it("derives packing widths and grid heights from HELP_GROUPS", () => {
     expect(MEASURED.map((m) => m.width)).toEqual([134, 108, 77, 41]);
-    expect(MEASURED.map((m) => m.gridH)).toEqual([10, 15, 19, 32]);
+    // Heights track HELP_GROUPS directly: the Search group's "i / Toggle info pane" row added one
+    // to every packing. The widths did not move with it — "i" is as wide as every other Search
+    // key, and its label is shorter than that group's longest.
+    expect(MEASURED.map((m) => m.gridH)).toEqual([11, 16, 20, 33]);
   });
 
   it("picks the widest packing that fits inside cols - 2", () => {

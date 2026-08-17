@@ -45,6 +45,7 @@ import { Splash } from "./views/Splash";
 import { FolderPrompt } from "./components/FolderPrompt";
 import { TrackersPrompt } from "./components/TrackersPrompt";
 import { footerHints } from "./keymap";
+import { previewLayout } from "./previewLayout";
 import { COLOR, ICON } from "./theme";
 import { useMouseWheel } from "./hooks/useMouseWheel";
 import { VERSION } from "../version";
@@ -705,7 +706,17 @@ export function App({
 
         {showFooter ? (
           <Box display={showHelp || editingFolder || editingTrackers || pendingDownload ? "none" : "flex"}>
-            <Footer hints={footerHints(region, section, downloadFocus, seedFocus, resultFocus)} />
+            <Footer
+              hints={footerHints(
+                region,
+                section,
+                downloadFocus,
+                seedFocus,
+                resultFocus,
+                // Advertise `i` only where the pane it toggles can actually appear.
+                previewLayout(contentWidth) !== null,
+              )}
+            />
           </Box>
         ) : null}
       </Box>

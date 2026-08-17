@@ -6,6 +6,7 @@ import { SearchBar } from "./SearchBar";
 import { TextField } from "./TextField";
 import { Panel } from "./Panel";
 import { Rule } from "./Rule";
+import { MetaPane } from "./MetaPane";
 import { useConcurrentSearch } from "../hooks/useConcurrentSearch";
 import { useResultMeta } from "../hooks/useResultMeta";
 import { getSource, SOURCES } from "../../sources/registry";
@@ -13,6 +14,7 @@ import { stickCursor, wrapStep, windowStart, resultsPanelOuter } from "../move";
 import { sortResults, nextSort, sortLabel, sortArrow, type Sort, type SortField } from "../sort";
 import { filterResults } from "../filter";
 import { planMetaRows } from "../metaPlan";
+import { PANE_GAP, previewLayout } from "../previewLayout";
 import { LABEL_W } from "../textWidth";
 import { COLOR, GUTTER, ICON, sourceStyle } from "../theme";
 import { cleanText, formatBytes, formatCount, formatRelative, stripControl, truncate } from "../../util/format";
@@ -175,6 +177,9 @@ export function Results() {
 
   const [sort, setSort] = useState<Sort>("none");
   const [hideDead, setHideDead] = useState(false);
+  // On by default: the pane answers the question the list cannot ("what *is* this release"), and
+  // it costs nothing on a terminal too narrow to hold it, where previewLayout hides it anyway.
+  const [showInfo, setShowInfo] = useState(true);
   const [textFilter, setTextFilter] = useState("");
   const results = useMemo(() => {
     const cat = CATEGORIES.find((c) => c.key === section);
@@ -226,6 +231,16 @@ export function Results() {
   const listHeight = Math.max(3, panelOuter - 4);
   const pageJump = Math.max(1, listHeight - 1);
 
+  // One value settles both the pane's existence and the list's width, so the two can never
+  // disagree and render a pane overlapping the list's own right border. Null — toggled off, or a
+  // terminal too narrow to split — means the list keeps the full content width it always had.
+  const pane = showInfo ? previewLayout(contentWidth) : null;
+  const listWidth = pane ? pane.list : contentWidth;
+  // The row the pane describes. `clamped`, not `detail`: the pane follows the cursor even while
+  // the detail view is open over the list, so closing that view leaves the pane already on the
+  // right row instead of starting a fresh lookup.
+  const selected = results[clamped] ?? null;
+
   const openDownload = (r: TorrentResult): void =>
     startDownload({
       id: r.infoHash,
@@ -269,6 +284,10 @@ export function Results() {
         setHideDead((on) => !on);
       } else if (input === "f") {
         setMode("filter");
+      } else if (input === "i") {
+        // Above the empty-list return: an empty list is exactly when a user wonders whether the
+        // pane is what is eating their columns, so the toggle has to answer there too.
+        setShowInfo((on) => !on);
       } else if (results.length === 0) {
         return;
       } else if (key.downArrow || input === "j") {
@@ -440,13 +459,13 @@ export function Results() {
       <Box marginTop={1}>
         <Panel
           title={mode === "detail" ? "details" : browsing ? "latest" : "results"}
-          width={contentWidth}
+          width={listWidth}
           focused={focused && mode !== "search"}
           count={mode === "detail" ? undefined : count}
           height={panelOuter}
         >
           {mode === "detail" && detail ? (
-            <Detail r={detail} width={Math.max(10, contentWidth - 4)} panelHeight={panelOuter} />
+            <Detail r={detail} width={Math.max(10, listWidth - 4)} panelHeight={panelOuter} />
           ) : (
             <>
               <Box>{status()}</Box>
@@ -545,9 +564,14 @@ export function Results() {
             </>
           )}
         </Panel>
+        {pane ? (
+          <Box marginLeft={PANE_GAP}>
+            <MetaPane result={selected} width={pane.pane} height={panelOuter} />
+          </Box>
+        ) : null}
       </Box>
       {(mode === "filter" || textFilter.trim()) && (
-        <Box width={contentWidth} paddingLeft={1}>
+        <Box width={listWidth} paddingLeft={1}>
           <Box flexShrink={0}>
             <Text color={COLOR.accent}>{`Filter ${ICON.pointer} `}</Text>
           </Box>
@@ -555,7 +579,7 @@ export function Results() {
             {mode === "filter" ? (
               <TextField
                 defaultValue={textFilter}
-                width={Math.max(1, contentWidth - 10)}
+                width={Math.max(1, listWidth - 10)}
                 onChange={setTextFilter}
                 // Commit from the submit value / functional form, not the
                 // render closure: a same-tick burst (ctrl+u then enter) would

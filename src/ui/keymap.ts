@@ -31,6 +31,7 @@ export const HELP_GROUPS: HelpGroup[] = [
       { keys: "d", label: "Download (shift+d: folder)" },
       { keys: "s", label: "Sort results" },
       { keys: "z", label: "Hide dead torrents" },
+      { keys: "i", label: "Toggle info pane" },
       { keys: "y", label: "Copy magnet" },
       { keys: "↵", label: "Open details" },
       { keys: "e", label: "Export as .torrent" },
@@ -73,12 +74,23 @@ const TORRENT: Hint = { keys: "s", label: "Export" };
 
 const EXPORT: Hint = { keys: "e", label: "Export" };
 
+/**
+ * `previewAvailable` gates the info-pane hint on the pane being able to exist at all.
+ *
+ * The results row is already 84 columns against a 78-column budget at 80 cols (a known overflow
+ * this test suite exempts), and Footer truncates from the end — so an unconditional hint would
+ * spend its columns advertising a pane the terminal is too narrow to ever show, on exactly the
+ * rows that can least afford them. Gated, the hint only appears from 92 cols, which is where the
+ * pane itself starts existing. The default keeps every existing caller —
+ * scripts/render-previews-impl.tsx included — compiling and rendering unchanged.
+ */
 export function footerHints(
   region: Region,
   section: Section,
   downloadFocus?: DownloadFocus | null,
   seedFocus?: SeedFocus | null,
   resultFocus?: ResultFocus | null,
+  previewAvailable = false,
 ): Hint[] {
   if (region === "sidebar") {
     return [
@@ -126,5 +138,10 @@ export function footerHints(
     { keys: "f", label: "Filter" },
     SWITCH,
     ALWAYS,
+    // Last on purpose, behind the `?` anchor rather than in front of it. Footer truncates from the
+    // end, and this row is 84 columns before the hint and 93 after it, so between 92 (where the
+    // pane first exists) and 94 columns something has to go — and it must not be `? Keys`, which
+    // is how every binding that does not fit here is discoverable at all.
+    ...(previewAvailable ? [{ keys: "i", label: "Info" }] : []),
   ];
 }

@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { SOURCES } from "../../sources/registry";
 import { StoreContext, type Store } from "../store";
@@ -5,11 +6,15 @@ import {
   KEY,
   makeTestStore,
   renderUI,
+  TEST_COLS,
   TEST_CONTENT_WIDTH,
   type RenderedUI,
 } from "../testHarness";
 import { Results } from "./Results";
+import { RAIL_WIDTH } from "./Sidebar";
+import { previewLayout } from "../previewLayout";
 import { displayWidth } from "../textWidth";
+import { ICON } from "../theme";
 import type { ConcurrentSearchState } from "../hooks/useConcurrentSearch";
 import type { MetaState } from "../hooks/useResultMeta";
 import type { Meta } from "../../meta/types";
@@ -65,20 +70,35 @@ afterEach(() => {
   ui = null;
 });
 
+// App.tsx's own width math, so a test asking for a wider terminal gets the content width the real
+// app would hand Results at that size rather than a hand-copied number that can drift from it.
+const contentWidthFor = (cols: number): number => Math.max(24, cols - RAIL_WIDTH - 3);
+
 async function mount(
   results: TorrentResult[] = LIST,
   storeOverrides: Partial<Store> = {},
   meta: MetaState = IDLE_META,
+  cols: number = TEST_COLS,
 ): Promise<RenderedUI> {
   searchState.current = settled(results);
   metaState.current = meta;
   ui = renderUI(
-    <StoreContext.Provider value={makeTestStore({ query: "linux iso", ...storeOverrides })}>
+    <StoreContext.Provider
+      value={makeTestStore({
+        query: "linux iso",
+        cols,
+        contentWidth: contentWidthFor(cols),
+        ...storeOverrides,
+      })}
+    >
       <Results />
     </StoreContext.Provider>,
+    { cols },
   );
   const u = ui;
-  await vi.waitFor(() => expect(u.frame()).toContain(`Results (${results.length})`));
+  // An empty list has no count in the panel title, so it is settled by its status line instead.
+  const settledMark = results.length > 0 ? `Results (${results.length})` : "No results for";
+  await vi.waitFor(() => expect(u.frame()).toContain(settledMark));
   return u;
 }
 
@@ -117,6 +137,28 @@ const editing = (u: RenderedUI): boolean => u.rawFrame().includes(`${KEY.esc}[7m
 async function openFilter(u: RenderedUI): Promise<void> {
   u.press("f");
   await vi.waitFor(() => expect(editing(u)).toBe(true));
+}
+
+// Lets a test change the query the way submitQuery does — on the mounted tree, so the effects
+// keyed on it actually run — which a fresh render cannot express. Mirrors the setter-through-a-ref
+// pattern useResultMeta.test.tsx uses for the same reason.
+let setQuery: ((q: string) => void) | null = null;
+
+function Queried({ cols }: { cols: number }) {
+  const [q, setQ] = useState("linux iso");
+  useEffect(() => {
+    setQuery = setQ;
+    return () => {
+      setQuery = null;
+    };
+  }, []);
+  return (
+    <StoreContext.Provider
+      value={makeTestStore({ query: q, cols, contentWidth: contentWidthFor(cols) })}
+    >
+      <Results />
+    </StoreContext.Provider>
+  );
 }
 
 async function type(u: RenderedUI, text: string, expectCount: number): Promise<void> {
@@ -592,5 +634,192 @@ describe("Results detail metadata with astral and BMP emoji", () => {
     expect(hintRowIntact(u)).toBe(true);
 
     widthFits(u);
+  });
+});
+
+// The pane lives or dies by frame integrity, not by line length: Ink clips a too-wide row to the
+// panel it is in, so a pane that overflows never shows up as an over-wide line — it shows up as
+// rows dropped or fused somewhere in the block. Every assertion below is therefore about what is
+// present and where, with width checked on top rather than instead.
+describe("Results info pane", () => {
+  // 120 columns is the first tier that carries a poster in Task 6 and the width the pane was
+  // designed against; the layout numbers come from previewLayout so they cannot drift from it.
+  const WIDE_COLS = 120;
+  const WIDE_CONTENT = contentWidthFor(WIDE_COLS);
+  const PL = previewLayout(WIDE_CONTENT);
+
+  // The results panel's own top border row — the search bar draws one of these too, above it.
+  const topBorder = (u: RenderedUI): string => lines(u)[lineIndex(u, "╭─ Results")] ?? "";
+  const paneOpen = (u: RenderedUI): boolean => u.frame().includes("╭─ Info");
+
+  it("splits the top border between an intact results panel and the pane", async () => {
+    const u = await mount(LIST, {}, { loading: false, meta: MOVIE_META }, WIDE_COLS);
+
+    expect(PL).not.toBeNull();
+    if (PL === null) return;
+    const top = topBorder(u);
+    // The list panel's own border is byte-for-byte what it always was, just narrower...
+    expect(top.slice(0, PL.list)).toMatch(/^╭─ Results \(\d+\) ─+╮$/);
+    // ...and the pane's sits beside it, one gap column over, with nothing fused in between.
+    expect(top.slice(PL.list + 1)).toMatch(/^╭─ Info ─+╮$/);
+    expect(displayWidth(top)).toBe(WIDE_CONTENT);
+  });
+
+  it("renders the row's metadata as a card, not just a title", async () => {
+    const u = await mount(LIST, {}, { loading: false, meta: MOVIE_META }, WIDE_COLS);
+
+    const frame = u.frame();
+    expect(frame).toContain("The Shawshank Redemption");
+    expect(frame).toContain(`1994 ${ICON.dot} 9.3 ${ICON.dot} 142 min`);
+    expect(frame).toContain("Drama");
+    expect(frame).toContain("Dir Frank Darabont");
+    expect(frame).toContain("Cast Tim Robbins");
+    // The list is still the point of the view: nothing it used to show has moved out of frame.
+    expect(frame).toContain("ubuntu 24.04 desktop");
+    expect(frame).toContain("Size");
+    for (const l of lines(u)) expect(displayWidth(l)).toBeLessThanOrEqual(WIDE_CONTENT);
+  });
+
+  it("names a matched episode with its series title", async () => {
+    const episodeMeta: Meta = {
+      ...SERIES_META,
+      episode: { season: 3, number: 7, title: "The Bear and the Maiden Fair" },
+    };
+    const u = await mount(LIST, {}, { loading: false, meta: episodeMeta }, WIDE_COLS);
+
+    const frame = u.frame();
+    expect(frame).toContain("Game of Thrones");
+    expect(frame).toContain(`S03E07 ${ICON.dot} The Bear`);
+  });
+
+  it("says No metadata — never an error — when there is nothing to show", async () => {
+    const u = await mount(LIST, {}, IDLE_META, WIDE_COLS);
+
+    expect(u.frame()).toContain("No metadata");
+    // A Games row, an unmatched release and a dead network all land here, and none of them is a
+    // failure of the search the user actually ran.
+    for (const shout of ["rror", "ailed", "nable", "Couldn't"]) {
+      expect(u.frame()).not.toContain(shout);
+    }
+    // Dim, and only dim: chalk emits SGR 2 and no colour of its own around it.
+    expect(u.rawFrame()).toContain(`${KEY.esc}[2mNo metadata`);
+  });
+
+  it("shows a spinner rather than a verdict while the lookup is still out", async () => {
+    const u = await mount(LIST, {}, { loading: true, meta: null }, WIDE_COLS);
+
+    expect(paneOpen(u)).toBe(true);
+    expect(u.frame()).not.toContain("No metadata");
+  });
+
+  it("i closes the pane, gives the list its columns back, and reopens it", async () => {
+    const u = await mount(LIST, {}, { loading: false, meta: MOVIE_META }, WIDE_COLS);
+    expect(paneOpen(u)).toBe(true);
+
+    u.press("i");
+    await vi.waitFor(() => expect(paneOpen(u)).toBe(false));
+    // Closed means the list is whole again, not merely that the card is hidden.
+    expect(topBorder(u)).toMatch(/^╭─ Results \(\d+\) ─+╮$/);
+    expect(displayWidth(topBorder(u))).toBe(WIDE_CONTENT);
+    expect(u.frame()).not.toContain("The Shawshank Redemption");
+
+    u.press("i");
+    await vi.waitFor(() => expect(paneOpen(u)).toBe(true));
+    expect(u.frame()).toContain("The Shawshank Redemption");
+  });
+
+  it("toggles on an empty list, where the user is most likely to want the columns back", async () => {
+    // The binding sits above the `results.length === 0` early return for exactly this; moved
+    // below it, the key would go dead on the one view whose emptiness invites the question.
+    const u = await mount([], {}, IDLE_META, WIDE_COLS);
+    expect(paneOpen(u)).toBe(true);
+
+    u.press("i");
+    await vi.waitFor(() => expect(paneOpen(u)).toBe(false));
+  });
+
+  it("survives a new query", async () => {
+    // The pane is a preference, not view state. It shares an effect's neighbourhood with
+    // textFilter, which the query change deliberately clears — this pins that the toggle is not
+    // swept up with it.
+    searchState.current = settled(LIST);
+    metaState.current = { loading: false, meta: MOVIE_META };
+    ui = renderUI(<Queried cols={WIDE_COLS} />, { cols: WIDE_COLS });
+    const u = ui;
+    await vi.waitFor(() => expect(u.frame()).toContain("Results (8)"));
+
+    u.press("i");
+    await vi.waitFor(() => expect(paneOpen(u)).toBe(false));
+
+    setQuery?.("arch iso");
+    await vi.waitFor(() => expect(u.frame()).toContain("arch iso"));
+    expect(paneOpen(u)).toBe(false);
+  });
+
+  it("keeps j and k moving the cursor with the pane open", async () => {
+    const u = await mount(LIST, {}, { loading: false, meta: MOVIE_META }, WIDE_COLS);
+
+    u.press("j");
+    await vi.waitFor(() => {
+      expect(lines(u).find((l) => l.includes("ubuntu server"))).toContain(ICON.pointer);
+    });
+    expect(paneOpen(u)).toBe(true);
+
+    u.press("k");
+    await vi.waitFor(() => {
+      expect(lines(u).find((l) => l.includes("ubuntu 24.04 desktop"))).toContain(ICON.pointer);
+    });
+    // The split survived the movement: no row of the list fused into the pane's border.
+    expect(topBorder(u).slice(0, PL?.list ?? 0)).toMatch(/^╭─ Results \(\d+\) ─+╮$/);
+  });
+
+  it("holds together on the narrowest tier that renders it", async () => {
+    // 92 columns is the first width the pane exists at: 20 wide, 16 usable inside Panel's frame.
+    // Everything here is wrapping against roughly half the width the card was designed at, which
+    // is where a line-count miscount turns into a fused row rather than an unused one.
+    const NARROW_COLS = 92;
+    const narrowContent = contentWidthFor(NARROW_COLS);
+    const nl = previewLayout(narrowContent);
+    const u = await mount(LIST, {}, { loading: false, meta: MOVIE_META }, NARROW_COLS);
+
+    expect(nl).not.toBeNull();
+    if (nl === null) return;
+    expect(nl.pane).toBe(20);
+    const top = topBorder(u);
+    expect(top.slice(0, nl.list)).toMatch(/^╭─ Results \(\d+\) ─+╮$/);
+    expect(top.slice(nl.list + 1)).toMatch(/^╭─ Info ─+╮$/);
+    // The card sheds its lower rows rather than overflowing: the title survives whole, wrapped.
+    expect(u.frame()).toContain("The Shawshank");
+    expect(u.frame()).toContain("Redemption");
+    // Every row of the list is still a row of the list — nothing fused across the gap. The name
+    // column truncates at this width, so the row is identified by the prefix that survives it.
+    expect(lines(u).filter((l) => l.includes("ubuntu 24.04 des"))).toHaveLength(1);
+    expect(lines(u).filter((l) => l.includes("mint cinnamon"))).toHaveLength(0);
+    for (const l of lines(u)) expect(displayWidth(l)).toBeLessThanOrEqual(narrowContent);
+  });
+
+  it("is absent at 80 columns, where the list needs every column it has", async () => {
+    const u = await mount(LIST, {}, { loading: false, meta: MOVIE_META });
+
+    expect(paneOpen(u)).toBe(false);
+    expect(u.frame()).not.toContain("The Shawshank Redemption");
+    expect(u.frame()).not.toContain("No metadata");
+    widthFits(u);
+  });
+
+  it("still opens the detail view over a narrowed list", async () => {
+    const u = await mount(LIST, { listRows: 40 }, { loading: false, meta: MOVIE_META }, WIDE_COLS);
+    await openDetail(u);
+
+    const frame = u.frame();
+    expect(frame).toContain("Magnet");
+    expect(frame).toContain("Rating");
+    // Both mounted at once on the same row — the case Task 3's refcounted dedupe exists for.
+    expect(paneOpen(u)).toBe(true);
+    // The detail view's hint row no longer runs to the frame's edge, so intactness is asked of
+    // the columns the list panel actually owns: still one clean row ending at its own border.
+    const hintRow = lines(u).find((l) => l.includes("esc back")) ?? "";
+    expect(hintRow.slice(0, PL?.list ?? 0)).toMatch(/esc back\s*│$/);
+    for (const l of lines(u)) expect(displayWidth(l)).toBeLessThanOrEqual(WIDE_CONTENT);
   });
 });

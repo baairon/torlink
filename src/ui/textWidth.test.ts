@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { codePointWidth } from "./textWidth";
+import { codePointWidth, displayWidth, ellipsizeToWidth, wordWrapLines } from "./textWidth";
 
 // Astral code points (emoji outside the BMP, CJK Extension B+ ideographs) get no free ride from
 // `.length` the way a BMP character never did either — `for...of` yields one code point per
@@ -46,5 +46,47 @@ describe("terminal column width", () => {
     for (const cp of narrow) {
       expect(codePointWidth(String.fromCodePoint(cp)), `U+${cp.toString(16)} should be narrow`).toBe(1);
     }
+  });
+});
+
+// The info pane wraps into 16 columns on its narrowest tier — less than half the width the detail
+// panel ever asked of these helpers — so the properties below are pinned directly rather than
+// only through a rendered frame.
+describe("wrapping to a narrow column budget", () => {
+  const fits = (lines: string[], width: number): void => {
+    for (const l of lines) expect(displayWidth(l), `"${l}"`).toBeLessThanOrEqual(width);
+  };
+
+  it("never emits a line wider than the budget, whatever the script", () => {
+    const cases = [
+      "The Shawshank Redemption",
+      "Cast Tim Robbins, Morgan Freeman, Bob Gunton, William Sadler",
+      "本作は刑務所を舞台にした友情と希望の物語である",
+      "🎬🎬🎬🎬🎬🎬🎬🎬🎬🎬🎬🎬",
+      "Antidisestablishmentarianism",
+    ];
+    for (const width of [16, 24, 30]) {
+      for (const text of cases) fits(wordWrapLines(text, width), width);
+    }
+  });
+
+  it("keeps every word, in order, when it hard-breaks an oversized one", () => {
+    const lines = wordWrapLines("Dir Wolfeschlegelsteinhausenbergerdorff", 16);
+    fits(lines, 16);
+    expect(lines.join("").replace(/\s/g, "")).toBe("DirWolfeschlegelsteinhausenbergerdorff");
+  });
+
+  it("counts a wide code point as two columns wherever it lands", () => {
+    expect(displayWidth("田中誠")).toBe(6);
+    expect(displayWidth("Dir 田中誠")).toBe(10);
+    expect(displayWidth("")).toBe(0);
+  });
+
+  it("ellipsizes on a code point boundary, never inside one", () => {
+    expect(ellipsizeToWidth("Redemption", 6)).toBe("Redem…");
+    expect(ellipsizeToWidth("Redemption", 1)).toBe("…");
+    // A wide character cannot half-fit: it is dropped rather than counted as one column.
+    expect(displayWidth(ellipsizeToWidth("田中誠一郎", 6))).toBeLessThanOrEqual(6);
+    expect(ellipsizeToWidth("🎬🎬🎬", 5)).toBe("🎬🎬…");
   });
 });
