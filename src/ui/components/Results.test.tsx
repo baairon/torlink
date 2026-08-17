@@ -9,6 +9,7 @@ import {
   type RenderedUI,
 } from "../testHarness";
 import { Results } from "./Results";
+import { displayWidth } from "../textWidth";
 import type { ConcurrentSearchState } from "../hooks/useConcurrentSearch";
 import type { MetaState } from "../hooks/useResultMeta";
 import type { Meta } from "../../meta/types";
@@ -96,6 +97,20 @@ async function openDetail(u: RenderedUI): Promise<void> {
 const lines = (u: RenderedUI): string[] => u.frame().split("\n");
 const lineIndex = (u: RenderedUI, needle: string): number =>
   lines(u).findIndex((l) => l.includes(needle));
+// A plain `.toContain("esc back")` still passes when the hint row is fused with stray content
+// from an overflowing row above it (`esc back田`, `esc backLibby`) — the exact corruption this
+// feature has produced before. This instead requires "esc back" to be followed by nothing but
+// padding and the panel's own right border, which only a clean, unfused hint row satisfies.
+const hintRowIntact = (u: RenderedUI): boolean =>
+  lines(u).some((l) => /esc back\s*│$/.test(l));
+// `.length` undercounts a CJK/emoji line (one JS unit, two terminal columns) by roughly half, so
+// it stays "within budget" even when the real rendered line is corrupted or overflowing — the
+// exact blind spot that let a display-width bug through review with every existing test green.
+// This uses the component's own `displayWidth`, not a second implementation that could quietly
+// drift from it and give false confidence again.
+const widthFits = (u: RenderedUI): void => {
+  for (const l of lines(u)) expect(displayWidth(l)).toBeLessThanOrEqual(TEST_CONTENT_WIDTH);
+};
 // The TextField cursor renders as SGR inverse; nothing else in this view does.
 const editing = (u: RenderedUI): boolean => u.rawFrame().includes(`${KEY.esc}[7m`);
 
@@ -260,7 +275,7 @@ describe("Results detail metadata", () => {
     expect(frame).toContain("Plot");
     expect(frame).toContain("A banker convicted of murdering his wife");
 
-    for (const l of lines(u)) expect(l.length).toBeLessThanOrEqual(TEST_CONTENT_WIDTH);
+    widthFits(u);
   });
 
   it("renders none of the metadata rows when meta is null", async () => {
@@ -276,7 +291,7 @@ describe("Results detail metadata", () => {
     expect(u.frame()).not.toContain("Cast");
     expect(u.frame()).not.toContain("Plot");
 
-    for (const l of lines(u)) expect(l.length).toBeLessThanOrEqual(TEST_CONTENT_WIDTH);
+    widthFits(u);
   });
 
   it("omits the Director row for a series with no director", async () => {
@@ -290,7 +305,7 @@ describe("Results detail metadata", () => {
     // ...but an empty director list produces no row at all, not a blank one.
     expect(frame).not.toContain("Director");
 
-    for (const l of lines(u)) expect(l.length).toBeLessThanOrEqual(TEST_CONTENT_WIDTH);
+    widthFits(u);
   });
 });
 
@@ -347,36 +362,235 @@ describe("Results detail metadata at a realistic terminal height", () => {
     expect(frame).toContain("Hash");
     expect(frame).toContain("Magnet");
     expect(frame).toContain("d Download");
-    expect(frame).toContain("esc back");
+    expect(hintRowIntact(u)).toBe(true);
 
-    for (const l of lines(u)) expect(l.length).toBeLessThanOrEqual(TEST_CONTENT_WIDTH);
+    widthFits(u);
   });
 
-  it("sheds metadata rows from the bottom of the block with no gap in the middle", async () => {
-    // No numFiles on this result, so the facts block is one row shorter than the test above —
-    // just enough budget for Rating alone. Genres needs two lines and does not fit, and once one
-    // present row fails, every row below it (director, cast, plot) is dropped too — even though
-    // Director's own three names would easily fit in what Genres left behind. Showing Director
-    // there would be a hole in the middle of the block, which is exactly the failure mode this
-    // pins against.
-    const u = await mount([t("a1", "ubuntu 24.04 desktop amd64 iso")], REALISTIC_STORE, {
-      loading: false,
-      meta: MAX_META,
-    });
+  it("drops genres, director and cast as one unit once genres fails to fit, while rating and plot survive on either side of the gap", async () => {
+    // No numFiles or Added on this result, so the facts block is two rows shorter than the test
+    // above — budget 2 rather than 0. Rating (1 line) is admitted first, leaving 1. Genres needs 2
+    // lines for MAX_META's six genres and does not fit, which cuts off every row after it in that
+    // all-or-nothing group — including Director, whose own three names *would* fit in the 1 line
+    // Genres left behind (1 <= 1) if admitted independently. Showing Director there anyway is
+    // exactly the bug a prior, unreviewed version of this fix had: it admitted each of
+    // genres/director/cast independently instead of sharing one cutoff, so Director rendered while
+    // Genres, ranked above it, did not — a row missing from the middle of that group. Plot is a
+    // deliberate exception to the cutoff (see planMetaRows' doc comment) and still claims the 1
+    // line Genres left unclaimed, so the real, intended result has a gap — Genres/Director/Cast
+    // all missing — between Rating and Plot, not "no gap at all".
+    const minimal = { ...t("a1", "ubuntu 24.04 desktop amd64 iso"), numFiles: undefined, added: undefined };
+    const u = await mount([minimal], REALISTIC_STORE, { loading: false, meta: MAX_META });
     await openDetail(u);
 
     const frame = u.frame();
+    // The title row is the loudest signature of this class of corruption — it's the first thing
+    // Yoga's shrink math squeezes away when the panel overflows.
+    expect(frame).toContain("ubuntu 24.04 desktop");
     expect(frame).toContain("Rating");
     expect(frame).toContain("9.3 / 10");
     expect(frame).not.toContain("Genres");
     expect(frame).not.toContain("Director");
     expect(frame).not.toContain("Cast");
-    expect(frame).not.toContain("Plot");
+    expect(frame).toContain("Plot");
     // The facts and hint rows are unaffected by how much metadata budget is left.
     expect(frame).toContain("Magnet");
     expect(frame).toContain("d Download");
-    expect(frame).toContain("esc back");
+    expect(hintRowIntact(u)).toBe(true);
 
-    for (const l of lines(u)) expect(l.length).toBeLessThanOrEqual(TEST_CONTENT_WIDTH);
+    widthFits(u);
+  });
+
+  it("hard-breaks a single unbreakable token so it cannot undercount its way past the budget", async () => {
+    // No spaces at all — nothing for the greedy word-wrapper to break on except its hard
+    // per-character fallback. Without that fallback this "word" is undercounted as one line when
+    // it actually needs many, which is exactly what let a single unbroken run of text blow through
+    // a budget that looked, on paper, like it had room to spare (the original Critical bug, and
+    // the plot's 800-char stress case is unbroken text for the same reason). A tight budget is
+    // required to make the miscount visible: at a generous budget the same miscount just leaves
+    // unused slack, so this reuses REALISTIC_STORE with a fact row dropped rather than
+    // TALL_DETAIL_STORE.
+    const unbreakable = "X".repeat(600);
+    const meta: Meta = { ...MAX_META, genres: [], cast: [], director: [unbreakable] };
+    const minimal = { ...t("a1", "ubuntu 24.04 desktop amd64 iso"), numFiles: undefined, added: undefined };
+    const u = await mount([minimal], REALISTIC_STORE, { loading: false, meta });
+    await openDetail(u);
+
+    const frame = u.frame();
+    expect(frame).toContain("ubuntu 24.04 desktop");
+    expect(frame).toContain("Magnet");
+    expect(frame).toContain("d Download");
+    expect(hintRowIntact(u)).toBe(true);
+
+    widthFits(u);
+  });
+});
+
+// Nyaa (one of torlink's own sources) is an anime index, and Cinemeta routinely returns CJK cast
+// and plot text for Japanese/Korean/Chinese titles — this is a routine path, not an edge case.
+// Each CJK character is one JS string unit but two terminal columns, which a length-based layout
+// budget silently undercounts by half; these pin the fix at the reviewer's own repro shapes.
+describe("Results detail metadata with CJK text", () => {
+  const REALISTIC_STORE = { listRows: 17 };
+
+  const CJK_CAST = [
+    "田中誠",
+    "鈴木一郎",
+    "佐藤健二",
+    "高橋美咲",
+    "伊藤大輔",
+    "渡辺直樹",
+    "山本花子",
+    "中村和也",
+    "小林優子",
+    "加藤誠一",
+    "吉田真央",
+    "山田太郎",
+  ];
+
+  const cjkCastMeta: Meta = { ...MAX_META, cast: CJK_CAST, genres: ["Drama"], director: [] };
+  // Genres/director cleared and plot dropped so Cast is the only thing competing for budget —
+  // needed for the "admitted and rendered" tests below, where the point is to actually exercise
+  // the wide-char measurement on a multi-line wrapped value, not just an admit/reject decision.
+  const cjkCastOnlyMeta: Meta = { ...MAX_META, cast: CJK_CAST, genres: [], director: [], plot: undefined };
+  const cjkPlotMeta: Meta = {
+    ...MAX_META,
+    cast: [],
+    genres: [],
+    director: [],
+    plot: "本作は刑務所を舞台にした友情と希望の物語である。".repeat(20),
+  };
+
+  it("renders a CJK cast without corruption at listRows=17, budget 2 (reviewer's exact repro)", async () => {
+    // No numFiles or Added — the same budget-2 shape as the mutant-killing test above. Budget 2
+    // cannot admit a 3-line CJK cast list regardless of how it's measured (Rating alone already
+    // takes 1), so this specifically pins "still renders cleanly when correctly rejected" — it is
+    // not the test that exercises the wide-char table on admitted content; see the two tests below
+    // for that.
+    const minimal = { ...t("a1", "ubuntu 24.04 desktop amd64 iso"), numFiles: undefined, added: undefined };
+    const u = await mount([minimal], REALISTIC_STORE, { loading: false, meta: cjkCastMeta });
+    await openDetail(u);
+
+    const frame = u.frame();
+    expect(frame).toContain("ubuntu 24.04 desktop");
+    expect(frame).toContain("Size");
+    expect(frame).toContain("Health");
+    expect(frame).toContain("Hash");
+    expect(frame).toContain("Magnet");
+    expect(frame).toContain("d Download");
+    expect(hintRowIntact(u)).toBe(true);
+
+    widthFits(u);
+  });
+
+  it("admits and renders a CJK cast at listRows=20 with just enough budget to fit it", async () => {
+    // Minimal facts (no numFiles/Added) plus an otherwise-empty meta gives budget 5 at
+    // listRows=20: Rating (1) + the CJK cast's real 3-line wrap = 4, with 1 line to spare — tight
+    // enough that a wrong (undercounted) line-count prediction changes the outcome, unlike a
+    // generous budget where the same miscount just wastes slack invisibly.
+    const minimal = { ...t("a1", "ubuntu 24.04 desktop amd64 iso"), numFiles: undefined, added: undefined };
+    const u = await mount([minimal], { listRows: 20 }, { loading: false, meta: cjkCastOnlyMeta });
+    await openDetail(u);
+
+    const frame = u.frame();
+    expect(frame).toContain("ubuntu 24.04 desktop");
+    expect(frame).toContain("Size");
+    expect(frame).toContain("Health");
+    expect(frame).toContain("Hash");
+    expect(frame).toContain("Magnet");
+    expect(frame).toContain("Cast");
+    for (const name of CJK_CAST) expect(frame).toContain(name);
+    expect(frame).toContain("d Download");
+    expect(hintRowIntact(u)).toBe(true);
+
+    widthFits(u);
+  });
+
+  it("renders a CJK plot without corruption at listRows=20", async () => {
+    const withFiles = [{ ...t("a1", "ubuntu 24.04 desktop amd64 iso"), numFiles: 3 }];
+    const u = await mount(withFiles, { listRows: 20 }, { loading: false, meta: cjkPlotMeta });
+    await openDetail(u);
+
+    const frame = u.frame();
+    expect(frame).toContain("ubuntu 24.04 desktop");
+    expect(frame).toContain("Size");
+    expect(frame).toContain("Health");
+    expect(frame).toContain("Files");
+    expect(frame).toContain("Added");
+    expect(frame).toContain("Hash");
+    expect(frame).toContain("Magnet");
+    expect(frame).toContain("d Download");
+    expect(hintRowIntact(u)).toBe(true);
+
+    widthFits(u);
+  });
+
+  it("renders a full CJK cast list unclipped at a tall terminal", async () => {
+    const u = await mount(LIST, TALL_DETAIL_STORE, { loading: false, meta: cjkCastMeta });
+    await openDetail(u);
+
+    const frame = u.frame();
+    expect(frame).toContain("ubuntu 24.04 desktop");
+    expect(frame).toContain("Cast");
+    // All twelve names present somewhere in the wrapped, multi-line Cast value.
+    for (const name of CJK_CAST) expect(frame).toContain(name);
+    expect(frame).toContain("d Download");
+    expect(hintRowIntact(u)).toBe(true);
+
+    widthFits(u);
+  });
+});
+
+// Astral code points (emoji outside the BMP, CJK Extension B+ ideographs) get no free ride from
+// `.length` the way a BMP character never did either — `for...of` yields one code point per
+// surrogate pair, so an unlisted astral range undercounts exactly like an unlisted BMP one. A
+// prior version of this file's width table left every astral range out on the theory that
+// `.length` already "handled" them, which reproduced the original Critical bug on emoji plots.
+describe("Results detail metadata with astral and BMP emoji", () => {
+  const clapperMeta: Meta = {
+    imdbId: "tt3", kind: "movie", title: "t", rating: "8.0",
+    genres: [], cast: [], director: [], plot: "🎬".repeat(200),
+  };
+  const starMeta: Meta = {
+    imdbId: "tt4", kind: "movie", title: "t", rating: "8.0",
+    genres: [], cast: [], director: [], plot: "⭐".repeat(200),
+  };
+
+  it("renders an astral emoji (clapper board) plot without corruption at listRows=20", async () => {
+    const withFiles = [{ ...t("a1", "ubuntu 24.04 desktop amd64 iso"), numFiles: 3 }];
+    const u = await mount(withFiles, { listRows: 20 }, { loading: false, meta: clapperMeta });
+    await openDetail(u);
+
+    const frame = u.frame();
+    expect(frame).toContain("ubuntu 24.04 desktop");
+    expect(frame).toContain("Size");
+    expect(frame).toContain("Health");
+    expect(frame).toContain("Files");
+    expect(frame).toContain("Added");
+    expect(frame).toContain("Hash");
+    expect(frame).toContain("Magnet");
+    expect(frame).toContain("d Download");
+    expect(hintRowIntact(u)).toBe(true);
+
+    widthFits(u);
+  });
+
+  it("renders a BMP emoji (star) plot without corruption at listRows=20", async () => {
+    const withFiles = [{ ...t("a1", "ubuntu 24.04 desktop amd64 iso"), numFiles: 3 }];
+    const u = await mount(withFiles, { listRows: 20 }, { loading: false, meta: starMeta });
+    await openDetail(u);
+
+    const frame = u.frame();
+    expect(frame).toContain("ubuntu 24.04 desktop");
+    expect(frame).toContain("Size");
+    expect(frame).toContain("Health");
+    expect(frame).toContain("Files");
+    expect(frame).toContain("Added");
+    expect(frame).toContain("Hash");
+    expect(frame).toContain("Magnet");
+    expect(frame).toContain("d Download");
+    expect(hintRowIntact(u)).toBe(true);
+
+    widthFits(u);
   });
 });
