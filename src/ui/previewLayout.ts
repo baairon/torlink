@@ -93,8 +93,13 @@ const POSTER_MAX_COLS = 24;
 const FOCUSED_ROWS_PER_COL = 2;
 
 /**
- * Rows the text card always claims: title, year·rating·runtime, genres, director, two cast lines
- * and the blank spacer between the art and the text.
+ * Rows the art gives up to the text below it: the facts card at its usual height — title,
+ * year·rating·runtime, genres, director, two cast lines — plus the blank spacer between the art
+ * and the text.
+ *
+ * Not an enumeration of every field the card can hold. The plot has no natural length and is
+ * planned last against whatever the facts underspent, so it claims what is left of these seven
+ * rather than asking for rows of its own; a pane whose credits wrap short simply shows more of it.
  */
 const TEXT_ROWS = 7;
 

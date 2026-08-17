@@ -89,7 +89,12 @@ export function MetaPane({
   // Unfocused the card is cut to what is left; focused it is built whole and the window below
   // decides what shows, which is the entire point of being able to focus it.
   const textBudget = focused ? Number.POSITIVE_INFINITY : Math.max(0, innerRows - head);
-  const lines = meta === null ? [] : planPaneLines(meta, innerWidth, textBudget);
+  // Memoised because the pane re-renders on every search tick and every cursor move, while the
+  // word wrapper is linear in the plot — the one field long enough for that to be worth a cache.
+  const lines = useMemo(
+    () => (meta === null ? [] : planPaneLines(meta, innerWidth, textBudget)),
+    [meta, innerWidth, textBudget],
+  );
   // One entry per terminal row, so the window can cut inside a wrapped credit.
   const textRows = lines.flatMap((l) =>
     l.text.split("\n").map((text, i) => ({ key: `${l.key}:${i}`, text, tone: l.tone })),

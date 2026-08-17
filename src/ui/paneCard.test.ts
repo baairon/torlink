@@ -19,6 +19,16 @@ const META: Meta = {
   director: ["Lana Wachowski", "Lilly Wachowski"],
 };
 
+// Kept separate from META so every assertion above about the facts card still measures the facts
+// card. Length is roughly what Cinemeta sends after the client's 800-column cap.
+const WITH_PLOT: Meta = {
+  ...META,
+  plot:
+    "A computer hacker learns from mysterious rebels about the true nature of his reality and " +
+    "his role in the war against its controllers, who farm humanity in a simulated world while " +
+    "harvesting the sleeping bodies for power in cell after cell.",
+};
+
 const WIDTH = 30;
 const INFINITE = Number.POSITIVE_INFINITY;
 
@@ -97,6 +107,72 @@ describe("planPaneLines", () => {
   it("answers an empty card for a pane with no rows to give", () => {
     expect(planPaneLines(META, WIDTH, 0)).toEqual([]);
     expect(planPaneLines(META, WIDTH, -3)).toEqual([]);
+  });
+
+  it("leaves a card with no plot exactly as it was", () => {
+    expect(keys(META, WIDTH, INFINITE)).not.toContain("plot");
+    expect(keys({ ...META, plot: "" }, WIDTH, INFINITE)).toEqual(keys(META, WIDTH, INFINITE));
+  });
+
+  it("gives the focused pane every line of the plot, none of them cut", () => {
+    const lines = planPaneLines(WITH_PLOT, WIDTH, INFINITE);
+    expect(lines.at(-1)?.key).toBe("plot");
+    const plot = lines.at(-1)?.text.split("\n") ?? [];
+    expect(plot.length).toBeGreaterThan(3);
+    for (const line of plot) {
+      expect(displayWidth(line)).toBeLessThanOrEqual(WIDTH);
+      expect(line).not.toContain("…");
+    }
+    expect(plot.join(" ")).toContain("cell");
+  });
+
+  it("spends the leftovers on the plot even when the cutoff dropped the credits", () => {
+    // The plot is the one field with no natural length, so it is the one that fills a gap rather
+    // than being refused whole: a card that lost its cast credit to a two-row overflow still has
+    // that row to say what the film is about.
+    const lines = planPaneLines(WITH_PLOT, WIDTH, 4);
+    expect(lines.map((l) => l.key)).toEqual(["title", "facts", "genres", "plot"]);
+    expect(rows(WITH_PLOT, WIDTH, 4)).toHaveLength(4);
+  });
+
+  it("forces the ellipsis onto the last kept plot line, which fills its width exactly", () => {
+    const plot = planPaneLines(WITH_PLOT, WIDTH, 6).find((l) => l.key === "plot");
+    const kept = plot?.text.split("\n") ?? [];
+    expect(kept.length).toBeGreaterThan(0);
+    expect(kept.at(-1)).toContain("…");
+    for (const line of kept) expect(displayWidth(line)).toBeLessThanOrEqual(WIDTH);
+  });
+
+  it("omits the plot row entirely when the facts spent everything", () => {
+    // No row at all rather than an empty one: a blank line at the bottom of the pane reads as a
+    // field that failed to load.
+    expect(keys(WITH_PLOT, WIDTH, 3)).toEqual(["title", "facts", "genres"]);
+  });
+
+  it("wraps a CJK plot by display column, not by string length", () => {
+    // Cinemeta returns CJK synopses for the anime titles nyaa and subsplease index, and each of
+    // those characters is one string unit but two terminal columns — the miscount that fused rows
+    // in the detail panel before wordWrapLines measured width instead of length.
+    const cjk = {
+      ...META,
+      plot: "本作は刑務所を舞台にした友情と希望の物語である。".repeat(8),
+    };
+    const plot = planPaneLines(cjk, WIDTH, INFINITE).find((l) => l.key === "plot");
+    for (const line of plot?.text.split("\n") ?? []) {
+      expect(displayWidth(line)).toBeLessThanOrEqual(WIDTH);
+    }
+  });
+
+  it("wraps an astral-plane emoji plot without splitting a surrogate pair", () => {
+    const emoji = { ...META, plot: "🎬 A film 🍿 about 👨‍👩‍👧 a family ".repeat(6) };
+    const plot = planPaneLines(emoji, WIDTH, INFINITE).find((l) => l.key === "plot");
+    const lines = plot?.text.split("\n") ?? [];
+    expect(lines.length).toBeGreaterThan(1);
+    for (const line of lines) {
+      expect(displayWidth(line)).toBeLessThanOrEqual(WIDTH);
+      // A pair cut down the middle surfaces as the replacement character, not as an exception.
+      expect(line).not.toContain("�");
+    }
   });
 
   it("keeps only the first four cast names, tagged so the two name lists are told apart", () => {

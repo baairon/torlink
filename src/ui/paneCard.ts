@@ -69,6 +69,10 @@ function tagged(tag: string, values: readonly string[]): string {
  * most series, no runtime for plenty of titles) is absent, not a fit failure, and never triggers
  * that cutoff.
  *
+ * The plot is evaluated last and outside that cutoff, because it is the one field with no natural
+ * length: it exists to fill whatever the facts above it left, so it is measured against `remaining`
+ * on its own terms and truncated rather than admitted or refused whole.
+ *
  * A focused pane passes an infinite budget: it scrolls, so nothing is competing for rows and the
  * whole card is built, with the window — not this function — deciding what is on screen.
  */
@@ -113,5 +117,26 @@ export function planPaneLines(meta: Meta, width: number, budget: number): PaneLi
   admit("genres", meta.genres.join(", "));
   admit("director", tagged("Dir", meta.director));
   admit("cast", tagged("Cast", meta.cast.slice(0, CAST_SHOWN)));
+
+  // The plot is the deliberate exception to the cutoff, exactly as the detail panel's planMetaRows
+  // treats it: it is the only field with no natural length, so it takes whatever the fixed-height
+  // facts above it underspent — down to nothing, which is a legitimate answer on a short pane —
+  // rather than being dropped whole because a two-row credit above it did not fit. A focused pane
+  // passes an infinite budget, so this is the branch that hands the window the whole synopsis.
+  if (meta.plot !== undefined && meta.plot !== "" && remaining > 0) {
+    const lines = wordWrapLines(meta.plot, width);
+    if (lines.length > 0) {
+      const kept = lines.slice(0, remaining);
+      if (lines.length > remaining) {
+        const lastIndex = kept.length - 1;
+        const last = kept[lastIndex];
+        // A hard-wrapped chunk is already sized to fit exactly, so it never looks "cut" on its own
+        // even though real text still follows it — the ellipsis has to be forced on here, or a
+        // capped plot reads as the whole plot rather than a fragment of one.
+        if (last !== undefined) kept[lastIndex] = ellipsizeToWidth(last, width);
+      }
+      out.push({ key: "plot", text: kept.join("\n"), tone: "dim" });
+    }
+  }
   return out;
 }

@@ -50,6 +50,15 @@ const META: Meta = {
   posterUrl: "https://images.metahub.space/poster/small/tt0133093/img?format=jpeg",
 };
 
+// A separate fixture rather than a plot on META: every other test in this file measures the facts
+// card's rows, and a synopsis under it would change what all of them are asserting.
+const META_PLOT: Meta = {
+  ...META,
+  plot:
+    "A computer hacker learns from mysterious rebels about the true nature of his reality and " +
+    "his role in the war against its controllers, who farm sleeping humanity for power.",
+};
+
 function art(cols: number, rows: number): PosterCells {
   return {
     cols,
@@ -164,6 +173,47 @@ describe("MetaPane poster slot", () => {
     expect(textOnly).toContain("Cast Keanu Reeves");
     expect(withArt).not.toContain("Cast Keanu Reeves");
     expect(withArt).toContain("The Matrix");
+  });
+});
+
+describe("MetaPane plot", () => {
+  it("spends the rows the facts card left over on the synopsis", () => {
+    // Unfocused with art on screen there is exactly one row of slack under the credits, and the
+    // plot is what claims it — the blank area under the cast line was the gap this closes.
+    mockMeta.mockReturnValue({ loading: false, meta: META_PLOT });
+    mockPoster.mockReturnValue({ loading: false, cells: art(BUDGET?.cols ?? 0, BUDGET?.rows ?? 0) });
+    const ui = renderUI(<MetaPane result={ROW} width={PANE_W} height={PANE_H} poster />, {
+      cols: 60,
+    });
+    const out = frameLines(ui.frame());
+
+    expect(ui.frame()).toContain("A computer hacker");
+    // The row is a cut fragment of a longer plot, and says so rather than reading as the whole of
+    // a very short one.
+    expect(ui.frame()).toContain("…");
+    // Nothing overflowed to buy it: same frame, same width, art still whole.
+    expect(out).toHaveLength(1 + PANE_H);
+    for (const line of out) expect(displayWidth(line)).toBe(PANE_W);
+    ui.unmount();
+  });
+
+  it("builds the whole synopsis for a focused pane and scrolls to the end of it", async () => {
+    // Focused the planner is handed an infinite budget, so the plot arrives whole and the window
+    // — not the card — decides what is on screen. No art, so the overflow is the text alone.
+    mockMeta.mockReturnValue({ loading: false, meta: META_PLOT });
+    const ui = renderUI(<MetaPane result={ROW} width={PANE_W} height={12} poster focused />, {
+      cols: 60,
+    });
+    expect(ui.frame()).toContain("The Matrix");
+    expect(ui.frame()).toContain(`${ICON.down} more`);
+
+    ui.press(PAGE_DOWN);
+    // The last words of the plot, which only exist on screen because nothing truncated it.
+    await vi.waitFor(() => expect(ui.frame()).toContain("power."));
+    const out = frameLines(ui.frame());
+    expect(out).toHaveLength(1 + 12);
+    for (const line of out) expect(displayWidth(line)).toBe(PANE_W);
+    ui.unmount();
   });
 });
 
