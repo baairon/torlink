@@ -122,11 +122,17 @@ let restored = false;
 function restoreTerminal(): void {
   if (restored) return;
   restored = true;
+  // Alt-screen restore goes out first, deletes second. Node's write to a TTY is synchronous on
+  // POSIX but not on Windows, and deleteIssued() can be large on a long session (~28 bytes per
+  // distinct poster) — a write that truncates on process exit must not be able to take the
+  // trailing escapes with it and strand the user in the alt screen. `d=I` frees an image by id
+  // regardless of which screen is active, so losing the tail here only leaves some images in the
+  // terminal's store, which is cheap and invisible.
+  process.stdout.write("\x1b[?1000l\x1b[?1006l\x1b[?25h\x1b[23;0t\x1b[?1049l");
   // Images outlive the alt screen: the terminal keeps them in a store keyed by id until something
   // deletes them, so leaving without this would grow that store for the life of the terminal. Only
   // the ids this process handed out — the store is shared with whatever else drew in this window.
   if (getGraphicsTier() === "kitty") process.stdout.write(deleteIssued());
-  process.stdout.write("\x1b[?1000l\x1b[?1006l\x1b[?25h\x1b[23;0t\x1b[?1049l");
 }
 
 let exiting = false;
