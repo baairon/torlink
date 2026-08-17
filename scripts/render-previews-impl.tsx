@@ -5,15 +5,18 @@ import React from "react";
 import { render } from "ink-testing-library";
 import { Box, Text } from "ink";
 import { StoreContext, type Store } from "../src/ui/store";
-import { COLOR, ICON, SOURCE_STYLE } from "../src/ui/theme";
+import { COLOR, ICON, SOURCE_STYLE, lerpHex } from "../src/ui/theme";
 import { Logo } from "../src/ui/components/Logo";
 import { Rule } from "../src/ui/components/Rule";
 import { Footer } from "../src/ui/components/Footer";
 import { Sidebar, RAIL_WIDTH } from "../src/ui/components/Sidebar";
 import { SearchBar } from "../src/ui/components/SearchBar";
 import { Panel } from "../src/ui/components/Panel";
+import { Poster } from "../src/ui/components/Poster";
 import { Downloads } from "../src/ui/components/Downloads";
 import { footerHints } from "../src/ui/keymap";
+import { PANE_GAP, posterBudget, previewLayout } from "../src/ui/previewLayout";
+import { wordWrapLines } from "../src/ui/textWidth";
 import { sourcesByGroup } from "../src/sources/registry";
 import { cleanText, formatBytes, formatRelative } from "../src/util/format";
 import { ansiToSvg, type AnsiToSvgOptions } from "./ansi-to-svg";
@@ -21,6 +24,8 @@ import type { Config } from "../src/config/config";
 import type { DownloadQueue } from "../src/download/queue";
 import type { QueueItem, SeedItem } from "../src/download/types";
 import type { HistoryItem } from "../src/download/history";
+import type { Meta } from "../src/meta/types";
+import type { PosterCells } from "../src/meta/image";
 import type { TorrentResult } from "../src/sources/types";
 
 const COLS = 80;
@@ -267,4 +272,150 @@ save(
     <Footer hints={footerHints("content", "downloads")} />
   </Box>,
   { shimmer: true },
+);
+
+// previewLayout only gives the results list a pane once contentWidth reaches 73, and only draws
+// poster art in it from 86 — the 80-column COLS every other scenario uses never gets there. This
+// one runs wider, on purpose, so the info pane has something to show.
+const META_COLS = 120;
+const META_CONTENT_WIDTH = Math.max(24, META_COLS - RAIL_WIDTH - 3);
+const META_RULE_WIDTH = Math.max(10, META_COLS - 2);
+const META_PANEL_H = 18;
+
+const metaPane = previewLayout(META_CONTENT_WIDTH);
+if (metaPane === null) {
+  throw new Error(`preview: "info" scenario's ${META_COLS} columns are too narrow for the pane`);
+}
+
+const META: Meta = {
+  imdbId: "tt15398776",
+  kind: "movie",
+  title: "Oppenheimer",
+  year: "2023",
+  rating: "8.3",
+  runtime: "180 min",
+  genres: ["Biography", "Drama", "History"],
+  director: ["Christopher Nolan"],
+  cast: ["Cillian Murphy", "Emily Blunt", "Matt Damon"],
+};
+
+// Panel's frame (border 2 + paddingX 2), same arithmetic MetaPane does for its own inner width.
+const metaInner = Math.max(1, metaPane.pane - 4);
+const metaInnerRows = Math.max(0, META_PANEL_H - 1);
+const metaBudget = posterBudget(metaPane.pane, metaInnerRows, false);
+if (metaBudget === null) {
+  throw new Error(`preview: "info" scenario's panel is too short to budget poster rows`);
+}
+
+/**
+ * A gradient standing in for a decoded poster — the previews never touch the network, so there is
+ * no JPEG to decode. Built from the same lerpHex the shimmer sheen uses, staying inside the app's
+ * own palette rather than inventing new colour.
+ */
+function posterMock(cols: number, rows: number): PosterCells {
+  const top = "#1c1430";
+  const bottom = COLOR.bright;
+  const lines = Array.from({ length: rows }, (_, row) => {
+    const t = rows <= 1 ? 0 : row / (rows - 1);
+    const fg = lerpHex(top, bottom, t);
+    const bg = lerpHex(top, bottom, Math.min(1, t + 1 / (rows * 2)));
+    return [{ fg, bg, n: cols }];
+  });
+  return { cols, rows, lines };
+}
+
+const metaCastLines = wordWrapLines(`Cast ${META.cast.join(", ")}`, metaInner);
+
+save(
+  "info",
+  makeStore({ section: "all", contentWidth: META_CONTENT_WIDTH, listRows: 14, cols: META_COLS, rows: 24 }),
+  <Box flexDirection="column" width={META_COLS} paddingX={1}>
+    <Box justifyContent="space-between">
+      <Logo />
+    </Box>
+    <Rule width={META_RULE_WIDTH} />
+    {/* +5: SearchBar's own Panel (a label row + a 2-row box) plus the 1-row gap above this
+        Panel's own label row — everything this column holds above the results Panel, which a
+        fixed outer height has to leave room for. Too little and Yoga shrinks the Panel instead
+        of just cropping blank space, and a shrunk fixed-height Panel drops its own overflowing
+        content rather than showing a clean edge. */}
+    <Box height={META_PANEL_H + 5} marginTop={1}>
+      <Sidebar />
+      <Box flexGrow={1} flexDirection="column">
+        <SearchBar width={META_CONTENT_WIDTH} value="" editing={false} placeholder="Search or paste a magnet link…" onSubmit={() => {}} />
+        <Box marginTop={1}>
+          <Panel title="latest" width={metaPane.list} focused count={`(${browseResults.length})`} height={META_PANEL_H}>
+            <Box><Text dimColor>newest across all sources</Text></Box>
+            <Box flexDirection="column" marginTop={1}>
+              <Box>
+                <Box width={2} flexShrink={0} />
+                <Box width={numW} flexShrink={0} justifyContent="flex-end"><Text bold dimColor>#</Text></Box>
+                <Box flexGrow={1} minWidth={0} marginLeft={1}><Text bold dimColor>Name</Text></Box>
+                <Box width={10} flexShrink={0} marginLeft={1} justifyContent="flex-end"><Text bold dimColor>Size</Text></Box>
+                <Box width={9} flexShrink={0} marginLeft={1} justifyContent="flex-end"><Text bold dimColor>Seed:Lch</Text></Box>
+                <Box width={4} flexShrink={0} marginLeft={1} justifyContent="flex-end"><Text bold dimColor>Src</Text></Box>
+              </Box>
+              {browseResults.map((r, i) => {
+                const here = i === 0;
+                const ss = SOURCE_STYLE[r.source];
+                return (
+                  <Box key={r.infoHash}>
+                    <Box width={2} flexShrink={0}>
+                      <Text color={COLOR.accent}>{here ? ICON.pointer : ""}</Text>
+                    </Box>
+                    <Box width={numW} flexShrink={0} justifyContent="flex-end">
+                      <Text dimColor>{i + 1}</Text>
+                    </Box>
+                    <Box flexGrow={1} minWidth={0} marginLeft={1}>
+                      <Text wrap="truncate-end" color={here ? COLOR.accent : undefined} dimColor={!here} bold={here}>
+                        {cleanText(r.name)}
+                      </Text>
+                    </Box>
+                    {showStats ? (
+                      <>
+                        <Box width={10} flexShrink={0} marginLeft={1} justifyContent="flex-end">
+                          <Text dimColor>{r.sizeBytes > 0 ? formatBytes(r.sizeBytes) : "-"}</Text>
+                        </Box>
+                        <Box width={9} flexShrink={0} marginLeft={1} justifyContent="flex-end">
+                          <Text color={r.seeders > 0 ? COLOR.good : undefined} dimColor={r.seeders === 0}>
+                            {r.seeders || r.leechers ? `${r.seeders}:${r.leechers}` : "-"}
+                          </Text>
+                        </Box>
+                      </>
+                    ) : (
+                      <Box width={9} flexShrink={0} marginLeft={1} justifyContent="flex-end">
+                        <Text dimColor>{formatRelative(r.added) || "-"}</Text>
+                      </Box>
+                    )}
+                    <Box width={4} flexShrink={0} marginLeft={1} justifyContent="flex-end">
+                      <Text color={ss.color} dimColor={!here}>
+                        {ss.tag}
+                      </Text>
+                    </Box>
+                  </Box>
+                );
+              })}
+            </Box>
+          </Panel>
+          <Box marginLeft={PANE_GAP}>
+            <Panel title="info" width={metaPane.pane} height={META_PANEL_H}>
+              <Box flexDirection="column">
+                <Poster cells={posterMock(metaBudget.cols, metaBudget.rows)} />
+                <Box height={1} flexShrink={0} />
+                <Text wrap="wrap" bold color={COLOR.text}>{META.title}</Text>
+                <Text wrap="wrap" dimColor>{[META.year, META.rating, META.runtime].join(` ${ICON.dot} `)}</Text>
+                <Text wrap="wrap" dimColor>{META.genres.join(", ")}</Text>
+                <Text wrap="wrap" dimColor>{`Dir ${META.director.join(", ")}`}</Text>
+                {metaCastLines.map((line) => (
+                  <Text key={line} wrap="wrap" dimColor>{line}</Text>
+                ))}
+              </Box>
+            </Panel>
+          </Box>
+        </Box>
+      </Box>
+    </Box>
+    <Footer hints={footerHints("content", "all", null, null, "list", true, true)} />
+  </Box>,
+  { cols: META_COLS },
 );

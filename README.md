@@ -26,6 +26,12 @@ Type what you're looking for and press Enter. Results stream in from every sourc
   <img src="preview/browse.svg" alt="torlink's browse view: the sidebar, the search bar, and merged results from every source" style="max-width: 832px; width: 100%; height: auto;">
 </p>
 
+Press `i` for a closer look at whatever's highlighted — poster, rating, cast and the rest, right beside the list. `→` opens it up to read and scroll through, `←` sends you back to browsing.
+
+<p align="center">
+  <img src="preview/info.svg" alt="torlink's info pane: poster art and details for the highlighted result" style="max-width: 1216px; width: 100%; height: auto;">
+</p>
+
 ## Your downloads
 
 Active downloads sit up top with their progress, speed, and time left; when one finishes it drops into Recently downloaded just below, so the list stays tidy. Everything's still there when you come back, and anything interrupted picks up where it left off.
