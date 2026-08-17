@@ -151,7 +151,8 @@ export async function probeGraphics(io: ProbeIo): Promise<GraphicsTier> {
         stdin.pause();
         try {
           while (stdin.read() !== null) {
-            // Discarded on purpose: these are the tail of our own query's reply.
+            // Discarded on purpose: overwhelmingly likely to be the tail of our own query's
+            // reply, though anything typed in the same sub-millisecond window would land here too.
           }
         } catch {
           // A stdin that stopped being readable mid-probe has nothing left to leak.

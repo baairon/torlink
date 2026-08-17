@@ -87,9 +87,9 @@ function graphicsArt(
 /**
  * Bytes to whatever art this terminal can draw.
  *
- * Every refusal on the graphics side — a decode that failed, a picture past the diacritic table, a
- * payload over the wire budget — falls through to the half-block grid, so the tier can only add
- * fidelity and never cost the poster.
+ * Every refusal on the graphics side — a decode that failed, a picture past the diacritic table —
+ * falls through to the half-block grid, so the tier can only add fidelity and never cost the
+ * poster.
  */
 function prepareArt(
   bytes: Uint8Array,

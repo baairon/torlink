@@ -325,27 +325,25 @@ describe("usePoster", () => {
     setGraphicsTier("kitty");
     const ui = renderUI(<Probe url={nextUrl()} first={WIDE} />);
     try {
-      await tick(5);
+      await vi.waitFor(() => expect(ui.frame()).toContain("IMAGE 24x18"));
       expect(mockWrite).toHaveBeenCalledTimes(1);
       expect(mockWrite.mock.calls[0]?.[1]).toEqual(["\u001b_Ga=T;AAA\u001b\\"]);
       // The half-block decoder is never asked: the tier answered.
       expect(mockDecode).not.toHaveBeenCalled();
-      expect(ui.frame()).toContain("IMAGE 24x18");
     } finally {
       ui.unmount();
     }
   });
 
   it("falls back to half-blocks whenever the graphics path refuses", async () => {
-    // A decode that failed, a picture past the diacritic table, a payload over the wire budget:
-    // all of them land here, and all of them still show the user a poster.
+    // A decode that failed, a picture past the diacritic table: both land here, and both still
+    // show the user a poster.
     setGraphicsTier("kitty");
     mockGraphicsDecode.mockReturnValue(null);
     const ui = renderUI(<Probe url={nextUrl()} first={WIDE} />);
     try {
-      await tick(5);
+      await vi.waitFor(() => expect(ui.frame()).toContain("ART 24x18"));
       expect(mockWrite).not.toHaveBeenCalled();
-      expect(ui.frame()).toContain("ART 24x18");
     } finally {
       ui.unmount();
     }
@@ -354,19 +352,17 @@ describe("usePoster", () => {
   it("keys the cache by tier, so neither tier can be served the other's art", async () => {
     const url = nextUrl();
     const blocks = renderUI(<Probe url={url} first={WIDE} />);
-    await tick(5);
-    expect(blocks.frame()).toContain("ART 24x18");
+    await vi.waitFor(() => expect(blocks.frame()).toContain("ART 24x18"));
     blocks.unmount();
     expect(mockFetch).toHaveBeenCalledTimes(1);
 
     setGraphicsTier("kitty");
     const native = renderUI(<Probe url={url} first={WIDE} />);
     try {
-      await tick(5);
+      await vi.waitFor(() => expect(native.frame()).toContain("IMAGE 24x18"));
       // Same url, same budget, different terminal: a cache hit here would draw a mosaic where the
       // picture should be.
       expect(mockFetch).toHaveBeenCalledTimes(2);
-      expect(native.frame()).toContain("IMAGE 24x18");
     } finally {
       native.unmount();
     }
@@ -377,9 +373,10 @@ describe("usePoster", () => {
     const url = "https://m.media-amazon.com/images/M/MV5Bwiring._V1_SX120.jpg";
     const ui = renderUI(<Probe url={url} first={WIDE} />);
     try {
-      await tick(5);
-      expect(mockFetch.mock.calls[0]?.[0]).toBe(
-        "https://m.media-amazon.com/images/M/MV5Bwiring._V1_SX480.jpg",
+      await vi.waitFor(() =>
+        expect(mockFetch.mock.calls[0]?.[0]).toBe(
+          "https://m.media-amazon.com/images/M/MV5Bwiring._V1_SX480.jpg",
+        ),
       );
     } finally {
       ui.unmount();

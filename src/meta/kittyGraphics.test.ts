@@ -24,6 +24,21 @@ const BASELINE_JPEG =
   "QAAAAAAAAAAAAAAAAAAAAD/xAAVAQEBAAAAAAAAAAAAAAAAAAAHCf/EABQRAQAAAAAAAAAAAAAAAAAAAAD/2gAMAwEA" +
   "AhEDEQA/ADoDFU3/2Q==";
 
+// A real 2x3 baseline JPEG: three pixels tall to two wide, which is the aspect both metadata hosts
+// serve posters at. Inline for the same reason as the fixture above, and separate from it because
+// the square one cannot reach a full-height pane's cell box at all — fitCells gives a square source
+// half as many rows as columns, so no budget makes it the 68x51 the tests below are about.
+const POSTER_JPEG =
+  "/9j/4AAQSkZJRgABAQAAAQABAAD/2wCEABALDA4MChAODQ4SERATGCgaGBYWGDEjJR0oOjM9PDkzODdASFxOQERXRTc4UG1RV19i" +
+  "Z2hnPk1xeXBkeFxlZ2MBERISGBUYLxoaL2NCOEJjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2Nj" +
+  "Y2NjY//AABEIAAMAAgMBEQACEQEDEQH/xAGiAAABBQEBAQEBAQAAAAAAAAAAAQIDBAUGBwgJCgsQAAIBAwMCBAMFBQQEAAABfQEC" +
+  "AwAEEQUSITFBBhNRYQcicRQygZGhCCNCscEVUtHwJDNicoIJChYXGBkaJSYnKCkqNDU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVm" +
+  "Z2hpanN0dXZ3eHl6g4SFhoeIiYqSk5SVlpeYmZqio6Slpqeoqaqys7S1tre4ubrCw8TFxsfIycrS09TV1tfY2drh4uPk5ebn6Onq" +
+  "8fLz9PX29/j5+gEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoLEQACAQIEBAMEBwUEBAABAncAAQIDEQQFITEGEkFRB2FxEyIy" +
+  "gQgUQpGhscEJIzNS8BVictEKFiQ04SXxFxgZGiYnKCkqNTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqCg4SF" +
+  "hoeIiYqSk5SVlpeYmZqio6Slpqeoqaqys7S1tre4ubrCw8TFxsfIycrS09TV1tfY2dri4+Tl5ufo6ery8/T19vf4+fr/2gAMAwEA" +
+  "AhEDEQA/AJJNMtHkZjGwLEk4kYD8geK6aTagkm9u7OuFGE4qUlds/wD/2Q==";
+
 const bytes = (b64: string): Uint8Array => new Uint8Array(Buffer.from(b64, "base64"));
 
 const segmenter = new Intl.Segmenter();
@@ -173,14 +188,55 @@ describe("decodeGraphicsPoster", () => {
     expect(decodeGraphicsPoster(bytes(BASELINE_JPEG), 12, 0)).toBeNull();
   });
 
-  it("refuses more picture than the table can address or the wire should carry", () => {
-    // Both ceilings answer the same way, and a poster-shaped image reaches the wire budget first:
-    // at 8x16 pixels a cell, a 129-cell-wide picture is ~3 MB of raw RGB. Either way the
-    // half-block tier draws it instead, which is the point — coarse art beats a stalled pane.
+  it("refuses more picture than the diacritic table can address", () => {
+    // The one ceiling that still answers with null: past 129 cells on an axis a placeholder cannot
+    // name its own row or column, so the half-block tier draws the poster instead.
     expect(decodeGraphicsPoster(bytes(BASELINE_JPEG), MAX_PLACEHOLDER_CELLS + 1, 200)).toBeNull();
-    expect(decodeGraphicsPoster(bytes(BASELINE_JPEG), 129, 129)).toBeNull();
-    // One cell under the wire budget still draws, so the cap is a ceiling and not a ban.
-    expect(decodeGraphicsPoster(bytes(BASELINE_JPEG), 60, 30)).not.toBeNull();
+    // The largest picture the table *can* address is not refused, it is clamped — see below.
+    const biggest = decodeGraphicsPoster(
+      bytes(POSTER_JPEG),
+      MAX_PLACEHOLDER_CELLS,
+      MAX_PLACEHOLDER_CELLS,
+    );
+    expect(biggest?.cols).toBe(MAX_PLACEHOLDER_CELLS);
+    expect(biggest?.rgb.length ?? 0).toBeLessThanOrEqual(1_200_000);
+  });
+
+  it("clamps the pixel scale rather than refusing a pane the wire budget cannot afford", () => {
+    // The focused info pane on a 220x64 terminal. At the full 8x16 pixels a cell this is 544x816,
+    // which is 1332 KB of raw RGB — over the 1.2 MB ceiling, and so no picture at all until now.
+    const poster = decodeGraphicsPoster(bytes(POSTER_JPEG), 68, 51);
+    expect(poster?.cols).toBe(68);
+    expect(poster?.rows).toBe(51);
+    expect(poster?.pxW).toBe(516);
+    expect(poster?.pxH).toBe(774);
+    // The declared source size and the transmitted byte count have to agree exactly, or the
+    // terminal reads the payload as a differently shaped image and draws noise.
+    expect(poster?.rgb.length).toBe(516 * 774 * 3);
+    expect(poster?.rgb.length).toBe(1_198_152);
+    expect(poster?.rgb.length ?? 0).toBeLessThanOrEqual(1_200_000);
+    // One factor on both axes, so the picture comes back softer and not stretched: the sampled
+    // pixels are still square in a cell twice as tall as it is wide.
+    expect((poster?.pxW ?? 0) / 68).toBeCloseTo((poster?.pxH ?? 0) / 51 / 2, 2);
+  });
+
+  it("never gives a bigger pane less picture than a smaller one", () => {
+    // The inversion the flat cap caused: at 220x64 the unfocused pane got a native image and the
+    // focused pane, being bigger, tripped the cap and dropped to half-blocks — so focusing a row
+    // downgraded its poster. Growing the pane must never cost the user picture.
+    const unfocused = decodeGraphicsPoster(bytes(POSTER_JPEG), 30, 23);
+    const focused = decodeGraphicsPoster(bytes(POSTER_JPEG), 68, 51);
+    // The smaller pane is under the budget at full scale and is left there: 240x368, 265 KB.
+    expect(unfocused?.rgb.length).toBe(30 * 8 * 23 * 16 * 3);
+    expect(focused).not.toBeNull();
+    expect(focused?.cols ?? 0).toBeGreaterThan(unfocused?.cols ?? 0);
+    expect(focused?.rgb.length ?? 0).toBeGreaterThan(unfocused?.rgb.length ?? 0);
+  });
+
+  it("leaves a pane inside the budget at the full 8x16 pixels a cell", () => {
+    const poster = decodeGraphicsPoster(bytes(BASELINE_JPEG), 60, 30);
+    expect(poster?.pxW).toBe(60 * 8);
+    expect(poster?.pxH).toBe(30 * 16);
   });
 });
 
@@ -267,6 +323,9 @@ describe("deleteIssued", () => {
     const escapes = deleteIssued();
     // d=I frees the image data as well as its placements; d=i would leave the pixels in the store.
     for (const id of mine) expect(escapes).toContain(`\u001b_Ga=d,d=I,i=${id},q=2\u001b\\`);
+    // One escape per id: at least one ESC-terminated chunk for each of ours, tolerant of the ids
+    // other tests in this file have already added to the same module-level set.
+    expect(escapes.split("\u001b\\").length - 1).toBeGreaterThanOrEqual(mine.length);
   });
 
   it("never frees an image it did not put there", () => {

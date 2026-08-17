@@ -106,10 +106,10 @@ const ID_BYTE_VALUES = 255;
 
 // Every id handed out, in the order it was handed out. The terminal's image store keeps an image
 // until something deletes it, so this list is what the store holds on our account, and the only
-// handle teardown has on it. An id issued for a poster that never reached the wire — a picture past
-// the diacritic table, a deflate that failed — is recorded too: deleting an id the store never held
-// is a no-op, and over-naming our own ids is cheaper and safer than threading each transmission's
-// outcome back here.
+// handle teardown has on it. An id issued for a poster that never reached the wire — a deflate that
+// failed, a write that was swallowed — is recorded too: deleting an id the store never held is a
+// no-op, and over-naming our own ids is cheaper and safer than threading each transmission's outcome
+// back here.
 const issuedIds = new Set<number>();
 
 /**
@@ -157,11 +157,11 @@ export interface GraphicsPoster {
   readonly rgb: Uint8Array;
 }
 
-// Pixels per cell. A terminal cell is about twice as tall as it is wide, so these two keep the
-// sampled pixels square — the same cancellation fitCells is built on, which is why the cell
-// arithmetic below is the *same* arithmetic the half-block tier uses. 8x16 is roughly a normal
-// terminal font at a normal size: fine enough that the poster reads as a photograph rather than
-// as a mosaic, coarse enough that a full-height poster stays under the payload cap.
+// Pixels per cell, at full scale. A terminal cell is about twice as tall as it is wide, so these
+// two keep the sampled pixels square — the same cancellation fitCells is built on, which is why the
+// cell arithmetic below is the *same* arithmetic the half-block tier uses. 8x16 is roughly a normal
+// terminal font at a normal size: fine enough that the poster reads as a photograph rather than as
+// a mosaic, and the ceiling below only ever asks for fewer.
 const CELL_PX_W = 8;
 const CELL_PX_H = 16;
 
@@ -170,9 +170,15 @@ const CELL_PX_H = 16;
  *
  * This is the SSH bill. Deflate is weak on photographs — a poster compresses to maybe two thirds —
  * so a megabyte of pixels is most of a megabyte on the wire, and it is spent again every time the
- * cursor settles on a new row. 1.2 MB covers every pane a terminal can actually show (a 53x40 cell
- * poster is 814 KB) and refuses the pathological ones, which fall back to half-blocks: coarser art
- * is a far better answer than a pane that stalls.
+ * cursor settles on a new row.
+ *
+ * A pane past the budget is sampled at fewer pixels per cell rather than refused. The transmission
+ * declares the source size (`s`,`v`) and the cell box (`c`,`r`) separately and the terminal scales
+ * one into the other, so a clamped poster keeps exactly the cell footprint it would have had and is
+ * only softer — where refusing it dropped the whole pane to half-blocks, which carry two pixels a
+ * cell. Full scale reaches this ceiling at 3 125 cells, which the focused pane on a 220x64 terminal
+ * exceeds at 68x51: clamping draws it at 516x774 — 7.6 x 15.2 pixels a cell, 115 of them where
+ * half-blocks would have had two — instead of leaving the widest pane with the coarsest picture.
  */
 const MAX_RAW_BYTES = 1_200_000;
 
@@ -194,11 +200,16 @@ export function decodeGraphicsPoster(
   if (cols < 1 || rows < 1) return null;
   if (cols > MAX_PLACEHOLDER_CELLS || rows > MAX_PLACEHOLDER_CELLS) return null;
 
-  const pxW = cols * CELL_PX_W;
-  const pxH = rows * CELL_PX_H;
-  // Checked from the dimensions rather than from the sampled buffer: refusing after allocating
-  // and filling a megabyte would pay the whole cost to decline it.
-  if (pxW * pxH * 3 > MAX_RAW_BYTES) return null;
+  // Scaled from the cell dimensions rather than from a sampled buffer: deciding after allocating
+  // and filling a megabyte would pay the whole cost first. One factor on both axes, so a clamped
+  // poster comes back softer rather than stretched, and it is a square root because the budget is
+  // an area. Both floors round down, so the buffer can only land under the ceiling, never over it —
+  // and neither can round an axis away: 129 cells is the most either has, so the clamp engages only
+  // past 3 125 cells and never scales an axis below about 200 pixels.
+  const fullBytes = cols * CELL_PX_W * rows * CELL_PX_H * 3;
+  const scale = fullBytes > MAX_RAW_BYTES ? Math.sqrt(MAX_RAW_BYTES / fullBytes) : 1;
+  const pxW = Math.floor(cols * CELL_PX_W * scale);
+  const pxH = Math.floor(rows * CELL_PX_H * scale);
 
   return { cols, rows, pxW, pxH, rgb: sampleGrid(img, pxW, pxH) };
 }

@@ -170,8 +170,10 @@ const MIN_POSTER_ROWS = 6;
 const MIN_POSTER_COLS = 8;
 
 /**
- * The rendition the Amazon host serves, and the shape every width below is reasoned in. Every
- * rendition shares its 2:3 ratio, so `fitCells` doesn't care which one actually decoded.
+ * The rendition every width below is reasoned in. No longer what the Amazon host actually fetches
+ * — the kitty tier asks for `SX480` (`cinemeta.ts`, via `widenPosterUrl` in `usePoster.ts`) — but
+ * the half-block tier still serves this one from Amazon, and every rendition shares its 2:3 ratio,
+ * so `fitCells` doesn't care which rendition actually decoded.
  */
 export const POSTER_W = 120;
 export const POSTER_H = 180;
