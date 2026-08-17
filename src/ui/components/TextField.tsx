@@ -178,6 +178,10 @@ export function TextField({
       const text = input
         .replace(/\x1b?\[<\d+;\d+;\d+[Mm]/g, "") // SGR mouse
         .replace(/\x1b\[20[01]~/g, "") // Bracketed paste
+        // Device attributes: the startup graphics probe asks for one as a fence, and a
+        // terminal that volunteers it late enough lands it here as typed text. ESC optional
+        // for the same reason as the mouse pattern above: Ink often delivers it separately.
+        .replace(/\x1b?\[\?[\d;]+c/g, "") // Device attributes
         .replace(/[\r\n]+/g, ""); // Newlines
       if (!text) return;
       apply(insertAt(value, cursor, text));
