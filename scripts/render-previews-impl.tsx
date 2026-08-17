@@ -15,8 +15,8 @@ import { Panel } from "../src/ui/components/Panel";
 import { Poster } from "../src/ui/components/Poster";
 import { Downloads } from "../src/ui/components/Downloads";
 import { footerHints } from "../src/ui/keymap";
+import { planPaneLines } from "../src/ui/paneCard";
 import { PANE_GAP, posterBudget, previewLayout } from "../src/ui/previewLayout";
-import { wordWrapLines } from "../src/ui/textWidth";
 import { sourcesByGroup } from "../src/sources/registry";
 import { cleanText, formatBytes, formatRelative } from "../src/util/format";
 import { ansiToSvg, type AnsiToSvgOptions } from "./ansi-to-svg";
@@ -324,7 +324,12 @@ function posterMock(cols: number, rows: number): PosterCells {
   return { cols, rows, lines };
 }
 
-const metaCastLines = wordWrapLines(`Cast ${META.cast.join(", ")}`, metaInner);
+// The app's own card planner, flattened to one entry per terminal row exactly as MetaPane
+// flattens it. The preview is a screenshot of the pane, so it has to be laid out by the thing
+// that lays the pane out — a second copy of the card here would drift the moment either changes.
+const metaTextRows = planPaneLines(META, metaInner, Math.max(0, metaInnerRows - metaBudget.rows - 1)).flatMap(
+  (l) => l.text.split("\n").map((text, i) => ({ key: `${l.key}:${i}`, text, tone: l.tone })),
+);
 
 save(
   "info",
@@ -402,12 +407,10 @@ save(
               <Box flexDirection="column">
                 <Poster cells={posterMock(metaBudget.cols, metaBudget.rows)} />
                 <Box height={1} flexShrink={0} />
-                <Text wrap="wrap" bold color={COLOR.text}>{META.title}</Text>
-                <Text wrap="wrap" dimColor>{[META.year, META.rating, META.runtime].join(` ${ICON.dot} `)}</Text>
-                <Text wrap="wrap" dimColor>{META.genres.join(", ")}</Text>
-                <Text wrap="wrap" dimColor>{`Dir ${META.director.join(", ")}`}</Text>
-                {metaCastLines.map((line) => (
-                  <Text key={line} wrap="wrap" dimColor>{line}</Text>
+                {metaTextRows.map((l) => (
+                  <Text key={l.key} wrap="wrap" bold={l.tone === "title"} color={l.tone === "title" ? COLOR.text : undefined} dimColor={l.tone === "dim"}>
+                    {l.text}
+                  </Text>
                 ))}
               </Box>
             </Panel>
