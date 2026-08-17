@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { toResult } from "./eztv";
 
 const mockFetch = vi.fn();
 
@@ -48,8 +49,45 @@ async function freshEztv(): Promise<typeof import("./eztv").eztv> {
 const JUDY = row("Judy Justice S04E79 1080p WEB h264", "a".repeat(40));
 const JUDY_OLD = row("Judy Justice S01E01 720p WEB h264", "b".repeat(40));
 
+// Field names and value shapes are verbatim from an EZTV get-torrents response.
+const ROW = {
+  title: "Show.Name.S01E02.1080p.WEB.h264-GROUP",
+  filename: "Show.Name.S01E02.1080p.WEB.h264-GROUP.mkv",
+  imdb_id: "399664",
+  hash: "8C4ADBF9EBDC4C6D1D0F1B0F0E0D0C0B0A090807",
+  magnet_url: "magnet:?xt=urn:btih:8c4adbf9ebdc4c6d1d0f1b0f0e0d0c0b0a090807",
+  seeds: 88,
+  peers: 5,
+  size_bytes: "734003200",
+  date_released_unix: 1600000000,
+} as const;
+
 beforeEach(() => {
   mockFetch.mockReset();
+});
+
+describe("toResult", () => {
+  it("zero-pads EZTV's bare numeric series id into an IMDb id", () => {
+    expect(toResult({ ...ROW })).toMatchObject({
+      infoHash: "8c4adbf9ebdc4c6d1d0f1b0f0e0d0c0b0a090807",
+      source: "eztv",
+      imdbId: "tt0399664",
+    });
+  });
+
+  it("leaves the id absent when EZTV's value is empty or already prefixed", () => {
+    expect(toResult({ ...ROW, imdb_id: "" })?.imdbId).toBeUndefined();
+    expect(toResult({ ...ROW, imdb_id: "tt0399664" })?.imdbId).toBeUndefined();
+  });
+
+  it("leaves the id absent when EZTV omits the field entirely", () => {
+    const { imdb_id: _imdbId, ...withoutImdb } = ROW;
+    expect(toResult(withoutImdb)?.imdbId).toBeUndefined();
+  });
+
+  it("still drops rows with no usable hash or magnet", () => {
+    expect(toResult({ ...ROW, hash: "", magnet_url: "" })).toBeNull();
+  });
 });
 
 describe("eztv search", () => {

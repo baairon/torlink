@@ -1,5 +1,5 @@
 import { fetchResilient, HttpError, USER_AGENT } from "../util/net";
-import { normalizeImdbId } from "../meta/cinemeta";
+import { normalizeImdbId } from "../meta/imdbId";
 import { buildMagnet } from "./magnet";
 import type { SearchOptions, Source, SourceId, TorrentResult } from "./types";
 
