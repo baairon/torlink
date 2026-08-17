@@ -45,6 +45,7 @@ import { Splash } from "./views/Splash";
 import { FolderPrompt } from "./components/FolderPrompt";
 import { TrackersPrompt } from "./components/TrackersPrompt";
 import { footerHints } from "./keymap";
+import { stepRegion } from "./move";
 import { previewLayout } from "./previewLayout";
 import { COLOR, ICON } from "./theme";
 import { useMouseWheel } from "./hooks/useMouseWheel";
@@ -96,6 +97,9 @@ export function App({
   const [downloadFocus, setDownloadFocus] = useState<DownloadFocus | null>(null);
   const [seedFocus, setSeedFocus] = useState<SeedFocus | null>(null);
   const [resultFocus, setResultFocus] = useState<ResultFocus | null>(null);
+  // Reported by the results view; see Store.previewOpen. Kept here rather than derived because
+  // only that view knows all three of the width split, the `i` toggle and the section.
+  const [previewOpen, setPreviewOpen] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const [editingFolder, setEditingFolder] = useState(false);
   const [editingTrackers, setEditingTrackers] = useState(false);
@@ -462,6 +466,14 @@ export function App({
     return () => clearTimeout(t);
   }, [notice]);
 
+  // Focus must never be left holding a pane that is no longer on screen: a resize below the
+  // split's width, the `i` toggle and leaving the results view for Downloads all take the pane
+  // away from under it. stepRegion already answers "content" once previewOpen is false, so this
+  // rescue is the same rule the arrow keys walk rather than a second one that could disagree.
+  useEffect(() => {
+    if (region === "preview" && !previewOpen) setRegion(stepRegion(region, -1, previewOpen));
+  }, [region, previewOpen]);
+
   const compact = rows < 18;
   const showTopRule = !compact;
   const showFooter = rows >= 12;
@@ -497,6 +509,8 @@ export function App({
       setSeedFocus,
       resultFocus,
       setResultFocus,
+      previewOpen,
+      setPreviewOpen,
       startDownload,
       requestDownloadTo,
       copyMagnet,
@@ -528,6 +542,7 @@ export function App({
     downloadFocus,
     seedFocus,
     resultFocus,
+    previewOpen,
     startDownload,
     requestDownloadTo,
     copyMagnet,
@@ -578,18 +593,24 @@ export function App({
         setRegion(region === "sidebar" ? "content" : "sidebar");
         return;
       }
+      // One horizontal model, three columns: sidebar, results list, info pane. The pane end of it
+      // only exists while the pane is on screen, so on a narrow terminal, a section without
+      // metadata or with the pane toggled off, → in the list stays the no-op it has always been.
       if (key.rightArrow || input === "l") {
-        if (region === "sidebar") setRegion("content");
+        setRegion(stepRegion(region, 1, previewOpen));
         return;
       }
       if (key.leftArrow || input === "h") {
-        if (region === "content") setRegion("sidebar");
+        setRegion(stepRegion(region, -1, previewOpen));
         return;
       }
       if (key.escape) {
         if (captureMode === "esc") return;
-        if (region === "content") {
-          setRegion("sidebar");
+        // esc steps left exactly as ← does, and only falls through to leaving the browser once
+        // there is nothing left of the row to step back through.
+        const back = stepRegion(region, -1, previewOpen);
+        if (back !== region) {
+          setRegion(back);
           return;
         }
         setView("splash");
@@ -713,8 +734,11 @@ export function App({
                 downloadFocus,
                 seedFocus,
                 resultFocus,
-                // Advertise `i` only where the pane it toggles can actually appear.
+                // Advertise the pane only where it can actually appear. Width alone, not
+                // previewOpen: `i` is how a closed pane comes back, so gating the slot on the
+                // pane being open would retire the only hint that says so.
                 previewLayout(contentWidth) !== null,
+                previewOpen,
               )}
             />
           </Box>

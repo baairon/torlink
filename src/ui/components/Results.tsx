@@ -169,6 +169,7 @@ export function Results() {
     copyMagnet,
     fetchAndExportTorrent,
     setResultFocus,
+    setPreviewOpen,
     contentWidth,
     listRows,
   } = useStore();
@@ -190,6 +191,9 @@ export function Results() {
   }, [search.results, section, sort, hideDead, textFilter]);
 
   const focused = region === "content";
+  // The pane holding the keyboard is still the list's own selection being read, so the list keeps
+  // its pointer on the row the pane describes — it just stops answering keys.
+  const paneFocused = region === "preview";
   const [mode, setMode] = useState<Mode>("list");
   const [cursor, setCursor] = useState(0);
   // The row the user navigated to, by infohash; null until they move. Keeps
@@ -232,10 +236,24 @@ export function Results() {
   const pageJump = Math.max(1, listHeight - 1);
 
   // One value settles both the pane's existence and the list's width, so the two can never
-  // disagree and render a pane overlapping the list's own right border. Null — toggled off, or a
-  // terminal too narrow to split — means the list keeps the full content width it always had.
-  const pane = showInfo ? previewLayout(contentWidth) : null;
+  // disagree and render a pane overlapping the list's own right border. Null — toggled off, a
+  // terminal too narrow to split, or a section with no metadata behind it — means the list keeps
+  // the full content width it always had.
+  //
+  // Games is out because nothing looks it up: every row would read "No metadata", which is a
+  // column of nothing where the list could have had 34 more of them. `all` stays in — it carries
+  // real video, and the Games rows inside it already answer "No metadata" one row at a time,
+  // which is a different thing from a tab that can never answer anything else.
+  const pane = showInfo && section !== "games" ? previewLayout(contentWidth, paneFocused) : null;
   const listWidth = pane ? pane.list : contentWidth;
+  // What App needs to know to decide whether → has a third column to step into. Reported rather
+  // than re-derived there: the `i` toggle lives here, and a second copy of this rule would be one
+  // resize away from disagreeing with the pane it is describing.
+  const paneOpen = pane !== null;
+  useEffect(() => {
+    setPreviewOpen(paneOpen);
+    return () => setPreviewOpen(false);
+  }, [paneOpen, setPreviewOpen]);
   // The row the pane describes. `clamped`, not `detail`: the pane follows the cursor even while
   // the detail view is open over the list, so closing that view leaves the pane already on the
   // right row instead of starting a fresh lookup.
@@ -500,7 +518,7 @@ export function Results() {
                 ) : null}
                 {visible.map((r, i) => {
                   const index = start + i;
-                  const here = index === clamped && focused && mode === "list";
+                  const here = index === clamped && (focused || paneFocused) && mode === "list";
                   const ss = sourceStyle(r.source);
                   return (
                     <Box key={r.infoHash}>
@@ -571,6 +589,7 @@ export function Results() {
               width={pane.pane}
               height={panelOuter}
               poster={pane.poster}
+              focused={paneFocused}
             />
           </Box>
         ) : null}

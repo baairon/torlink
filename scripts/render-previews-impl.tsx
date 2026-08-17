@@ -98,6 +98,8 @@ function makeStore(
     setSeedFocus: noop,
     resultFocus: null,
     setResultFocus: noop,
+    previewOpen: false,
+    setPreviewOpen: noop,
     startDownload: noop,
     requestDownloadTo: noop,
     copyMagnet: noop,

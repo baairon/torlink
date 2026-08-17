@@ -12,6 +12,7 @@ import {
 } from "../testHarness";
 import { Results } from "./Results";
 import { RAIL_WIDTH } from "./Sidebar";
+import { resultsPanelOuter } from "../move";
 import { previewLayout } from "../previewLayout";
 import { displayWidth } from "../textWidth";
 import { ICON } from "../theme";
@@ -31,6 +32,27 @@ const metaState = vi.hoisted(() => ({ current: null as unknown }));
 
 vi.mock("../hooks/useResultMeta", () => ({
   useResultMeta: () => metaState.current,
+}));
+
+// Off for every test above — none of their fixtures carries a posterUrl, so the real hook would
+// answer null anyway — and switched on by the frame sweep at the bottom, which needs art in the
+// pane without a byte going over the wire.
+const posterOn = vi.hoisted(() => ({ current: false }));
+
+vi.mock("../hooks/usePoster", () => ({
+  usePoster: (_url: string | undefined, cols: number, rows: number, enabled: boolean) => {
+    if (!posterOn.current || !enabled || cols < 1 || rows < 1) return { loading: false, cells: null };
+    // What fitCells answers for a 2:3 poster in this budget: width-first, capped by the rows.
+    const r = Math.min(rows, Math.max(1, Math.round(cols * 0.75)));
+    return {
+      loading: false,
+      cells: {
+        cols,
+        rows: r,
+        lines: Array.from({ length: r }, () => [{ fg: "#ff0000", bg: "#0000ff", n: cols }]),
+      },
+    };
+  },
 }));
 
 const t = (infoHash: string, name: string): TorrentResult => ({
@@ -821,5 +843,276 @@ describe("Results info pane", () => {
     const hintRow = lines(u).find((l) => l.includes("esc back")) ?? "";
     expect(hintRow.slice(0, PL?.list ?? 0)).toMatch(/esc back\s*│$/);
     for (const l of lines(u)) expect(displayWidth(l)).toBeLessThanOrEqual(WIDE_CONTENT);
+  });
+});
+
+// The pane with the keyboard in it. Region "preview" is the whole input to this view — App owns
+// the key that produces it (move.test.ts pins that walk) and Results owns what it looks like.
+describe("Results info pane focused", () => {
+  const WIDE_COLS = 120;
+  const WIDE_CONTENT = contentWidthFor(WIDE_COLS);
+  const IDLE = previewLayout(WIDE_CONTENT);
+  const READING = previewLayout(WIDE_CONTENT, true);
+
+  const topBorder = (u: RenderedUI): string => lines(u)[lineIndex(u, "╭─ Results")] ?? "";
+  const paneOpen = (u: RenderedUI): boolean => u.frame().includes("╭─ Info");
+  // Panel's two frame colours as chalk emits them: COLOR.accent for the focused panel, RULE for
+  // every other one.
+  const ACCENT = "[38;2;167;139;250m";
+  const DIM = "[38;2;107;101;119m";
+  // Both panels draw their top border on the same line, so "is this label accented" is a question
+  // about which colour was opened last before it — not about the frame containing the code at all.
+  const accented = (raw: string, label: string): boolean => {
+    const head = raw.slice(0, raw.indexOf(label));
+    return head.lastIndexOf(ACCENT) > head.lastIndexOf(DIM);
+  };
+
+  it("hands the pane every column the list can spare", async () => {
+    const u = await mount(LIST, { region: "preview" }, { loading: false, meta: MOVIE_META }, WIDE_COLS);
+
+    expect(READING).not.toBeNull();
+    if (READING === null || IDLE === null) return;
+    expect(READING.pane).toBeGreaterThan(IDLE.pane);
+    const top = topBorder(u);
+    // The same two-panel border as unfocused, at the focused split's widths: the list narrower,
+    // the pane wider, and the gap column still between them.
+    expect(top.slice(0, READING.list)).toMatch(/^╭─ Results \(\d+\) ─+╮$/);
+    expect(top.slice(READING.list + 1)).toMatch(/^╭─ Info ─+╮$/);
+    expect(displayWidth(top)).toBe(WIDE_CONTENT);
+    // The list is still a list: its rows are all still rows, none fused into the pane. At
+    // MIN_LIST_WIDTH the name column truncates, so each row is identified by what survives it.
+    expect(lines(u).filter((l) => l.includes("ubuntu 24"))).toHaveLength(1);
+    expect(lines(u).filter((l) => l.includes("ubuntu se"))).toHaveLength(1);
+    for (const l of lines(u)) expect(displayWidth(l)).toBeLessThanOrEqual(WIDE_CONTENT);
+  });
+
+  it("moves the accent from the list's frame to the pane's", async () => {
+    const browsing = await mount(LIST, {}, { loading: false, meta: MOVIE_META }, WIDE_COLS);
+    expect(accented(browsing.rawFrame(), "Results")).toBe(true);
+    expect(accented(browsing.rawFrame(), "Info")).toBe(false);
+    browsing.unmount();
+
+    const reading = await mount(
+      LIST,
+      { region: "preview" },
+      { loading: false, meta: MOVIE_META },
+      WIDE_COLS,
+    );
+    // One highlight idiom, moved — not a second one added.
+    expect(accented(reading.rawFrame(), "Results")).toBe(false);
+    expect(accented(reading.rawFrame(), "Info")).toBe(true);
+  });
+
+  it("keeps the list pointing at the row the pane is describing, and stops taking its keys", async () => {
+    const u = await mount(LIST, { region: "preview" }, { loading: false, meta: MOVIE_META }, WIDE_COLS);
+
+    // The name column truncates at MIN_LIST_WIDTH, so rows are identified by their prefixes.
+    const marked = (name: string): boolean =>
+      (lines(u).find((l) => l.includes(name)) ?? "").includes(ICON.pointer);
+    // Losing the marker would leave the card describing a row nothing on screen identifies.
+    expect(marked("ubuntu 24")).toBe(true);
+
+    u.press("j");
+    await new Promise((r) => setTimeout(r, 20));
+    // j belongs to the pane now: the cursor has not moved to the second row.
+    expect(marked("ubuntu 24")).toBe(true);
+    expect(marked("ubuntu se")).toBe(false);
+  });
+
+  it("tells App the pane is there, so → has somewhere to go", async () => {
+    const setPreviewOpen = vi.fn();
+    await mount(LIST, { setPreviewOpen }, { loading: false, meta: MOVIE_META }, WIDE_COLS);
+    expect(setPreviewOpen).toHaveBeenLastCalledWith(true);
+  });
+
+  it("tells App there is nothing to step into at 80 columns", async () => {
+    const setPreviewOpen = vi.fn();
+    const u = await mount(LIST, { setPreviewOpen }, { loading: false, meta: MOVIE_META });
+    expect(setPreviewOpen).toHaveBeenLastCalledWith(false);
+    expect(paneOpen(u)).toBe(false);
+  });
+
+  it("renders the list alone, full width, if focus somehow points at a pane that is not there", async () => {
+    // Unreachable through the keys — stepRegion refuses it and App's rescue effect undoes it —
+    // but a region and a width that disagree must degrade to the frame that has always been
+    // correct at 80 columns rather than to a pane with nowhere to draw.
+    const u = await mount(LIST, { region: "preview" }, { loading: false, meta: MOVIE_META });
+    expect(paneOpen(u)).toBe(false);
+    expect(topBorder(u)).toMatch(/^╭─ Results \(\d+\) ─+╮$/);
+    expect(displayWidth(topBorder(u))).toBe(TEST_CONTENT_WIDTH);
+    widthFits(u);
+  });
+});
+
+describe("Results info pane on Games", () => {
+  const WIDE_COLS = 120;
+  const WIDE_CONTENT = contentWidthFor(WIDE_COLS);
+  // A row from a Games-only source, so the tab has results to show while having no metadata
+  // provider behind them.
+  const GAMES = [{ ...t("g1", "some.repack-FitGirl"), source: "fitgirl" as const }];
+
+  it("hides the pane and gives the list back its columns", async () => {
+    const setPreviewOpen = vi.fn();
+    const u = await mount(
+      GAMES,
+      { section: "games", setPreviewOpen },
+      { loading: false, meta: MOVIE_META },
+      WIDE_COLS,
+    );
+
+    // Nothing looks up a game, so the pane would be a column of "No metadata" — and with it gone,
+    // → has nothing to step into either.
+    expect(u.frame()).not.toContain("╭─ Info");
+    expect(u.frame()).not.toContain("No metadata");
+    expect(setPreviewOpen).toHaveBeenLastCalledWith(false);
+    const top = lines(u)[lineIndex(u, "╭─ Results")] ?? "";
+    expect(top).toMatch(/^╭─ Results \(1\) ─+╮$/);
+    expect(displayWidth(top)).toBe(WIDE_CONTENT);
+  });
+
+  it("keeps the pane on every tab that does have metadata", async () => {
+    // `all` carries video and stays in, which is the other half of the rule: its Games rows
+    // already answer "No metadata" one row at a time, unlike a tab that can never answer more.
+    // Each tab is given a row from one of its own sources, since the tab filters the list.
+    const rows = {
+      all: LIST,
+      movies: LIST,
+      tv: [{ ...t("t1", "some.series.s01e01"), source: "eztv" as const }],
+      anime: [{ ...t("n1", "some anime 01"), source: "nyaa" as const }],
+    };
+    for (const section of ["all", "movies", "tv", "anime"] as const) {
+      const u = await mount(rows[section], { section }, { loading: false, meta: MOVIE_META }, WIDE_COLS);
+      expect(u.frame(), section).toContain("╭─ Info");
+      u.unmount();
+    }
+  });
+});
+
+// Ink answers an overflowing box by squeezing rows through Yoga's shrink math, which drops and
+// fuses lines anywhere in the block rather than cutting the one that overflowed — so the proof
+// that a two-panel split holds is that every row is still a row, at its own panel's exact width,
+// with the gap column between them still blank. This sweeps the sizes and content shapes that
+// each broke a different assumption while this feature was built.
+describe("Results frame integrity", () => {
+  const CJK_META: Meta = {
+    imdbId: "tt0245429",
+    kind: "movie",
+    title: "千と千尋の神隠し ｜ 센과 치히로의 행방불명",
+    year: "2001",
+    rating: "8.6",
+    runtime: "125 min",
+    genres: ["アニメ", "冒険", "ファンタジー"],
+    cast: ["柊瑠美", "入野自由", "夏木マリ", "内藤剛志"],
+    director: ["宮崎駿"],
+    posterUrl: "https://example.invalid/poster.jpg",
+  };
+  const WITH_POSTER: Meta = { ...MOVIE_META, posterUrl: "https://example.invalid/poster.jpg" };
+
+  // App's own row arithmetic, so a case asking for a 17-row terminal gets the listRows the real
+  // app would hand Results there.
+  const listRowsFor = (rows: number): number => {
+    const compact = rows < 18;
+    const chrome = 3 + (compact ? 0 : 2) + (rows >= 12 ? 1 : 0);
+    return Math.max(4, Math.max(6, rows - 1 - chrome));
+  };
+
+  const CASES: { name: string; meta: MetaState; art: boolean }[] = [
+    { name: "poster", meta: { loading: false, meta: WITH_POSTER }, art: true },
+    { name: "cjk", meta: { loading: false, meta: CJK_META }, art: true },
+    { name: "no metadata", meta: IDLE_META, art: false },
+  ];
+
+  // Both panels' rows, from the shared top border down to the shared bottom one.
+  const panelBlock = (u: RenderedUI, listRows: number): string[] => {
+    const all = lines(u);
+    const top = all.findIndex((l) => l.includes("╭─ Results"));
+    expect(top).toBeGreaterThanOrEqual(0);
+    return all.slice(top, top + resultsPanelOuter(listRows, 3) + 1);
+  };
+
+  it("holds both panels' frames across widths, heights, focus and metadata shapes", async () => {
+    for (const cols of [80, 92, 100, 120, 130]) {
+      for (const rows of [17, 26]) {
+        for (const focused of [false, true]) {
+          for (const c of CASES) {
+            posterOn.current = c.art;
+            const contentWidth = contentWidthFor(cols);
+            const listRows = listRowsFor(rows);
+            const pl = previewLayout(contentWidth, focused);
+            const u = await mount(
+              LIST,
+              { rows, listRows, contentWidth, region: focused && pl !== null ? "preview" : "content" },
+              c.meta,
+              cols,
+            );
+            const where = `${cols}x${rows} focused=${focused} ${c.name}`;
+            const block = panelBlock(u, listRows);
+            for (const l of lines(u)) expect(displayWidth(l), `${where} "${l}"`).toBeLessThanOrEqual(contentWidth);
+
+            if (pl === null) {
+              // The 80-column floor: one panel, full width, exactly as it renders without any of
+              // this — including when the region says the pane has focus.
+              expect(u.frame(), where).not.toContain("╭─ Info");
+              expect(block[0], where).toMatch(/^╭─ Results \(8\) ─+╮$/);
+              expect(block.at(-1), where).toMatch(/^╰─+╯$/);
+              for (const l of block.slice(1, -1)) {
+                expect(displayWidth(l), `${where} row`).toBe(contentWidth);
+              }
+            } else {
+              for (const [i, l] of block.entries()) {
+                const left = l.slice(0, pl.list);
+                const right = l.slice(pl.list + 1);
+                expect(displayWidth(left), `${where} left#${i} "${l}"`).toBe(pl.list);
+                expect(l.slice(pl.list, pl.list + 1), `${where} gap#${i}`).toBe(" ");
+                expect(displayWidth(right), `${where} right#${i} "${right}"`).toBe(pl.pane);
+                if (i === 0) {
+                  expect(left, where).toMatch(/^╭─ Results \(8\) ─+╮$/);
+                  expect(right, where).toMatch(/^╭─ Info ─+╮$/);
+                } else if (i === block.length - 1) {
+                  expect(left, where).toMatch(/^╰─+╯$/);
+                  expect(right, where).toMatch(/^╰─+╯$/);
+                } else {
+                  expect(left.startsWith("│") && left.endsWith("│"), `${where} left "${left}"`).toBe(true);
+                  expect(right.startsWith("│") && right.endsWith("│"), `${where} right "${right}"`).toBe(true);
+                }
+              }
+              expect(u.frame(), where).toContain("ubuntu 24");
+            }
+            u.unmount();
+          }
+        }
+      }
+    }
+    posterOn.current = false;
+  });
+
+  it("holds the same frame mid-scroll, where the art is cut and the affordance costs a row", async () => {
+    posterOn.current = true;
+    const cols = 120;
+    const listRows = 12;
+    const contentWidth = contentWidthFor(cols);
+    const pl = previewLayout(contentWidth, true);
+    const u = await mount(
+      LIST,
+      { listRows, contentWidth, region: "preview" },
+      { loading: false, meta: WITH_POSTER },
+      cols,
+    );
+
+    expect(pl).not.toBeNull();
+    if (pl === null) return;
+    expect(u.frame()).toContain(`${ICON.down} more`);
+    u.press(`${KEY.esc}[6~`);
+    // Proof the pane actually moved under the window, not just that it survived a keypress: the
+    // affordance now points both ways, which is the state where the art is cut at top and bottom.
+    await vi.waitFor(() => expect(u.frame()).toContain(`${ICON.up}${ICON.down} more`));
+
+    for (const [i, l] of panelBlock(u, listRows).entries()) {
+      expect(displayWidth(l.slice(0, pl.list)), `left#${i} "${l}"`).toBe(pl.list);
+      expect(l.slice(pl.list, pl.list + 1), `gap#${i}`).toBe(" ");
+      expect(displayWidth(l.slice(pl.list + 1)), `right#${i}`).toBe(pl.pane);
+    }
+    expect(u.frame()).toContain("ubuntu 24");
+    posterOn.current = false;
   });
 });

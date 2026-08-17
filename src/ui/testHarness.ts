@@ -38,6 +38,12 @@ export interface RenderedUI {
   rawFrame: () => string;
   /** Feed raw bytes to the app as if typed. */
   press: (bytes: string) => void;
+  /**
+   * Resizes the fake terminal the way a real one does — new size on the stream, then the event —
+   * because that is exactly what App's resize effect listens for (App.tsx reads stdout.columns and
+   * stdout.rows inside its "resize" handler, not from the event).
+   */
+  resize: (cols: number, rows: number) => void;
   unmount: () => void;
 }
 
@@ -97,6 +103,11 @@ export function renderUI(node: ReactNode, opts: { cols?: number; rows?: number }
     },
     rawFrame: () => writes.at(-1) ?? "",
     press: (bytes: string) => void stdin.write(bytes),
+    resize: (cols: number, rows: number) => {
+      stdout.columns = cols;
+      stdout.rows = rows;
+      stdout.emit("resize");
+    },
     unmount: () => instance.unmount(),
   };
 }
@@ -159,6 +170,8 @@ export function makeTestStore(overrides: Partial<Store> = {}): Store {
     setSeedFocus: noop,
     resultFocus: null,
     setResultFocus: noop,
+    previewOpen: false,
+    setPreviewOpen: noop,
     startDownload: noop,
     requestDownloadTo: noop,
     copyMagnet: noop,

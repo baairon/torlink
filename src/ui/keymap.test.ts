@@ -48,6 +48,9 @@ describe("info pane key", () => {
   it("carries the full label in the ? sheet", () => {
     const search = HELP_GROUPS.find((g) => g.title === "Search");
     expect(search?.hints.find((h) => h.keys === "i")?.label).toBe("Toggle info pane");
+    // Both halves of the trip are documented, or the pane is a room with no marked exit.
+    expect(search?.hints.find((h) => h.keys === "→")?.label).toContain("info pane");
+    expect(search?.hints.find((h) => h.keys === "←")?.label).toContain("results list");
   });
 
   it("advertises i in the footer only where the pane can exist", () => {
@@ -76,5 +79,57 @@ describe("info pane key", () => {
     }
     // And the row is unchanged, to the column, wherever the pane cannot render.
     expect(rowWidth(footerHints("content", "all", null, null, null))).toBe(84);
+  });
+
+  it("spends its one slot on the key that does something right now", () => {
+    // Pane on screen: → steps into it. Pane toggled off: i is what brings it back. Two hints for
+    // one pane would cost the row columns it does not have, and one arrow glyph is exactly as
+    // wide as the "i" it replaces, so the 93-column boundary above never moves.
+    const open = footerHints("content", "movies", null, null, null, true, true);
+    expect(open.find((h) => h.label === "Info")?.keys).toBe("→");
+    expect(rowWidth(open)).toBe(93);
+    const closed = footerHints("content", "movies", null, null, null, true, false);
+    expect(closed.find((h) => h.label === "Info")?.keys).toBe("i");
+    expect(rowWidth(closed)).toBe(93);
+  });
+
+  it("says nothing about a pane the Games tab never shows", () => {
+    // No provider answers for games, so the pane is hidden there and an "Info" hint would be an
+    // invitation to open a column that cannot exist.
+    for (const open of [true, false]) {
+      const games = footerHints("content", "games", null, null, null, true, open);
+      expect(games.some((h) => h.label === "Info")).toBe(false);
+    }
+    expect(footerHints("content", "anime", null, null, null, true).some((h) => h.label === "Info"))
+      .toBe(true);
+  });
+});
+
+describe("focused info pane footer", () => {
+  it("swaps the list's vocabulary for the pane's, and keeps the ? anchor last", () => {
+    const row = footerHints("preview", "all", null, null, null, true, true);
+    expect(row.map((h) => h.keys)).toEqual(["↑↓", "←", "tab", "?"]);
+    expect(row.at(-1)?.label).toBe("Keys");
+    // The list's own keys are gone, because in this region they are not what the keyboard does.
+    for (const gone of ["d", "y", "/", "f", "s"]) {
+      expect(row.some((h) => h.keys === gone), gone).toBe(false);
+    }
+  });
+
+  it("fits the 80-column budget, even though it only ever appears above 92", () => {
+    expect(rowWidth(footerHints("preview", "all", null, null, null, true, true))).toBeLessThanOrEqual(78);
+  });
+
+  it("answers the region before the section, since the pane is only ever the results view's", () => {
+    // Downloads and Seeding never report this region; if one somehow did, the pane's row is still
+    // the correct answer for a keyboard that is inside the pane.
+    for (const section of ["all", "movies", "downloads", "seeding"] as const) {
+      expect(footerHints("preview", section, "recent", "seeding").map((h) => h.keys)).toEqual([
+        "↑↓",
+        "←",
+        "tab",
+        "?",
+      ]);
+    }
   });
 });
