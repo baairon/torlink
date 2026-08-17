@@ -13,9 +13,10 @@ import {
 import { Results } from "./Results";
 import { RAIL_WIDTH } from "./Sidebar";
 import { resultsPanelOuter } from "../move";
-import { previewLayout } from "../previewLayout";
+import { MIN_FOCUSED_TEXT_ROWS, previewLayout } from "../previewLayout";
 import { displayWidth } from "../textWidth";
 import { ICON } from "../theme";
+import { fitCells } from "../../meta/image";
 import type { ConcurrentSearchState } from "../hooks/useConcurrentSearch";
 import type { MetaState } from "../hooks/useResultMeta";
 import type { Meta } from "../../meta/types";
@@ -42,14 +43,21 @@ const posterOn = vi.hoisted(() => ({ current: false }));
 vi.mock("../hooks/usePoster", () => ({
   usePoster: (_url: string | undefined, cols: number, rows: number, enabled: boolean) => {
     if (!posterOn.current || !enabled || cols < 1 || rows < 1) return { loading: false, cells: null };
-    // What fitCells answers for a 2:3 poster in this budget: width-first, capped by the rows.
-    const r = Math.min(rows, Math.max(1, Math.round(cols * 0.75)));
+    // fitCells itself, on a 2:3 poster, rather than a hand-rolled approximation of it: the real
+    // decoder narrows a grid it had to cap by rows to preserve aspect, and that narrowing is what
+    // the focused pane's side-by-side layout is decided from. A mock that kept the full width
+    // would hand every case a poster as wide as the pane and quietly test only one of the two
+    // layouts.
+    const fit = fitCells(120, 180, cols, rows);
+    if (fit.cols < 1 || fit.rows < 1) return { loading: false, cells: null };
     return {
       loading: false,
       cells: {
-        cols,
-        rows: r,
-        lines: Array.from({ length: r }, () => [{ fg: "#ff0000", bg: "#0000ff", n: cols }]),
+        cols: fit.cols,
+        rows: fit.rows,
+        lines: Array.from({ length: fit.rows }, () => [
+          { fg: "#ff0000", bg: "#0000ff", n: fit.cols },
+        ]),
       },
     };
   },
@@ -852,7 +860,11 @@ describe("Results info pane focused", () => {
   const WIDE_COLS = 120;
   const WIDE_CONTENT = contentWidthFor(WIDE_COLS);
   const IDLE = previewLayout(WIDE_CONTENT);
-  const READING = previewLayout(WIDE_CONTENT, true);
+  // The pane's own content height at the harness default listRows, which the focused width now
+  // depends on: how wide a poster comes out decides how wide a pane has to be to seat a card
+  // next to it.
+  const READING_ROWS = resultsPanelOuter(14, 3) - 1;
+  const READING = previewLayout(WIDE_CONTENT, true, READING_ROWS);
 
   const topBorder = (u: RenderedUI): string => lines(u)[lineIndex(u, "╭─ Results")] ?? "";
   const paneOpen = (u: RenderedUI): boolean => u.frame().includes("╭─ Info");
@@ -1007,6 +1019,16 @@ describe("Results frame integrity", () => {
     posterUrl: "https://example.invalid/poster.jpg",
   };
   const WITH_POSTER: Meta = { ...MOVIE_META, posterUrl: "https://example.invalid/poster.jpg" };
+  // A synopsis at the length Cinemeta actually sends for a feature. MOVIE_META's one-liner fits
+  // any pane that has a column of its own, and a card that fits is a card no window ever cuts —
+  // which is the state the side-by-side scroll case has to avoid to be testing anything.
+  const LONG_PLOT: Meta = {
+    ...WITH_POSTER,
+    plot:
+      "Over the course of several years, two convicts form a friendship, seeking consolation " +
+      "and, eventually, redemption through basic compassion. Chronicles the experiences of a " +
+      "man sentenced to life in Shawshank State Penitentiary for a crime he did not commit.",
+  };
 
   // App's own row arithmetic, so a case asking for a 17-row terminal gets the listRows the real
   // app would hand Results there.
@@ -1016,11 +1038,28 @@ describe("Results frame integrity", () => {
     return Math.max(4, Math.max(6, rows - 1 - chrome));
   };
 
-  const CASES: { name: string; meta: MetaState; art: boolean }[] = [
-    { name: "poster", meta: { loading: false, meta: WITH_POSTER }, art: true },
-    { name: "cjk", meta: { loading: false, meta: CJK_META }, art: true },
-    { name: "no metadata", meta: IDLE_META, art: false },
+  const CASES: { name: string; meta: MetaState; art: boolean; guaranteed: boolean }[] = [
+    { name: "poster", meta: { loading: false, meta: WITH_POSTER }, art: true, guaranteed: false },
+    { name: "cjk", meta: { loading: false, meta: CJK_META }, art: true, guaranteed: false },
+    { name: "no metadata", meta: IDLE_META, art: false, guaranteed: false },
+    // The only case with enough card to ask the guarantee of at every width in the sweep: a
+    // one-line synopsis wraps to fewer than eight rows in a wide pane, and a card that is short
+    // cannot be evidence of one being cut.
+    { name: "long plot", meta: { loading: false, meta: LONG_PLOT }, art: true, guaranteed: true },
+    { name: "long plot, no art", meta: { loading: false, meta: LONG_PLOT }, art: false, guaranteed: true },
   ];
+
+  // Rows of the pane carrying card text: not its borders, not the poster, not the blank spacer,
+  // and not the scroll affordance, which is chrome rather than card.
+  const cardRows = (block: readonly string[], list: number): number =>
+    block.slice(1, -1).filter((l) => {
+      const right = l.slice(list + 1);
+      return (
+        !right.includes(ICON.up) &&
+        !right.includes(ICON.down) &&
+        right.replace(/[│▀\s]/g, "") !== ""
+      );
+    }).length;
 
   // Both panels' rows, from the shared top border down to the shared bottom one.
   const panelBlock = (u: RenderedUI, listRows: number): string[] => {
@@ -1031,14 +1070,14 @@ describe("Results frame integrity", () => {
   };
 
   it("holds both panels' frames across widths, heights, focus and metadata shapes", async () => {
-    for (const cols of [80, 92, 100, 120, 130]) {
-      for (const rows of [17, 26]) {
+    for (const cols of [80, 92, 100, 110, 120, 160]) {
+      for (const rows of [17, 26, 30]) {
         for (const focused of [false, true]) {
           for (const c of CASES) {
             posterOn.current = c.art;
             const contentWidth = contentWidthFor(cols);
             const listRows = listRowsFor(rows);
-            const pl = previewLayout(contentWidth, focused);
+            const pl = previewLayout(contentWidth, focused, resultsPanelOuter(listRows, 3) - 1);
             const u = await mount(
               LIST,
               { rows, listRows, contentWidth, region: focused && pl !== null ? "preview" : "content" },
@@ -1077,6 +1116,17 @@ describe("Results frame integrity", () => {
                 }
               }
               expect(u.frame(), where).toContain("ubuntu 24");
+              // The contract focusing exists to keep: the user stepped in to read the
+              // description, so the card is on screen without scrolling — MIN_FOCUSED_TEXT_ROWS
+              // of it, or the whole window where the pane is shorter than that.
+              if (focused && c.guaranteed) {
+                const paneInnerRows = resultsPanelOuter(listRows, 3) - 1;
+                const scrolls = u.frame().includes(`${ICON.down} more`);
+                const window = paneInnerRows - (scrolls ? 1 : 0);
+                expect(cardRows(block, pl.list), `${where} card rows`).toBeGreaterThanOrEqual(
+                  Math.min(MIN_FOCUSED_TEXT_ROWS, window),
+                );
+              }
             }
             u.unmount();
           }
@@ -1086,33 +1136,67 @@ describe("Results frame integrity", () => {
     posterOn.current = false;
   });
 
-  it("holds the same frame mid-scroll, where the art is cut and the affordance costs a row", async () => {
+  // Mid-scroll is where the two panels are easiest to break, because the pane's contents change
+  // shape under a fixed frame while the list beside it does not move at all. Both of the focused
+  // pane's layouts get a pass, since they compose their rows differently and only share the
+  // window that slices them.
+  const midScroll = async (
+    cols: number,
+    listRows: number,
+    meta: Meta,
+  ): Promise<{ u: RenderedUI; pl: NonNullable<ReturnType<typeof previewLayout>> }> => {
     posterOn.current = true;
-    const cols = 120;
-    const listRows = 12;
     const contentWidth = contentWidthFor(cols);
-    const pl = previewLayout(contentWidth, true);
-    const u = await mount(
-      LIST,
-      { listRows, contentWidth, region: "preview" },
-      { loading: false, meta: WITH_POSTER },
-      cols,
-    );
-
+    const pl = previewLayout(contentWidth, true, resultsPanelOuter(listRows, 3) - 1);
+    const u = await mount(LIST, { listRows, contentWidth, region: "preview" }, { loading: false, meta }, cols);
     expect(pl).not.toBeNull();
-    if (pl === null) return;
+    if (pl === null) throw new Error(`no pane at ${cols} columns`);
     expect(u.frame()).toContain(`${ICON.down} more`);
-    u.press(`${KEY.esc}[6~`);
+    u.press(KEY.down);
     // Proof the pane actually moved under the window, not just that it survived a keypress: the
     // affordance now points both ways, which is the state where the art is cut at top and bottom.
     await vi.waitFor(() => expect(u.frame()).toContain(`${ICON.up}${ICON.down} more`));
+    return { u, pl };
+  };
 
+  const rowsIntact = (u: RenderedUI, listRows: number, pl: { list: number; pane: number }): void => {
     for (const [i, l] of panelBlock(u, listRows).entries()) {
       expect(displayWidth(l.slice(0, pl.list)), `left#${i} "${l}"`).toBe(pl.list);
       expect(l.slice(pl.list, pl.list + 1), `gap#${i}`).toBe(" ");
       expect(displayWidth(l.slice(pl.list + 1)), `right#${i}`).toBe(pl.pane);
     }
     expect(u.frame()).toContain("ubuntu 24");
+  };
+
+  // Whether any row of the pane carries art and text at once, which is the one thing the stacked
+  // layout can never produce and the only thing the side-by-side one is for.
+  const anyRowSplit = (u: RenderedUI, listRows: number, list: number): boolean =>
+    panelBlock(u, listRows).some((l) => {
+      const right = l.slice(list + 1);
+      return right.includes("▀") && /[A-Za-z]/.test(right);
+    });
+
+  it("holds the same frame mid-scroll where the pane stacked, and the window cuts the art", async () => {
+    // 110 terminal columns is the last tier that still carries a poster while leaving the focused
+    // pane only 38 — 34 inside the frame, under the width a picture needs beside a card at
+    // MIN_TEXT_COLS. So this is the stacked fallback: the art gives up rows instead of columns,
+    // the card sits under it, and the window cuts through the picture itself. 23 rows are what
+    // let the pane keep any art at all under that reserve.
+    const listRows = 23;
+    const { u, pl } = await midScroll(110, listRows, LONG_PLOT);
+    expect(anyRowSplit(u, listRows, pl.list)).toBe(false);
+    rowsIntact(u, listRows, pl);
+    posterOn.current = false;
+  });
+
+  it("holds the same frame mid-scroll where the pane split, with both columns cut at once", async () => {
+    // 120 terminal columns leaves the pane 48 — 44 inside the frame, enough to seat a 15-column
+    // poster beside a card at MIN_TEXT_COLS. One window then slices both columns, so the art loses
+    // its top row on the same keypress the title does.
+    const listRows = 19;
+    const { u, pl } = await midScroll(120, listRows, LONG_PLOT);
+    expect(anyRowSplit(u, listRows, pl.list)).toBe(true);
+    rowsIntact(u, listRows, pl);
     posterOn.current = false;
   });
 });

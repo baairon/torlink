@@ -7,7 +7,7 @@ import { usePoster } from "../hooks/usePoster";
 import { useResultMeta } from "../hooks/useResultMeta";
 import { scrollStart } from "../move";
 import { planPaneLines } from "../paneCard";
-import { posterBudget } from "../previewLayout";
+import { COLUMN_GAP, MAX_TEXT_COLS, posterBudget, splitTextCols } from "../previewLayout";
 import { COLOR, ICON } from "../theme";
 import type { PosterCells } from "../../meta/image";
 import type { TorrentResult } from "../../sources/types";
@@ -29,7 +29,8 @@ import type { TorrentResult } from "../../sources/types";
  * `focused` is the pane holding the keyboard (region "preview"). It is one prop rather than a read
  * of the store because the pane is rendered standalone in its own tests, and because the pane
  * itself has no opinion on what focus means — it is told, and answers with a wider card, a
- * full-size poster and rows that scroll instead of rows that were cut to fit.
+ * full-size poster, rows that scroll instead of rows that were cut to fit, and — where the columns
+ * are there for it — the poster and the card side by side instead of stacked.
  */
 export function MetaPane({
   result,
@@ -81,26 +82,48 @@ export function MetaPane({
   }, [rowKey]);
 
   // The card is laid out around the art that actually rendered, never around art that is merely
-  // expected. A poster still in flight, refused by the host sniff or rejected by the decoder
-  // therefore leaves the text exactly where it sits without it — no reserved hole, no gap, and no
-  // second layout to get wrong. The cost is that the text settles downward once when art lands.
+  // expected — including which of the two layouts below it gets. A poster still in flight, refused
+  // by the host sniff or rejected by the decoder therefore leaves the text with the whole pane to
+  // itself: no reserved hole, no gap, and no column held open for a picture that may never come.
+  // The cost is one settle when art does land, and only then.
   const artRows = art === null ? 0 : art.rows;
-  const head = art === null ? 0 : artRows + 1; // art + the blank row between it and the text
+  const artCols = art === null ? 0 : art.cols;
+
+  // A poster fitCells had to cap by rows comes back narrower than the pane that asked for it, and
+  // stacking leaves those freed columns as dead gutter beside the art while the card below them
+  // has one row to say anything in. Focused, the pane spends them on the card instead: the art
+  // takes the left column and the text flows down the right. splitTextCols answers null when the
+  // card would land under a readable measure, and null is the stacked layout the pane has always
+  // drawn — unfocused it is the only layout, because a 34-column tier split two ways is neither.
+  const cardCols = focused ? splitTextCols(innerWidth, artCols) : null;
+  const split = cardCols !== null;
+  // Clamped in both layouts, because the pane is no longer only ever a card: it is granted width
+  // for a poster *and* a measure, so a poster that arrives narrower than the box it was budgeted
+  // into — a squarer rendition, or one refused entirely — would otherwise leave the card wrapping
+  // prose across the whole grant. MAX_TEXT_COLS is the measure either way; any surplus stays blank.
+  const textWidth = Math.min(cardCols ?? innerWidth, MAX_TEXT_COLS);
+
+  // Rows the art claims off the top of the card before the text starts. Stacked that is the whole
+  // picture plus the blank spacer under it; side by side it is none of them — row i is art row i
+  // *beside* card row i, so both columns share one offset and one window slices them together.
+  const head = split || art === null ? 0 : artRows + 1;
   // Unfocused the card is cut to what is left; focused it is built whole and the window below
   // decides what shows, which is the entire point of being able to focus it.
   const textBudget = focused ? Number.POSITIVE_INFINITY : Math.max(0, innerRows - head);
   // Memoised because the pane re-renders on every search tick and every cursor move, while the
   // word wrapper is linear in the plot — the one field long enough for that to be worth a cache.
   const lines = useMemo(
-    () => (meta === null ? [] : planPaneLines(meta, innerWidth, textBudget)),
-    [meta, innerWidth, textBudget],
+    () => (meta === null ? [] : planPaneLines(meta, textWidth, textBudget)),
+    [meta, textWidth, textBudget],
   );
   // One entry per terminal row, so the window can cut inside a wrapped credit.
   const textRows = lines.flatMap((l) =>
     l.text.split("\n").map((text, i) => ({ key: `${l.key}:${i}`, text, tone: l.tone })),
   );
 
-  const total = head + textRows.length;
+  // Side by side the two columns are the same rows, not consecutive ones, so the block is as tall
+  // as the taller of them rather than as tall as both.
+  const total = split ? Math.max(artRows, textRows.length) : head + textRows.length;
   // The affordance costs a row, and it only exists when there is something off screen to point
   // at, so the two are resolved together: overflow against the full height, then the window
   // against what the affordance leaves. Unfocused there is nothing to resolve — planPaneLines
@@ -144,9 +167,22 @@ export function MetaPane({
     return { cols: art.cols, rows: to - from, lines: art.lines.slice(from, to) };
   }, [art, start, end]);
 
-  const gapVisible = art !== null && start <= artRows && artRows < end;
+  // The spacer row only exists in the stacked layout, and only while the window is over it.
+  const gapVisible = !split && art !== null && start <= artRows && artRows < end;
   const shownText = textRows.slice(Math.max(0, start - head), Math.max(0, end - head));
   const more = `${start > 0 ? ICON.up : ""}${end < total ? ICON.down : ""} more`;
+
+  const card = shownText.map((l) => (
+    <Text
+      key={l.key}
+      wrap="wrap"
+      bold={l.tone === "title"}
+      color={l.tone === "title" ? COLOR.text : undefined}
+      dimColor={l.tone === "dim"}
+    >
+      {l.text}
+    </Text>
+  ));
 
   return (
     <Panel title="info" width={width} height={height} focused={focused}>
@@ -159,19 +195,34 @@ export function MetaPane({
         <Text dimColor>No metadata</Text>
       ) : (
         <Box flexDirection="column">
-          {artWindow !== null && <Poster cells={artWindow} />}
-          {gapVisible && <Box height={1} flexShrink={0} />}
-          {shownText.map((l) => (
-            <Text
-              key={l.key}
-              wrap="wrap"
-              bold={l.tone === "title"}
-              color={l.tone === "title" ? COLOR.text : undefined}
-              dimColor={l.tone === "dim"}
-            >
-              {l.text}
-            </Text>
-          ))}
+          {split ? (
+            // Both columns are pinned, and together they never exceed innerWidth — usually they
+            // fill it, and where the card hit MAX_TEXT_COLS the remainder simply stays blank. What
+            // matters is that Yoga is never asked to shrink either one: a shrunk column would
+            // rewrap text planPaneLines already wrapped, which is how a card ends up a row taller
+            // than the window that was sized for it. The art's column keeps its width even once
+            // the window has scrolled past the last row of the picture, so the card never slides
+            // left mid-scroll and never rewraps under the reader.
+            <Box>
+              <Box flexDirection="column" width={artCols} flexShrink={0}>
+                {artWindow !== null && <Poster cells={artWindow} />}
+              </Box>
+              <Box
+                flexDirection="column"
+                width={textWidth}
+                flexShrink={0}
+                marginLeft={COLUMN_GAP}
+              >
+                {card}
+              </Box>
+            </Box>
+          ) : (
+            <>
+              {artWindow !== null && <Poster cells={artWindow} />}
+              {gapVisible && <Box height={1} flexShrink={0} />}
+              {card}
+            </>
+          )}
           {overflow && (
             // The calm theme's answer to a scrollbar: one dim line saying which way there is more
             // of the card, in the same voice as every other hint in the app.

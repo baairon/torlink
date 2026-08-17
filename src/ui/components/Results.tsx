@@ -244,7 +244,12 @@ export function Results() {
   // column of nothing where the list could have had 34 more of them. `all` stays in — it carries
   // real video, and the Games rows inside it already answer "No metadata" one row at a time,
   // which is a different thing from a tab that can never answer anything else.
-  const pane = showInfo && section !== "games" ? previewLayout(contentWidth, paneFocused) : null;
+  // panelOuter less the bottom border Panel draws inside it: the pane's own content height, which
+  // a focused split needs because how wide the poster comes out is a question about height.
+  const pane =
+    showInfo && section !== "games"
+      ? previewLayout(contentWidth, paneFocused, panelOuter - 1)
+      : null;
   const listWidth = pane ? pane.list : contentWidth;
   // What App needs to know to decide whether → has a third column to step into. Reported rather
   // than re-derived there: the `i` toggle lives here, and a second copy of this rule would be one

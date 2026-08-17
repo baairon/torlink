@@ -3,10 +3,11 @@ import { describe, expect, it, beforeEach, vi } from "vitest";
 import { MetaPane } from "./MetaPane";
 import { KEY, renderUI } from "../testHarness";
 import { displayWidth } from "../textWidth";
-import { posterBudget } from "../previewLayout";
+import { MIN_FOCUSED_TEXT_ROWS, posterBudget } from "../previewLayout";
 import { ICON } from "../theme";
 import { usePoster } from "../hooks/usePoster";
 import { useResultMeta } from "../hooks/useResultMeta";
+import { fitCells } from "../../meta/image";
 import type { PosterCells } from "../../meta/image";
 import type { Meta } from "../../meta/types";
 import type { TorrentResult } from "../../sources/types";
@@ -217,25 +218,31 @@ describe("MetaPane plot", () => {
   });
 });
 
-// The focused pane is the same card with the vertical budget taken off it: full-size art, the
-// whole text, and a window over the two. Every assertion here is about rows — which ones are on
-// screen and how many — because that is what scrolling can get wrong, and because a pane that
-// overflows its frame shows up as fused rows rather than as a wide line.
-describe("MetaPane focused", () => {
-  // What the results view hands a focused pane at 120 columns: previewLayout gives the list its
-  // MIN_LIST_WIDTH and the pane the rest.
-  const WIDE_W = 42;
+// A focused pane too narrow to seat the card beside the picture: the art gives up rows instead of
+// columns, the card sits under it, and one window scrolls the two. Every assertion here is about
+// rows — which ones are on screen and how many — because that is what scrolling can get wrong, and
+// because a pane that overflows its frame shows up as fused rows rather than as a wide line.
+describe("MetaPane focused, stacked", () => {
+  // 40 columns is 36 inside Panel's frame, which leaves 7 beside a card at MIN_TEXT_COLS — under
+  // MIN_POSTER_COLS, so nothing can sit there and the pane stacks. 41 is the first width that can.
+  const WIDE_W = 40;
   const FOCUSED_BUDGET = posterBudget(WIDE_W, INNER_ROWS, true);
-  // A 2:3 poster at the full 24 columns — the size the art was always meant to be and never
-  // reached below a 44-row terminal, which is the measurement this whole mode exists for.
-  const FULL_ART = art(24, 18);
-  // 18 art rows + the spacer + this card's six text rows: title, facts, genres, director and a
-  // cast credit that wraps to two at 38 columns inside the frame.
-  const TOTAL_ROWS = 18 + 1 + 6;
+  // What fitCells answers for a 2:3 poster in that budget (36x9): 12x9, narrowed by the rows the
+  // card's guarantee kept back rather than by the pane's width.
+  const FULL_ART = art(12, 9);
 
   const paneLines = (frame: string): string[] => frameLines(frame).slice(1, -1);
   const artRowCount = (frame: string): number =>
     paneLines(frame).filter((l) => l.includes("▀")).length;
+  // Rows carrying card text: not the borders, not the art, not the blank spacer, and not the
+  // scroll affordance, which is chrome the guarantee does not count.
+  const cardRowCount = (frame: string): number =>
+    paneLines(frame).filter(
+      (l) =>
+        !l.includes(ICON.up) &&
+        !l.includes(ICON.down) &&
+        l.replace(/[│▀\s]/g, "") !== "",
+    ).length;
 
   // Swapping the row under a mounted pane, which a second render cannot express: the reset is an
   // effect keyed on the row, so the tree has to stay alive across the change. Mirrors the
@@ -252,15 +259,17 @@ describe("MetaPane focused", () => {
     return <MetaPane result={row} width={WIDE_W} height={PANE_H} poster focused />;
   }
 
-  it("asks for art sized by the pane's width, not by the rows the text left over", () => {
+  it("asks for art sized to leave the card the rows it is guaranteed", () => {
     renderUI(
       <MetaPane result={ROW} width={WIDE_W} height={PANE_H} poster focused />,
     ).unmount();
     expect(FOCUSED_BUDGET).not.toBeNull();
-    expect(FOCUSED_BUDGET?.cols).toBe(24);
-    // Taller than the pane on purpose: the height cap is a ceiling on pathological art, and the
-    // rows it would not have fitted in are exactly the ones scrolling gives back.
-    expect(FOCUSED_BUDGET?.rows).toBeGreaterThan(INNER_ROWS);
+    // Stacked, the art still gets every column inside Panel's frame — it is height it gives up.
+    expect(FOCUSED_BUDGET?.cols).toBe(WIDE_W - 4);
+    // The eight rows the card is promised, plus the spacer and the scroll affordance, neither of
+    // which is card. A picture that filled the pane would bury the description the user focused
+    // the pane to read, and the rows past what fits are the ones scrolling gives back anyway.
+    expect(FOCUSED_BUDGET?.rows).toBe(INNER_ROWS - MIN_FOCUSED_TEXT_ROWS - 2);
     expect(mockPoster).toHaveBeenCalledWith(
       META.posterUrl,
       FOCUSED_BUDGET?.cols,
@@ -276,25 +285,29 @@ describe("MetaPane focused", () => {
     ui.unmount();
   });
 
-  it("fills the frame exactly with art it is too short to hold, and says there is more", () => {
+  it("keeps the description on screen under the art instead of a row of title", () => {
+    // The whole point of the guarantee: a poster the user has to scroll past before reaching the
+    // synopsis is not what they focused the pane for. Eight rows of card, art and all.
+    mockMeta.mockReturnValue({ loading: false, meta: META_PLOT });
     mockPoster.mockReturnValue({ loading: false, cells: FULL_ART });
     const ui = renderUI(<MetaPane result={ROW} width={WIDE_W} height={PANE_H} poster focused />, {
       cols: 60,
     });
     const out = frameLines(ui.frame());
 
-    expect(out).toHaveLength(1 + PANE_H);
-    for (const line of out) expect(displayWidth(line)).toBe(WIDE_W);
-    // The affordance costs one row, so the window is one short of the pane's inner height.
-    expect(artRowCount(ui.frame())).toBe(INNER_ROWS - 1);
+    expect(artRowCount(ui.frame())).toBe(FULL_ART.rows);
+    expect(cardRowCount(ui.frame())).toBeGreaterThanOrEqual(MIN_FOCUSED_TEXT_ROWS);
+    expect(ui.frame()).toContain("The Matrix");
+    expect(ui.frame()).toContain("A computer hacker");
     expect(ui.frame()).toContain(`${ICON.down} more`);
     expect(ui.frame()).not.toContain(ICON.up);
-    // Off the bottom of the window, and not rendered anywhere above it.
-    expect(ui.frame()).not.toContain("The Matrix");
+    expect(out).toHaveLength(1 + PANE_H);
+    for (const line of out) expect(displayWidth(line)).toBe(WIDE_W);
     ui.unmount();
   });
 
   it("scrolls the card under the window and clamps at the bottom", async () => {
+    mockMeta.mockReturnValue({ loading: false, meta: META_PLOT });
     mockPoster.mockReturnValue({ loading: false, cells: FULL_ART });
     const ui = renderUI(<MetaPane result={ROW} width={WIDE_W} height={PANE_H} poster focused />, {
       cols: 60,
@@ -303,22 +316,20 @@ describe("MetaPane focused", () => {
     ui.press("j");
     await vi.waitFor(() => expect(ui.frame()).toContain(`${ICON.up}${ICON.down} more`));
     // One row of art gone from the top, and the card one row further along at the bottom.
-    expect(artRowCount(ui.frame())).toBe(INNER_ROWS - 2);
+    expect(artRowCount(ui.frame())).toBe(FULL_ART.rows - 1);
 
-    // Six rows is the entire overflow: 24 rows of card into an 18-row window. Ten presses, so
-    // the last four are keys that do nothing rather than a card that keeps sliding.
+    // Ten presses for an overflow of four, so the last six are keys that do nothing rather than a
+    // card that keeps sliding.
     for (let i = 0; i < 10; i++) ui.press(DOWN);
     await vi.waitFor(() => expect(ui.frame()).toContain(`${ICON.up} more`));
 
     const out = frameLines(ui.frame());
     expect(out).toHaveLength(1 + PANE_H);
     for (const line of out) expect(displayWidth(line)).toBe(WIDE_W);
-    // The bottom of the card: title, credits, and the six rows of art that scrolled off the top.
-    expect(ui.frame()).toContain("The Matrix");
-    expect(ui.frame()).toContain("Dir Lana Wachowski");
-    expect(ui.frame()).toContain("Cast Keanu Reeves");
+    // The bottom of the card: the last words of the plot, which only exist on screen because the
+    // focused planner was handed an infinite budget and never truncated it.
+    expect(ui.frame()).toContain("power.");
     expect(ui.frame()).not.toContain(`${ICON.down} more`);
-    expect(artRowCount(ui.frame())).toBe(FULL_ART.rows - (TOTAL_ROWS - (INNER_ROWS - 1)));
 
     ui.press("k");
     await vi.waitFor(() => expect(ui.frame()).toContain(`${ICON.up}${ICON.down} more`));
@@ -326,18 +337,20 @@ describe("MetaPane focused", () => {
   });
 
   it("pages by a window at a time and stops at the top", async () => {
+    mockMeta.mockReturnValue({ loading: false, meta: META_PLOT });
     mockPoster.mockReturnValue({ loading: false, cells: FULL_ART });
     const ui = renderUI(<MetaPane result={ROW} width={WIDE_W} height={PANE_H} poster focused />, {
       cols: 60,
     });
 
     ui.press(PAGE_DOWN);
-    await vi.waitFor(() => expect(ui.frame()).toContain("Cast Keanu Reeves"));
+    await vi.waitFor(() => expect(ui.frame()).toContain("power."));
     ui.press(PAGE_UP);
     await vi.waitFor(() => expect(ui.frame()).toContain(`${ICON.down} more`));
-    // Clamped, not wrapped: the first row of the card is back and nothing sits above it.
+    // Clamped, not wrapped: the first row of the card is back and nothing sits above it, so
+    // every row of the art is on screen again.
     expect(ui.frame()).not.toContain(ICON.up);
-    expect(artRowCount(ui.frame())).toBe(INNER_ROWS - 1);
+    expect(artRowCount(ui.frame())).toBe(FULL_ART.rows);
     ui.unmount();
   });
 
@@ -357,6 +370,7 @@ describe("MetaPane focused", () => {
   });
 
   it("opens a new row at the top of its card", async () => {
+    mockMeta.mockReturnValue({ loading: false, meta: META_PLOT });
     mockPoster.mockReturnValue({ loading: false, cells: FULL_ART });
     const ui = renderUI(<Swappable />, { cols: 60 });
 
@@ -371,8 +385,9 @@ describe("MetaPane focused", () => {
   });
 
   it("leaves a card that already fits alone", () => {
-    // No art: five lines of text in nineteen rows. Nothing overflows, so there is no affordance
-    // and no row spent on one.
+    // No plot on this fixture: nine rows of art, the spacer and six of card in nineteen rows.
+    // Nothing overflows, so there is no affordance and no row spent on one.
+    mockPoster.mockReturnValue({ loading: false, cells: FULL_ART });
     const ui = renderUI(<MetaPane result={ROW} width={WIDE_W} height={PANE_H} poster focused />, {
       cols: 60,
     });
@@ -385,8 +400,9 @@ describe("MetaPane focused", () => {
   });
 
   it("holds its frame on a pane too short for art at all", () => {
-    // rows 17: the shortest terminal the app still draws a results panel in. posterBudget refuses
-    // art below MIN_POSTER_ROWS on screen, so this is the text card in a five-row window.
+    // Five inner rows: posterBudget refuses art rather than break the card's guarantee, so this is
+    // the text card alone with the whole pane to itself — which is the guarantee holding, not
+    // failing.
     mockPoster.mockReturnValue({ loading: false, cells: FULL_ART });
     const ui = renderUI(<MetaPane result={ROW} width={WIDE_W} height={6} poster focused />, {
       cols: 60,
@@ -397,5 +413,149 @@ describe("MetaPane focused", () => {
     expect(ui.frame()).not.toContain("▀");
     expect(ui.frame()).toContain("The Matrix");
     ui.unmount();
+  });
+});
+
+// The focused pane's second layout: poster in the left column, card in the right one. It exists
+// because a poster fitCells had to cap by rows comes back narrower than the pane, and stacking
+// spends the pane's whole height on the picture while leaving those freed columns as dead gutter
+// beside it. Every assertion here is about which rows carry both things at once.
+describe("MetaPane side by side", () => {
+  // 60 columns is 56 inside Panel's frame, and 18 rows leave 17 inner ones. The art is handed
+  // 56 - COLUMN_GAP - MIN_TEXT_COLS = 27 columns and all 17 rows, and a 2:3 poster fills 23x17 of
+  // that box, leaving the card 32.
+  const SPLIT_W = 60;
+  const SPLIT_H = 18;
+  const ART_COLS = 23;
+  const ART_ROWS = 17;
+  // The narrowest pane that splits at all: 41 is 37 inside the frame, which is MIN_POSTER_COLS +
+  // COLUMN_GAP + MIN_TEXT_COLS exactly. 40 is one column short and stacks.
+  const EDGE_W = 41;
+
+  // The decoder's own answer for a 2:3 poster in whatever budget the pane asks for, rather than a
+  // grid pinned to one size: the split is decided from the width fitCells narrows a height-capped
+  // poster to, so a fixture that ignored that narrowing would only ever exercise one layout.
+  const fitted = (): void => {
+    mockPoster.mockImplementation((_url, cols, rows, enabled) => {
+      if (!enabled || cols < 1 || rows < 1) return { loading: false, cells: null };
+      const f = fitCells(120, 180, cols, rows);
+      if (f.cols < 1 || f.rows < 1) return { loading: false, cells: null };
+      return { loading: false, cells: art(f.cols, f.rows) };
+    });
+  };
+
+  const paneLines = (frame: string): string[] => frameLines(frame).slice(1, -1);
+  const artRowCount = (frame: string): number =>
+    paneLines(frame).filter((l) => l.includes("▀")).length;
+  // A row carrying art and text at once is the whole claim of this layout, and the one thing the
+  // stacked layout can never produce.
+  const beside = (frame: string, text: string): boolean =>
+    paneLines(frame).some((l) => l.includes("▀") && l.includes(text));
+
+  const intact = (ui: { frame: () => string }, w: number, h: number): void => {
+    const out = frameLines(ui.frame());
+    expect(out).toHaveLength(1 + h);
+    for (const line of out) expect(displayWidth(line)).toBe(w);
+  };
+
+  it("puts the card beside the poster instead of under it", () => {
+    fitted();
+    const ui = renderUI(
+      <MetaPane result={ROW} width={SPLIT_W} height={SPLIT_H} poster focused />,
+      { cols: 100 },
+    );
+    // The art keeps the pane's whole height — beside the card it never had to give rows up — and
+    // the title sits on its first row rather than seventeen rows below it.
+    expect(artRowCount(ui.frame())).toBe(ART_ROWS);
+    expect(beside(ui.frame(), "The Matrix")).toBe(true);
+    expect(beside(ui.frame(), "Cast Keanu Reeves")).toBe(true);
+    expect(paneLines(ui.frame())[0]).toContain("\u2580".repeat(ART_COLS));
+    intact(ui, SPLIT_W, SPLIT_H);
+    ui.unmount();
+  });
+
+  it("stacks one column below the width a picture needs beside the card, with no off-by-one", () => {
+    fitted();
+    // 37 inner columns: MIN_POSTER_COLS beside the gap and MIN_TEXT_COLS, so the pane splits on
+    // the narrowest picture it is willing to draw.
+    const wide = renderUI(
+      <MetaPane result={ROW} width={EDGE_W} height={SPLIT_H} poster focused />,
+      { cols: 100 },
+    );
+    expect(beside(wide.frame(), "The Matrix")).toBe(true);
+    intact(wide, EDGE_W, SPLIT_H);
+    wide.unmount();
+
+    // 36: one column short, and the answer is the stacked layout rather than a seven-column smear
+    // beside the card. The art gives up rows instead, and nothing sits next to it.
+    const narrow = renderUI(
+      <MetaPane result={ROW} width={EDGE_W - 1} height={SPLIT_H} poster focused />,
+      { cols: 100 },
+    );
+    expect(narrow.frame()).toContain("\u2580");
+    expect(beside(narrow.frame(), "The Matrix")).toBe(false);
+    intact(narrow, EDGE_W - 1, SPLIT_H);
+    narrow.unmount();
+  });
+
+  it("leaves an unfocused pane stacked however wide it is", () => {
+    // Browsing, the pane is pinned at its tier's width and the card is cut to the rows the art
+    // left — splitting there would hand both halves something too narrow to be either.
+    fitted();
+    const ui = renderUI(<MetaPane result={ROW} width={SPLIT_W} height={SPLIT_H} poster />, {
+      cols: 100,
+    });
+    expect(ui.frame()).toContain("\u2580");
+    expect(beside(ui.frame(), "The Matrix")).toBe(false);
+    intact(ui, SPLIT_W, SPLIT_H);
+    ui.unmount();
+  });
+
+  it("scrolls both columns as one list, not two", async () => {
+    // The narrowest split, where the card is at MIN_TEXT_COLS and a full synopsis genuinely runs
+    // past the window — so there is something below the fold in both columns at once.
+    mockMeta.mockReturnValue({ loading: false, meta: META_PLOT });
+    fitted();
+    const ui = renderUI(<MetaPane result={ROW} width={EDGE_W} height={14} poster focused />, {
+      cols: 100,
+    });
+    expect(beside(ui.frame(), "The Matrix")).toBe(true);
+    expect(ui.frame()).toContain(`${ICON.down} more`);
+    const before = artRowCount(ui.frame());
+    // Where the card's own column starts, which must not move: a column that resized mid-scroll
+    // would rewrap text planPaneLines had already wrapped to a width the window was sized for.
+    const dirColumn = (frame: string): number =>
+      paneLines(frame).find((l) => l.includes("Dir Lana"))?.indexOf("Dir Lana") ?? -1;
+    const column = dirColumn(ui.frame());
+    // Past the art, not merely somewhere: this pane is narrower, so its poster is narrower than
+    // SPLIT_W's and the card starts wherever fitCells left off rather than at a fixed column.
+    const artWidth = (paneLines(ui.frame())[0] ?? "").match(/\u2580+/)?.[0].length ?? 0;
+    expect(artWidth).toBeGreaterThan(0);
+    expect(column).toBeGreaterThan(artWidth);
+
+    ui.press(DOWN);
+    // One row off the top of *both* columns: the title has gone with the first row of art, which
+    // is the property a second, independent scroller would break.
+    await vi.waitFor(() => expect(ui.frame()).toContain(`${ICON.up}${ICON.down} more`));
+    expect(artRowCount(ui.frame())).toBe(before - 1);
+    expect(ui.frame()).not.toContain("The Matrix");
+    expect(dirColumn(ui.frame())).toBe(column);
+    intact(ui, EDGE_W, 14);
+    ui.unmount();
+  });
+
+  it("holds its frame across the widths and heights either layout can land on", () => {
+    fitted();
+    for (let w = 34; w <= 90; w += 2) {
+      for (let h = 6; h <= 22; h++) {
+        const ui = renderUI(<MetaPane result={ROW} width={w} height={h} poster focused />, {
+          cols: 100,
+        });
+        const out = frameLines(ui.frame());
+        expect(out, `${w}x${h}`).toHaveLength(1 + h);
+        for (const line of out) expect(displayWidth(line), `${w}x${h} "${line}"`).toBe(w);
+        ui.unmount();
+      }
+    }
   });
 });
