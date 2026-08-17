@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { toResult } from "./eztv";
 
-const mockFetch = vi.fn();
+const { mockFetch } = vi.hoisted(() => ({ mockFetch: vi.fn() }));
 
 vi.mock("../util/net", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../util/net")>();
