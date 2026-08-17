@@ -3,8 +3,10 @@ import { parseCliArgs, HELP_TEXT } from "./cli/args";
 import { daemonize } from "./daemon/daemonize";
 import { runAttach } from "./daemon/attach";
 import { containUnhandledRejections, logCrash } from "./util/crashlog";
+import { deleteIssued } from "./meta/kittyGraphics";
 import { VERSION } from "./version";
 import { App } from "./ui/App";
+import { getGraphicsTier, probeGraphics, setGraphicsTier } from "./ui/graphics";
 
 const cmd = parseCliArgs(process.argv.slice(2));
 
@@ -109,10 +111,21 @@ if (cmd.kind === "update") {
 process.stdout.write("\x1b[?1049h\x1b[?25l\x1b[22;0t\x1b]0;torlink\x07");
 if (process.platform === "win32") process.title = "torlink";
 
+// Which picture tier the terminal gets. Asked once, here, because the answer costs a round trip
+// with the terminal and must be settled before anything renders; steps 1-4 of the probe make this
+// a resolved microtask on every terminal that is not a candidate, which is nearly all of them.
+setGraphicsTier(
+  await probeGraphics({ stdin: process.stdin, stdout: process.stdout, env: process.env }),
+);
+
 let restored = false;
 function restoreTerminal(): void {
   if (restored) return;
   restored = true;
+  // Images outlive the alt screen: the terminal keeps them in a store keyed by id until something
+  // deletes them, so leaving without this would grow that store for the life of the terminal. Only
+  // the ids this process handed out — the store is shared with whatever else drew in this window.
+  if (getGraphicsTier() === "kitty") process.stdout.write(deleteIssued());
   process.stdout.write("\x1b[?1000l\x1b[?1006l\x1b[?25h\x1b[23;0t\x1b[?1049l");
 }
 

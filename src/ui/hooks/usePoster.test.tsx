@@ -2,8 +2,15 @@ import { Text } from "ink";
 import { useEffect, useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { decodePoster } from "../../meta/image";
+import {
+  decodeGraphicsPoster,
+  placeholderLines,
+  transmitChunks,
+  writeChunks,
+} from "../../meta/kittyGraphics";
 import { fetchPosterBytes } from "../../meta/poster";
 import { renderUI } from "../testHarness";
+import { setGraphicsTier } from "../graphics";
 import { usePoster } from "./usePoster";
 import type { ReactElement } from "react";
 import type { PosterCells } from "../../meta/image";
@@ -13,9 +20,23 @@ import type { PosterCells } from "../../meta/image";
 // decode have their own tests, and no test in this repo may touch the network.
 vi.mock("../../meta/poster", () => ({ fetchPosterBytes: vi.fn() }));
 vi.mock("../../meta/image", () => ({ decodePoster: vi.fn() }));
+// The kitty encoder is mocked for the same reason: kittyGraphics.test.ts owns what the escapes
+// say, and this file owns which of them the hook decides to send.
+vi.mock("../../meta/kittyGraphics", () => ({
+  decodeGraphicsPoster: vi.fn(),
+  placeholderLines: vi.fn(),
+  transmitChunks: vi.fn(),
+  writeChunks: vi.fn(),
+  idColor: vi.fn(() => "#0a0b0c"),
+  nextImageId: vi.fn(() => 0x0a0b0c),
+}));
 
 const mockFetch = vi.mocked(fetchPosterBytes);
 const mockDecode = vi.mocked(decodePoster);
+const mockGraphicsDecode = vi.mocked(decodeGraphicsPoster);
+const mockLines = vi.mocked(placeholderLines);
+const mockChunks = vi.mocked(transmitChunks);
+const mockWrite = vi.mocked(writeChunks);
 
 const BYTES = new Uint8Array([0xff, 0xd8, 0xff, 0xe0]);
 
@@ -58,7 +79,10 @@ function Probe({
     };
   }, []);
   const { loading, cells: got } = usePoster(url, b.cols, b.rows, enabled);
-  return <Text>{loading ? "LOADING" : got === null ? "NONE" : `ART ${got.cols}x${got.rows}`}</Text>;
+  // "IMAGE" for the shape the terminal draws itself, "ART" for half-blocks: which tier answered is
+  // as much a part of this hook's contract as what size it answered at.
+  const shape = got !== null && "imageId" in got ? "IMAGE" : "ART";
+  return <Text>{loading ? "LOADING" : got === null ? "NONE" : `${shape} ${got.cols}x${got.rows}`}</Text>;
 }
 
 /** Let Ink flush a render and any pending microtask. */
@@ -78,6 +102,21 @@ beforeEach(() => {
   resize = null;
   mockFetch.mockReset();
   mockDecode.mockReset();
+  // Half-blocks unless a test says otherwise, which is what every terminal but three gets.
+  setGraphicsTier(null);
+  mockGraphicsDecode.mockReset();
+  mockLines.mockReset();
+  mockChunks.mockReset();
+  mockWrite.mockReset();
+  mockGraphicsDecode.mockReturnValue({
+    cols: 24,
+    rows: 18,
+    pxW: 192,
+    pxH: 288,
+    rgb: new Uint8Array(3),
+  });
+  mockLines.mockReturnValue(["placeholders"]);
+  mockChunks.mockReturnValue(["\u001b_Ga=T;AAA\u001b\\"]);
   mockFetch.mockResolvedValue(BYTES);
   // Answer with a grid that matches whatever budget it was asked for, so a frame reading
   // "ART 24x18" is proof of which budget produced it.
@@ -277,6 +316,74 @@ describe("usePoster", () => {
     // if the unmounted row's late response were wrongly accepted.
     await tick(5);
     expect(mockDecode).not.toHaveBeenCalled();
+  });
+
+  it("transmits the picture before it paints anything addressing it", async () => {
+    // Ordering is the entire synchronisation between the two halves of this tier: Node orders
+    // writes on a stream, so an image written before the state update that draws the placeholders
+    // is in the terminal's store by the time they reach the screen.
+    setGraphicsTier("kitty");
+    const ui = renderUI(<Probe url={nextUrl()} first={WIDE} />);
+    try {
+      await tick(5);
+      expect(mockWrite).toHaveBeenCalledTimes(1);
+      expect(mockWrite.mock.calls[0]?.[1]).toEqual(["\u001b_Ga=T;AAA\u001b\\"]);
+      // The half-block decoder is never asked: the tier answered.
+      expect(mockDecode).not.toHaveBeenCalled();
+      expect(ui.frame()).toContain("IMAGE 24x18");
+    } finally {
+      ui.unmount();
+    }
+  });
+
+  it("falls back to half-blocks whenever the graphics path refuses", async () => {
+    // A decode that failed, a picture past the diacritic table, a payload over the wire budget:
+    // all of them land here, and all of them still show the user a poster.
+    setGraphicsTier("kitty");
+    mockGraphicsDecode.mockReturnValue(null);
+    const ui = renderUI(<Probe url={nextUrl()} first={WIDE} />);
+    try {
+      await tick(5);
+      expect(mockWrite).not.toHaveBeenCalled();
+      expect(ui.frame()).toContain("ART 24x18");
+    } finally {
+      ui.unmount();
+    }
+  });
+
+  it("keys the cache by tier, so neither tier can be served the other's art", async () => {
+    const url = nextUrl();
+    const blocks = renderUI(<Probe url={url} first={WIDE} />);
+    await tick(5);
+    expect(blocks.frame()).toContain("ART 24x18");
+    blocks.unmount();
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+
+    setGraphicsTier("kitty");
+    const native = renderUI(<Probe url={url} first={WIDE} />);
+    try {
+      await tick(5);
+      // Same url, same budget, different terminal: a cache hit here would draw a mosaic where the
+      // picture should be.
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+      expect(native.frame()).toContain("IMAGE 24x18");
+    } finally {
+      native.unmount();
+    }
+  });
+
+  it("asks for a bigger rendition when the terminal draws real pixels", async () => {
+    setGraphicsTier("kitty");
+    const url = "https://m.media-amazon.com/images/M/MV5Bwiring._V1_SX120.jpg";
+    const ui = renderUI(<Probe url={url} first={WIDE} />);
+    try {
+      await tick(5);
+      expect(mockFetch.mock.calls[0]?.[0]).toBe(
+        "https://m.media-amazon.com/images/M/MV5Bwiring._V1_SX480.jpg",
+      );
+    } finally {
+      ui.unmount();
+    }
   });
 
   it("aborts the in-flight request when the budget changes under it", async () => {

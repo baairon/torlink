@@ -26,7 +26,7 @@ Type what you're looking for and press Enter. Results stream in from every sourc
   <img src="preview/browse.svg" alt="torlink's browse view: the sidebar, the search bar, and merged results from every source" style="max-width: 832px; width: 100%; height: auto;">
 </p>
 
-Press `i` for a closer look at whatever's highlighted — poster, rating, cast and the rest, right beside the list. `→` opens it up to read and scroll through, `←` sends you back to browsing.
+Press `i` for a closer look at whatever's highlighted — poster, rating, cast and the rest, right beside the list. `→` opens it up to read and scroll through, `←` sends you back to browsing. On kitty and Ghostty the poster is drawn as a real image rather than as coloured blocks; set `TORLINK_GRAPHICS=off` if you'd rather have the blocks everywhere.
 
 <p align="center">
   <img src="preview/info.svg" alt="torlink's info pane opened up to read: poster art beside the full synopsis, rating, cast and crew for the highlighted result" style="max-width: 1216px; width: 100%; height: auto;">

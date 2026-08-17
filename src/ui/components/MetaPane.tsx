@@ -10,7 +10,7 @@ import { planPaneLines } from "../paneCard";
 import { COLUMN_GAP, MAX_TEXT_COLS, posterBudget, splitTextCols } from "../previewLayout";
 import { COLOR, ICON } from "../theme";
 import { sliceArt } from "../../meta/image";
-import type { PosterCells } from "../../meta/image";
+import type { PosterArt } from "../../meta/image";
 import type { TorrentResult } from "../../sources/types";
 
 /**
@@ -159,7 +159,7 @@ export function MetaPane({
   // Sliced rather than re-decoded, by the seam that owns what a window into art means — clamping
   // and identity preservation included. Whatever shape the art is, the window into it is rows of
   // it, which is what keeps a half-scrolled poster on screen instead of abandoning it.
-  const artWindow = useMemo<PosterCells | null>(() => {
+  const artWindow = useMemo<PosterArt | null>(() => {
     if (art === null) return null;
     const window = sliceArt(art, start, end);
     return window.rows < 1 ? null : window;

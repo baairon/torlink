@@ -8,7 +8,14 @@ import { ICON } from "../theme";
 import { usePoster } from "../hooks/usePoster";
 import { useResultMeta } from "../hooks/useResultMeta";
 import { fitCells } from "../../meta/image";
-import type { PosterCells } from "../../meta/image";
+import {
+  MAX_PLACEHOLDER_CELLS,
+  PLACEHOLDER,
+  diacritic,
+  idColor,
+  placeholderLines,
+} from "../../meta/kittyGraphics";
+import type { GraphicsCells, PosterCells } from "../../meta/image";
 import type { Meta } from "../../meta/types";
 import type { TorrentResult } from "../../sources/types";
 
@@ -567,4 +574,81 @@ describe("MetaPane side by side", () => {
       }
     }
   }, SWEEP_MS);
+});
+
+describe("MetaPane focused, art the terminal draws itself", () => {
+  // Same pane and the same picture as the stacked case above, in the other art shape: 40 columns
+  // is 36 inside the frame, which leaves 23 beside a 12-column poster — under MIN_TEXT_COLS, so
+  // this stacks, exactly as it does with half-blocks. The tier changes what a cell contains, not
+  // how many there are, which is why none of the layout arithmetic needs a second opinion.
+  const WIDE_W = 40;
+  const IMAGE_ID = 0x2a3b4c;
+  const GRAPHICS_ART: GraphicsCells = {
+    cols: 12,
+    rows: 9,
+    lines: placeholderLines(IMAGE_ID, 12, 9) ?? [],
+    color: idColor(IMAGE_ID),
+    imageId: IMAGE_ID,
+  };
+
+  // Frames carrying placeholder art cannot be measured with displayWidth: it counts each combining
+  // mark as a column, so it calls one cell of art three columns wide. Ink measures graphemes, so
+  // the tests do too. Poster.test.tsx pins that divergence and says why it must stay.
+  const segmenter = new Intl.Segmenter();
+  const cellCount = (text: string): number => [...segmenter.segment(text)].length;
+
+  // Which row of the picture the topmost visible art row is. Read straight off the frame, because
+  // every cell names its own row: this is what makes "the poster scrolled" an assertion about the
+  // art itself rather than about how many rows of it happen to be on screen.
+  const topArtRow = (frame: string): number => {
+    const line = frameLines(frame).find((l) => l.includes(PLACEHOLDER)) ?? "";
+    const mark = String.fromCodePoint(line.codePointAt(line.indexOf(PLACEHOLDER) + 2) ?? 0);
+    for (let i = 0; i < MAX_PLACEHOLDER_CELLS; i++) {
+      if (diacritic(i) === mark) return i;
+    }
+    return -1;
+  };
+
+  it("scrolls the picture with the pane, by moving the window and nothing else", async () => {
+    // The requirement this whole tier had to be built around. An external image overlay abandons a
+    // partially scrolled picture; this one cannot, because a row of art *is* a row of text that
+    // says which row of the picture it is. After one press the top visible row is row 1 — the
+    // window moved, and no byte of the image was touched.
+    mockMeta.mockReturnValue({ loading: false, meta: META_PLOT });
+    mockPoster.mockReturnValue({ loading: false, cells: GRAPHICS_ART });
+    const ui = renderUI(<MetaPane result={ROW} width={WIDE_W} height={PANE_H} poster focused />, {
+      cols: 60,
+    });
+
+    expect(topArtRow(ui.frame())).toBe(0);
+    const before = frameLines(ui.frame()).filter((l) => l.includes(PLACEHOLDER)).length;
+    expect(before).toBe(GRAPHICS_ART.rows);
+
+    ui.press("j");
+    await vi.waitFor(() => expect(ui.frame()).toContain(`${ICON.up}${ICON.down} more`));
+
+    expect(topArtRow(ui.frame())).toBe(1);
+    expect(frameLines(ui.frame()).filter((l) => l.includes(PLACEHOLDER)).length).toBe(
+      GRAPHICS_ART.rows - 1,
+    );
+    ui.unmount();
+  });
+
+  it("keeps the card and the frame exactly as the half-block tier leaves them", () => {
+    mockMeta.mockReturnValue({ loading: false, meta: META_PLOT });
+    mockPoster.mockReturnValue({ loading: false, cells: GRAPHICS_ART });
+    const ui = renderUI(<MetaPane result={ROW} width={WIDE_W} height={PANE_H} poster focused />, {
+      cols: 60,
+    });
+    const out = frameLines(ui.frame());
+
+    expect(out).toHaveLength(1 + PANE_H);
+    // Frame integrity, the same assertion the half-block tests make and for the same reason: Yoga
+    // answers an overflowing row by fusing rows, so every line still being here at the pane's
+    // exact width is the proof that a cell of art measured one column.
+    for (const line of out) expect(cellCount(line)).toBe(WIDE_W);
+    expect(ui.frame()).toContain("The Matrix");
+    expect(ui.frame()).toContain("A computer hacker");
+    ui.unmount();
+  });
 });

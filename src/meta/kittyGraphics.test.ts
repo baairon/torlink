@@ -2,10 +2,10 @@ import { Buffer } from "node:buffer";
 import { inflateSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
 import {
-  DELETE_ALL,
   MAX_PLACEHOLDER_CELLS,
   PLACEHOLDER,
   decodeGraphicsPoster,
+  deleteIssued,
   diacritic,
   idColor,
   nextImageId,
@@ -261,8 +261,44 @@ describe("writeChunks", () => {
   });
 });
 
-describe("DELETE_ALL", () => {
-  it("frees the images as well as their placements, quietly", () => {
-    expect(DELETE_ALL).toBe("\u001b_Ga=d,d=A,q=2\u001b\\");
+describe("deleteIssued", () => {
+  it("names the ids this module handed out, one escape each", () => {
+    const mine = [nextImageId(), nextImageId(), nextImageId()];
+    const escapes = deleteIssued();
+    // d=I frees the image data as well as its placements; d=i would leave the pixels in the store.
+    for (const id of mine) expect(escapes).toContain(`\u001b_Ga=d,d=I,i=${id},q=2\u001b\\`);
+  });
+
+  it("never frees an image it did not put there", () => {
+    const mine = nextImageId();
+    const escapes = deleteIssued();
+    // d=A frees every image in the terminal *window*, including whatever the user drew before
+    // launching torlink. Ours are named one by one because nothing else distinguishes them.
+    expect(escapes).not.toContain("d=A");
+    expect(escapes).not.toContain("d=a");
+    // An id with a zero colour byte is a shape nextImageId cannot produce, so it could only be
+    // someone else's image — 0x000102 stands for all of them.
+    expect(escapes).not.toContain("i=258,");
+    // Every id named is one this module could have handed out: inside 24 bits, no zero byte.
+    const named = [...escapes.matchAll(/i=(\d+),/g)].map((m) => Number(m[1]));
+    expect(named).toContain(mine);
+    for (const id of named) {
+      expect(id).toBeLessThanOrEqual(0xffffff);
+      expect(id & 0xff).not.toBe(0);
+      expect((id >> 8) & 0xff).not.toBe(0);
+      expect((id >> 16) & 0xff).not.toBe(0);
+    }
+  });
+
+  it("suppresses the acknowledgement on every escape", () => {
+    // Same reason as transmitChunks: the reply arrives on stdin, where Ink's parse-keypress reads
+    // it as keystrokes — and this one is sent while the app is tearing down and least able to cope.
+    nextImageId(); // one image to name, whatever else this file has already minted
+    const escapes = deleteIssued().split("\u001b\\").slice(0, -1);
+    expect(escapes.length).toBeGreaterThan(0);
+    for (const escape of escapes) {
+      expect(escape.startsWith("\u001b_G")).toBe(true);
+      expect(escape).toContain("q=2");
+    }
   });
 });

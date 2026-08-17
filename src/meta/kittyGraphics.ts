@@ -104,24 +104,48 @@ export function placeholderLines(id: number, cols: number, rows: number): readon
 let idCounter = 0;
 const ID_BYTE_VALUES = 255;
 
-/** The next image id: unique for 255^3 posters, and never with a zero colour byte. */
+// Every id handed out, in the order it was handed out. The terminal's image store keeps an image
+// until something deletes it, so this list is what the store holds on our account, and the only
+// handle teardown has on it. An id issued for a poster that never reached the wire — a picture past
+// the diacritic table, a deflate that failed — is recorded too: deleting an id the store never held
+// is a no-op, and over-naming our own ids is cheaper and safer than threading each transmission's
+// outcome back here.
+const issuedIds = new Set<number>();
+
+/**
+ * The next image id: unique for 255^3 posters, and never with a zero colour byte.
+ *
+ * Recorded as it is issued rather than as it is transmitted, because this is the one place every
+ * id passes through — see deleteIssued.
+ */
 export function nextImageId(): number {
   const n = idCounter;
   idCounter = (idCounter + 1) % (ID_BYTE_VALUES * ID_BYTE_VALUES * ID_BYTE_VALUES);
   const r = 1 + (n % ID_BYTE_VALUES);
   const g = 1 + (Math.floor(n / ID_BYTE_VALUES) % ID_BYTE_VALUES);
   const b = 1 + Math.floor(n / (ID_BYTE_VALUES * ID_BYTE_VALUES));
-  return (r << 16) | (g << 8) | b;
+  const id = (r << 16) | (g << 8) | b;
+  issuedIds.add(id);
+  return id;
 }
 
 /**
- * Drop every image this process transmitted, on the way out.
+ * The escapes that drop this process's images, on the way out. Empty when there are none.
  *
- * `d=A` frees the images as well as their placements: leaving them behind would grow the
- * terminal's store for the rest of its life. `q=2` for the same reason every other escape here
- * carries it — see transmitChunks.
+ * One escape per id, and never the `d=A` that frees every image *in the terminal window*: that
+ * store is shared with everything else drawn in that terminal, so a picture the user put there
+ * before launching torlink has to still be there afterwards. Ours are named individually because
+ * nothing else distinguishes them.
+ *
+ * `d=I` rather than `d=i` frees the image data as well as its placements; leaving the pixels behind
+ * would grow the store for the rest of the terminal's life, which is the cost this exists to avoid.
+ * `q=2` for the same reason every other escape here carries it — see transmitChunks.
  */
-export const DELETE_ALL = "\u001b_Ga=d,d=A,q=2\u001b\\";
+export function deleteIssued(): string {
+  let out = "";
+  for (const id of issuedIds) out += `\u001b_Ga=d,d=I,i=${id},q=2\u001b\\`;
+  return out;
+}
 
 /** Pixels for one poster, already at the size the terminal will draw them. */
 export interface GraphicsPoster {
