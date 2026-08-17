@@ -29,7 +29,7 @@ Type what you're looking for and press Enter. Results stream in from every sourc
 Press `i` for a closer look at whatever's highlighted — poster, rating, cast and the rest, right beside the list. `→` opens it up to read and scroll through, `←` sends you back to browsing.
 
 <p align="center">
-  <img src="preview/info.svg" alt="torlink's info pane: poster art and details for the highlighted result" style="max-width: 1216px; width: 100%; height: auto;">
+  <img src="preview/info.svg" alt="torlink's info pane opened up to read: poster art beside the full synopsis, rating, cast and crew for the highlighted result" style="max-width: 1216px; width: 100%; height: auto;">
 </p>
 
 ## Your downloads

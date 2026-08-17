@@ -5,7 +5,7 @@ import React from "react";
 import { render } from "ink-testing-library";
 import { Box, Text } from "ink";
 import { StoreContext, type Store } from "../src/ui/store";
-import { COLOR, ICON, SOURCE_STYLE, lerpHex } from "../src/ui/theme";
+import { COLOR, ICON, RULE, SOURCE_STYLE, lerpHex } from "../src/ui/theme";
 import { Logo } from "../src/ui/components/Logo";
 import { Rule } from "../src/ui/components/Rule";
 import { Footer } from "../src/ui/components/Footer";
@@ -16,10 +16,20 @@ import { Poster } from "../src/ui/components/Poster";
 import { Downloads } from "../src/ui/components/Downloads";
 import { footerHints } from "../src/ui/keymap";
 import { planPaneLines } from "../src/ui/paneCard";
-import { PANE_GAP, posterBudget, previewLayout } from "../src/ui/previewLayout";
+import {
+  COLUMN_GAP,
+  MAX_TEXT_COLS,
+  PANE_GAP,
+  POSTER_H,
+  POSTER_W,
+  posterBudget,
+  previewLayout,
+  splitTextCols,
+} from "../src/ui/previewLayout";
 import { sourcesByGroup } from "../src/sources/registry";
 import { cleanText, formatBytes, formatRelative } from "../src/util/format";
 import { ansiToSvg, type AnsiToSvgOptions } from "./ansi-to-svg";
+import { fitCells } from "../src/meta/image";
 import type { Config } from "../src/config/config";
 import type { DownloadQueue } from "../src/download/queue";
 import type { QueueItem, SeedItem } from "../src/download/types";
@@ -281,8 +291,14 @@ const META_COLS = 120;
 const META_CONTENT_WIDTH = Math.max(24, META_COLS - RAIL_WIDTH - 3);
 const META_RULE_WIDTH = Math.max(10, META_COLS - 2);
 const META_PANEL_H = 18;
+const metaInnerRows = Math.max(0, META_PANEL_H - 1);
 
-const metaPane = previewLayout(META_CONTENT_WIDTH);
+// Focused (`region: "preview"`, the state the → key puts the pane in), not the browsing state the
+// list keeps by default: reading the pane side by side with a full-size poster is what focusing it
+// is *for*. It is also the state most likely to actually show a plot — unfocused, this fixture's
+// director plus a three-name cast alone can saturate the browsing tier's fixed text budget before
+// the plot is ever reached, while focused the budget is infinite and the whole synopsis is built.
+const metaPane = previewLayout(META_CONTENT_WIDTH, true, metaInnerRows);
 if (metaPane === null) {
   throw new Error(`preview: "info" scenario's ${META_COLS} columns are too narrow for the pane`);
 }
@@ -297,23 +313,37 @@ const META: Meta = {
   genres: ["Biography", "Drama", "History"],
   director: ["Christopher Nolan"],
   cast: ["Cillian Murphy", "Emily Blunt", "Matt Damon"],
+  plot:
+    "The story of J. Robert Oppenheimer's role in the development of the atomic bomb during World War II.",
 };
 
 // Panel's frame (border 2 + paddingX 2), same arithmetic MetaPane does for its own inner width.
 const metaInner = Math.max(1, metaPane.pane - 4);
-const metaInnerRows = Math.max(0, META_PANEL_H - 1);
-const metaBudget = posterBudget(metaPane.pane, metaInnerRows, false);
+const metaBudget = posterBudget(metaPane.pane, metaInnerRows, true);
 if (metaBudget === null) {
   throw new Error(`preview: "info" scenario's panel is too short to budget poster rows`);
 }
 
+// The pane's own natural art size — the same question MetaPane asks usePoster (and, under it,
+// fitCells) once a real poster decodes. The preview has no JPEG to decode, so this mirrors the one
+// rendition previewLayout.ts itself reasons the split from (POSTER_W / POSTER_H, imported rather
+// than copied) rather than assuming the budget's cell grid is the picture's actual shape.
+const metaArt = fitCells(POSTER_W, POSTER_H, metaBudget.cols, metaBudget.rows);
+
+const metaCardCols = splitTextCols(metaInner, metaArt.cols);
+if (metaCardCols === null) {
+  throw new Error(`preview: "info" scenario's ${META_COLS} columns can't seat the card beside the poster`);
+}
+const metaTextWidth = Math.min(metaCardCols, MAX_TEXT_COLS);
+
 /**
  * A gradient standing in for a decoded poster — the previews never touch the network, so there is
- * no JPEG to decode. Built from the same lerpHex the shimmer sheen uses, staying inside the app's
- * own palette rather than inventing new colour.
+ * no JPEG to decode. Built with the same lerpHex the shimmer sheen uses, staying inside the app's
+ * own palette: the bottom is COLOR.bright as-is, the top is COLOR.accent darkened toward RULE, so
+ * every colour this ramp touches is already exported from theme.ts.
  */
 function posterMock(cols: number, rows: number): PosterCells {
-  const top = "#1c1430";
+  const top = lerpHex(COLOR.accent, RULE, 0.75);
   const bottom = COLOR.bright;
   const lines = Array.from({ length: rows }, (_, row) => {
     const t = rows <= 1 ? 0 : row / (rows - 1);
@@ -327,13 +357,33 @@ function posterMock(cols: number, rows: number): PosterCells {
 // The app's own card planner, flattened to one entry per terminal row exactly as MetaPane
 // flattens it. The preview is a screenshot of the pane, so it has to be laid out by the thing
 // that lays the pane out — a second copy of the card here would drift the moment either changes.
-const metaTextRows = planPaneLines(META, metaInner, Math.max(0, metaInnerRows - metaBudget.rows - 1)).flatMap(
-  (l) => l.text.split("\n").map((text, i) => ({ key: `${l.key}:${i}`, text, tone: l.tone })),
+// Focused, the budget is infinite (MetaPane.tsx's own textBudget branch): the window that would
+// normally cut it is the scroll offset, and this scenario is sized so nothing is off screen.
+const metaTextRows = planPaneLines(META, metaTextWidth, Number.POSITIVE_INFINITY).flatMap((l) =>
+  l.text.split("\n").map((text, i) => ({ key: `${l.key}:${i}`, text, tone: l.tone })),
 );
+
+// The guarantee this scenario exists to show: the whole card fits beside the poster with nothing
+// left to scroll to. If a future fixture change ever pushes it past the pane's height, that is the
+// bug the earlier attempt at this task caught by hand — catch it here instead of shipping a
+// screenshot with a hidden "↓ more".
+const metaTotalRows = Math.max(metaArt.rows, metaTextRows.length);
+if (metaTotalRows > metaInnerRows) {
+  throw new Error(
+    `preview: "info" scenario's card no longer fits without scrolling (${metaTotalRows} rows > ${metaInnerRows})`,
+  );
+}
 
 save(
   "info",
-  makeStore({ section: "all", contentWidth: META_CONTENT_WIDTH, listRows: 14, cols: META_COLS, rows: 24 }),
+  makeStore({
+    section: "all",
+    contentWidth: META_CONTENT_WIDTH,
+    listRows: 14,
+    cols: META_COLS,
+    rows: 24,
+    region: "preview",
+  }),
   <Box flexDirection="column" width={META_COLS} paddingX={1}>
     <Box justifyContent="space-between">
       <Logo />
@@ -349,7 +399,7 @@ save(
       <Box flexGrow={1} flexDirection="column">
         <SearchBar width={META_CONTENT_WIDTH} value="" editing={false} placeholder="Search or paste a magnet link…" onSubmit={() => {}} />
         <Box marginTop={1}>
-          <Panel title="latest" width={metaPane.list} focused count={`(${browseResults.length})`} height={META_PANEL_H}>
+          <Panel title="latest" width={metaPane.list} count={`(${browseResults.length})`} height={META_PANEL_H}>
             <Box><Text dimColor>newest across all sources</Text></Box>
             <Box flexDirection="column" marginTop={1}>
               <Box>
@@ -403,22 +453,28 @@ save(
             </Box>
           </Panel>
           <Box marginLeft={PANE_GAP}>
-            <Panel title="info" width={metaPane.pane} height={META_PANEL_H}>
-              <Box flexDirection="column">
-                <Poster cells={posterMock(metaBudget.cols, metaBudget.rows)} />
-                <Box height={1} flexShrink={0} />
-                {metaTextRows.map((l) => (
-                  <Text key={l.key} wrap="wrap" bold={l.tone === "title"} color={l.tone === "title" ? COLOR.text : undefined} dimColor={l.tone === "dim"}>
-                    {l.text}
-                  </Text>
-                ))}
+            <Panel title="info" width={metaPane.pane} height={META_PANEL_H} focused>
+              {/* Side by side, exactly as MetaPane's own `split` branch draws it: the art keeps its
+                  natural width and the card runs the full height beside it, rather than the
+                  budget's whole row allowance stretching a picture no decoder actually returned. */}
+              <Box>
+                <Box flexDirection="column" width={metaArt.cols} flexShrink={0}>
+                  <Poster cells={posterMock(metaArt.cols, metaArt.rows)} />
+                </Box>
+                <Box flexDirection="column" width={metaTextWidth} flexShrink={0} marginLeft={COLUMN_GAP}>
+                  {metaTextRows.map((l) => (
+                    <Text key={l.key} wrap="wrap" bold={l.tone === "title"} color={l.tone === "title" ? COLOR.text : undefined} dimColor={l.tone === "dim"}>
+                      {l.text}
+                    </Text>
+                  ))}
+                </Box>
               </Box>
             </Panel>
           </Box>
         </Box>
       </Box>
     </Box>
-    <Footer hints={footerHints("content", "all", null, null, "list", true, true)} />
+    <Footer hints={footerHints("preview", "all")} />
   </Box>,
   { cols: META_COLS },
 );
