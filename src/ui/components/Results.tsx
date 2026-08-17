@@ -7,12 +7,14 @@ import { TextField } from "./TextField";
 import { Panel } from "./Panel";
 import { Rule } from "./Rule";
 import { useConcurrentSearch } from "../hooks/useConcurrentSearch";
+import { useResultMeta } from "../hooks/useResultMeta";
 import { getSource, SOURCES } from "../../sources/registry";
 import { stickCursor, wrapStep, windowStart, resultsPanelOuter } from "../move";
 import { sortResults, nextSort, sortLabel, sortArrow, type Sort, type SortField } from "../sort";
 import { filterResults } from "../filter";
 import { COLOR, GUTTER, ICON, sourceStyle } from "../theme";
 import { cleanText, formatBytes, formatCount, formatRelative, stripControl, truncate } from "../../util/format";
+import type { Meta } from "../../meta/types";
 import type { Source, TorrentResult } from "../../sources/types";
 
 type Mode = "list" | "search" | "detail" | "filter";
@@ -30,9 +32,152 @@ function DetailRow({ label, value }: { label: string; value: ReactNode }) {
   );
 }
 
-function Detail({ r, width }: { r: TorrentResult; width: number }) {
+// Greedy word wrap, used only to learn — and pin — exactly how many terminal rows a value will
+// occupy before Ink ever lays it out. The detail panel has a fixed height (Panel's `height` prop,
+// clipped with `overflow: hidden`), and handing Ink's own `wrap="wrap"` more text than that
+// budget allows does not clip cleanly: Yoga's flexbox shrink squeezes whichever rows land on the
+// losing side of its shrink math, dropping or fusing rows anywhere in the block, including ones
+// above the actual overflow. Every metadata row rendered below is only rendered once it is known
+// to fit, which means knowing its line count first.
+//
+// A word longer than `width` (a Cinemeta plot has no guaranteed word length cap) is hard-broken
+// into `width`-sized chunks rather than left to overflow its own line — Ink's real wrap does the
+// same, and undercounting here is exactly what let a single unbroken run of text blow through a
+// budget that looked, on paper, like it had room to spare.
+function wordWrapLines(text: string, width: number): string[] {
+  if (width <= 0) return [text];
+  const words = text.split(/\s+/).filter(Boolean);
+  if (words.length === 0) return [];
+  const lines: string[] = [];
+  let line = "";
+  for (const word of words) {
+    let rest = word;
+    while (rest.length > width) {
+      if (line !== "") {
+        lines.push(line);
+        line = "";
+      }
+      lines.push(rest.slice(0, width));
+      rest = rest.slice(width);
+    }
+    if (line === "") line = rest;
+    else if (line.length + 1 + rest.length <= width) line += ` ${rest}`;
+    else {
+      lines.push(line);
+      line = rest;
+    }
+  }
+  if (line !== "") lines.push(line);
+  return lines;
+}
+
+interface MetaPlan {
+  readonly rating: string | null;
+  readonly genres: string | null;
+  readonly director: string | null;
+  readonly cast: string | null;
+  readonly plot: string | null;
+}
+
+const NO_META_PLAN: MetaPlan = { rating: null, genres: null, director: null, cast: null, plot: null };
+
+/**
+ * Decides which of the five metadata rows fit in `budget` terminal rows, in priority order —
+ * rating, genres, director, cast, plot — so a tight panel sheds value from the bottom of the
+ * metadata block outward and never touches the torrent facts above it or the action hint below.
+ *
+ * The moment one *present* row among rating/genres/director/cast fails to fit, every one of that
+ * group considered afterward is dropped too, even ones that would individually have fit on their
+ * own — otherwise a wide-but-short row (say, three-name Director) could land after a taller one it
+ * just displaced (six-genre Genres), which reads as a row missing from the middle of the block
+ * rather than a clean cut at the bottom. A field that is simply absent from this title's metadata
+ * (no director credited, most series) is not a fit failure and never triggers that cutoff — only a
+ * row that exists but does not fit does.
+ *
+ * Genres/director/cast are all-or-nothing: a cast list cut off mid-name reads as a bug, not a
+ * feature, so each is only admitted if every one of its wrapped lines fits. Plot is exempt from
+ * that cutoff and always evaluated last — it is the one row allowed to show less than it has, so
+ * it takes whatever budget the rows above it left unspent (whether they filled it or gave up on
+ * it) and ellipsizes its last visible line when the full text still does not fit. Sitting at the
+ * very bottom of the block, plot has nothing below it to expose as a hole.
+ */
+function planMetaRows(meta: Meta | null, valueWidth: number, budget: number): MetaPlan {
+  if (meta === null) return NO_META_PLAN;
+  let remaining = budget;
+  // Set the first time a present row does not fit. Every row considered afterward — regardless
+  // of whether it would individually fit in what is left — is dropped, which is what keeps
+  // degradation a clean prefix cut instead of a hole partway through the block.
+  let cutoff = false;
+
+  const admit = (rows: number): boolean => {
+    if (cutoff || rows > remaining) {
+      cutoff = true;
+      return false;
+    }
+    remaining -= rows;
+    return true;
+  };
+
+  const rating = meta.rating && admit(1) ? `${meta.rating} / 10` : null;
+
+  const admitJoined = (values: readonly string[]): string | null => {
+    if (values.length === 0) return null; // absent, not a fit failure — does not trip the cutoff
+    const lines = wordWrapLines(values.join(", "), valueWidth);
+    return admit(lines.length) ? lines.join("\n") : null;
+  };
+
+  const genres = admitJoined(meta.genres);
+  const director = admitJoined(meta.director);
+  const cast = admitJoined(meta.cast);
+
+  // Not gated on `cutoff`: plot is exempt from the all-or-nothing rule above (it is the one row
+  // allowed to show a partial answer) and always sits last in the block, so it is free to absorb
+  // whatever budget a higher row's cutoff left unspent — that is still degrading from the bottom,
+  // not opening a hole, because nothing below plot exists to expose one.
+  let plot: string | null = null;
+  if (meta.plot && remaining > 0) {
+    const lines = wordWrapLines(meta.plot, valueWidth);
+    if (lines.length <= remaining) {
+      plot = lines.join("\n");
+    } else {
+      const kept = lines.slice(0, remaining);
+      const lastIndex = kept.length - 1;
+      const last = kept[lastIndex];
+      // `truncate()` only marks a line as cut when the line itself overruns `valueWidth`, but a
+      // hard-wrapped chunk is already sized to fit exactly — it never trips that check even
+      // though real text still follows it. The ellipsis has to be forced on here instead, or a
+      // capped plot reads as the *whole* plot rather than a fragment of one.
+      if (last !== undefined) {
+        kept[lastIndex] = `${last.slice(0, Math.max(0, valueWidth - 1))}…`;
+      }
+      plot = kept.join("\n");
+    }
+  }
+
+  return { rating, genres, director, cast, plot };
+}
+
+function Detail({ r, width, panelHeight }: { r: TorrentResult; width: number; panelHeight: number }) {
   const ss = sourceStyle(r.source);
   const date = formatRelative(r.added);
+  // No debounce: Enter is an explicit commit (unlike the list cursor sweeping past rows), and
+  // the cache behind this hook usually resolves the same title's earlier lookup instantly.
+  const { meta } = useResultMeta(r, true, 0);
+
+  // Same column math DetailRow itself uses (a fixed 9-wide label plus whatever remains), kept
+  // here too because planMetaRows needs it to know a value's wrapped line count before render.
+  const valueWidth = Math.max(1, width - 9);
+  // The four unconditional facts rows plus whichever of Files/Added this result actually has.
+  const factsRows = 4 + (r.numFiles ? 1 : 0) + (date ? 1 : 0);
+  // Fixed chrome that is never negotiable: title, rule, the blank line above the facts block,
+  // the blank line above the hint row, and the hint row itself.
+  const CHROME_ROWS = 5;
+  // Panel renders its own bottom border inside `panelHeight` (its top border is the separate
+  // title-bar row above it), so one row of that budget is never available to Detail's content.
+  const innerRows = Math.max(0, panelHeight - 1);
+  const metaBudget = Math.max(0, innerRows - CHROME_ROWS - factsRows);
+  const plan = planMetaRows(meta, valueWidth, metaBudget);
+
   const health =
     r.seeders || r.leechers ? (
       <Text>
@@ -91,6 +236,24 @@ function Detail({ r, width }: { r: TorrentResult; width: number }) {
             </Text>
           }
         />
+        {plan.rating !== null ? (
+          <DetailRow label="Rating" value={<Text dimColor>{plan.rating}</Text>} />
+        ) : null}
+        {plan.genres !== null ? (
+          <DetailRow label="Genres" value={<Text dimColor>{plan.genres}</Text>} />
+        ) : null}
+        {/* Cinemeta sends no director for most series — an empty row here would be a label with
+            nothing after it, so absence of data means absence of the row (planMetaRows never
+            admits an empty list in the first place). */}
+        {plan.director !== null ? (
+          <DetailRow label="Director" value={<Text dimColor>{plan.director}</Text>} />
+        ) : null}
+        {plan.cast !== null ? (
+          <DetailRow label="Cast" value={<Text dimColor>{plan.cast}</Text>} />
+        ) : null}
+        {plan.plot !== null ? (
+          <DetailRow label="Plot" value={<Text dimColor wrap="wrap">{plan.plot}</Text>} />
+        ) : null}
       </Box>
       <Box marginTop={1}>
         <Text color={COLOR.accent} bold>
@@ -407,7 +570,7 @@ export function Results() {
           height={panelOuter}
         >
           {mode === "detail" && detail ? (
-            <Detail r={detail} width={Math.max(10, contentWidth - 4)} />
+            <Detail r={detail} width={Math.max(10, contentWidth - 4)} panelHeight={panelOuter} />
           ) : (
             <>
               <Box>{status()}</Box>
