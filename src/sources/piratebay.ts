@@ -57,6 +57,21 @@ async function fetchItems(url: string, opts: SearchOptions): Promise<ApibayItem[
   return Array.isArray(json) ? json : [];
 }
 
+// apibay answers an empty search with one placeholder row instead of [].
+function isNoResultsSentinel(items: ApibayItem[]): boolean {
+  return items.length === 1 && items[0]?.id === "0";
+}
+
+// apibay caches search results per exact URL, and a query can be stuck with a
+// bogus sentinel on one URL form while the alternate form answers fine. One
+// retry on the explicit-category form re-rolls that cache key; a genuinely
+// empty search costs one extra request and still comes back empty.
+async function searchItems(q: string, opts: SearchOptions): Promise<ApibayItem[]> {
+  const items = await fetchItems(`${API}/q.php?q=${encodeURIComponent(q)}`, opts);
+  if (!isNoResultsSentinel(items)) return items;
+  return fetchItems(`${API}/q.php?q=${encodeURIComponent(q)}&cat=0`, opts);
+}
+
 async function search(
   query: string,
   cats: Set<number>,
@@ -65,10 +80,7 @@ async function search(
   opts: SearchOptions,
 ): Promise<TorrentResult[]> {
   const q = query.trim();
-  const items = await fetchItems(
-    q ? `${API}/q.php?q=${encodeURIComponent(q)}` : browseUrl,
-    opts,
-  );
+  const items = q ? await searchItems(q, opts) : await fetchItems(browseUrl, opts);
   const out: TorrentResult[] = [];
   for (const it of items) {
     if (q && !cats.has(Number(it.category))) continue;
