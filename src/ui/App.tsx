@@ -556,7 +556,7 @@ export function App({
       startFromTorrentFile(file);
       return;
     }
-    setNotice("No magnet link on the clipboard.");
+    setNotice("No magnet link or .torrent file on the clipboard.");
   }, [startDownload, startFromTorrentFile]);
 
   useEffect(() => {
