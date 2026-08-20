@@ -223,11 +223,18 @@ export function Downloads() {
                 </Text>
               </Box>
               <Box width={10} flexShrink={0} marginLeft={1} justifyContent="flex-end">
-                <Text dimColor>{it.totalBytes > 0 ? formatBytes(it.totalBytes) : "-"}</Text>
+                <Text
+                  dimColor={!here}
+                  bold={here}
+                >{it.totalBytes > 0 ? formatBytes(it.totalBytes) : "-"}
+                </Text>
               </Box>
               <Box width={4} flexShrink={0} marginLeft={1} justifyContent="flex-end">
-                <Text color={it.source ? ss.color : undefined} dimColor={!it.source || !here}>
-                  {it.source ? ss.tag : "mag"}
+                <Text
+                  color={it.source ? ss.color : undefined}
+                  dimColor={!it.source || !here}
+                  bold={here}
+                >{it.source ? ss.tag : "mag"}
                 </Text>
               </Box>
             </Box>
@@ -280,14 +287,25 @@ export function Downloads() {
               </Text>
             </Box>
             <Box width={10} flexShrink={0} marginLeft={1} justifyContent="flex-end">
-              <Text dimColor>{h.sizeBytes > 0 ? formatBytes(h.sizeBytes) : "-"}</Text>
+              <Text
+                dimColor={!here}
+                bold={here}
+              >{h.sizeBytes > 0 ? formatBytes(h.sizeBytes) : "-"}
+              </Text>
             </Box>
             <Box width={12} flexShrink={0} marginLeft={1} justifyContent="flex-end">
-              <Text dimColor>{when || "-"}</Text>
+              <Text
+                dimColor={!here}
+                bold={here}
+              >{when || "-"}
+              </Text>
             </Box>
             <Box width={4} flexShrink={0} marginLeft={1} justifyContent="flex-end">
-              <Text color={h.source ? ss.color : undefined} dimColor={!h.source || !here}>
-                {h.source ? ss.tag : "mag"}
+              <Text
+                color={h.source ? ss.color : undefined}
+                dimColor={!h.source || !here}
+                bold={here}
+              >{h.source ? ss.tag : "mag"}
               </Text>
             </Box>
           </Box>

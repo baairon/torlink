@@ -1,18 +1,12 @@
-# Contributing to torlink
+# Contributing to Klink
 
-torlink stays small on purpose. The best way in is to read the code you're about to touch, match how it already works, and keep your change tight. Three recent pull requests set the bar, and this guide points back at them throughout:
-
-- [#4](https://github.com/baairon/torlink/pull/4) gave the arrow keys spatial pane navigation without breaking a single existing shortcut.
-- [#5](https://github.com/baairon/torlink/pull/5) turned a cryptic crash on old Node into a one-line "upgrade me" message.
-- [#6](https://github.com/baairon/torlink/pull/6) added copy-magnet, cross-platform, with tests.
-
-None of them were big. All of them fit the grain. That's the whole idea.
+Klink is an enhanced fork of torlink. The best way in is to read the code you're about to touch, match how it already works, and keep your change tight.
 
 ## Set up
 
 ```sh
-git clone https://github.com/baairon/torlink
-cd torlink
+git clone https://github.com/kaiserc/klink
+cd klink
 npm install
 npm run dev
 ```
@@ -71,4 +65,4 @@ torlink is pastel-violet and quiet. There is exactly one gradient, the wordmark 
 - Say why, not just what. The diff already shows the what.
 - One concern per pull request. Two unrelated ideas are two PRs.
 
-Thanks for helping keep torlink sharp.
+Thanks for helping keep Klink sharp.

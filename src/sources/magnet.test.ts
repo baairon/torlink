@@ -49,6 +49,20 @@ describe("buildMagnet", () => {
     // At least one non-UDP tracker, so UDP-blocked networks can still announce.
     expect(out).toContain(encodeURIComponent("http://tracker.opentrackr.org:1337/announce"));
   });
+  it("puts extra trackers ahead of the public defaults", () => {
+    const own = "http://private.example.org/announce?pk=xyz";
+    const out = buildMagnet("abc123", "Thing", [own]);
+    const mine = out.indexOf(`&tr=${encodeURIComponent(own)}`);
+    expect(mine).toBeGreaterThan(-1);
+    expect(mine).toBeLessThan(
+      out.indexOf(encodeURIComponent("udp://tracker.opentrackr.org:1337/announce")),
+    );
+  });
+  it("keeps one copy of a tracker that is also a default, and drops blanks", () => {
+    const dupe = "udp://tracker.opentrackr.org:1337/announce";
+    const out = buildMagnet("abc123", "Thing", [dupe, "  ", dupe]);
+    expect(out.split(`&tr=${encodeURIComponent(dupe)}`).length - 1).toBe(1);
+  });
 });
 
 describe("isInfoHash", () => {

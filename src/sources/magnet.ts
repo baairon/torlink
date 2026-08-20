@@ -14,9 +14,18 @@ const TRACKERS = [
   "https://tracker.tamersunion.org:443/announce",
 ];
 
-export function buildMagnet(infoHash: string, name: string): string {
+// extraTrackers come first and win on duplicates: a torrent that carries its own
+// announce list means that list, and the public defaults are only a fallback.
+export function buildMagnet(infoHash: string, name: string, extraTrackers: string[] = []): string {
   const dn = encodeURIComponent(name);
-  const tr = TRACKERS.map((t) => `&tr=${encodeURIComponent(t)}`).join("");
+  const seen = new Set<string>();
+  const trackers = [...extraTrackers, ...TRACKERS].filter((t) => {
+    const url = t.trim();
+    if (!url || seen.has(url)) return false;
+    seen.add(url);
+    return true;
+  });
+  const tr = trackers.map((t) => `&tr=${encodeURIComponent(t)}`).join("");
   return `magnet:?xt=urn:btih:${infoHash}&dn=${dn}${tr}`;
 }
 

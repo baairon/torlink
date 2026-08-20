@@ -463,20 +463,35 @@ export function Results() {
                         </Text>
                       </Box>
                       <Box width={10} flexShrink={0} marginLeft={1} justifyContent="flex-end">
-                        <Text dimColor>{r.sizeBytes > 0 ? formatBytes(r.sizeBytes) : "-"}</Text>
+                        <Text
+                          dimColor={!here}
+                          bold={here}
+                        >{r.sizeBytes > 0 ? formatBytes(r.sizeBytes) : "-"}
+                        </Text>
                       </Box>
                       <Box width={9} flexShrink={0} marginLeft={1} justifyContent="flex-end">
-                        <Text color={r.seeders > 0 ? COLOR.good : undefined} dimColor={r.seeders === 0}>
-                          {r.seeders || r.leechers
+                        <Text
+                          color={r.seeders > 0 ? COLOR.good : undefined}
+                          dimColor={!here}
+                          bold={here}
+                        >{r.seeders || r.leechers
                             ? `${formatCount(r.seeders)}:${formatCount(r.leechers)}`
                             : "-"}
                         </Text>
                       </Box>
                       <Box width={12} flexShrink={0} marginLeft={1} justifyContent="flex-end">
-                        <Text dimColor>{formatRelative(r.added) || "-"}</Text>
+                        <Text
+                          dimColor={!here}
+                          bold={here}
+                        >{formatRelative(r.added) || "-"}
+                        </Text>
                       </Box>
                       <Box width={4} flexShrink={0} marginLeft={1} justifyContent="flex-end">
-                        <Text color={ss.color} dimColor={!here}>
+                        <Text
+                          color={ss.color}
+                          dimColor={!here}
+                          bold={here}
+                        >
                           {ss.tag}
                         </Text>
                       </Box>

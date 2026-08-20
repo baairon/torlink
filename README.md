@@ -28,6 +28,9 @@ Klink expands on upstream torlink with key power-user features:
 - 🎬 **Direct Media Streaming & Themed Web UI**: Stream video files directly over HTTP while downloading (`klink serve` / `klink files`), with an integrated web interface featuring a dark/light theme switcher.
 - ✅ **Completed Tab & Smart File Organisation**: Cleanly separate active downloads, seeding items, and finished downloads with directory routing.
 - ⚠️ **Action Confirmation Dialogs**: Safety confirmation prompts before destructive actions like cancelling downloads or clearing history to prevent accidental data loss.
+- 📥 **Drag-and-Drop & Clipboard `.torrent` Support**: Drop a `.torrent` file directly onto the terminal or paste its path/URI into the search bar to enqueue it instantly.
+- 📡 **Private Tracker Announce Preservation**: Intact tracker list and passkey preservation when loading `.torrent` files.
+- ✨ **High-Contrast UI Row Highlights**: Full-row active bolding and dimming across all columns in Results, Downloads, and Seeding views.
 - 🔧 **WebTorrent stability patch**: Guards against a null-pointer crash in `_request` introduced in webtorrent 3.x, keeping the daemon stable under heavy peer churn.
 
 ---
@@ -40,7 +43,7 @@ Klink expands on upstream torlink with key power-user features:
 npx klink
 ```
 
-That's the only thing you'll type. Klink opens straight to a search bar: search for what you want, paste in a magnet link or a bare infohash, or just press Enter on an empty box to browse the curated library. From there it's all keypresses, nothing to memorise, and `?` brings up the full list anytime.
+That's the only thing you'll type. Klink opens straight to a search bar: search for what you want, paste in a magnet link or a bare infohash, drop a `.torrent` file onto the window, or just press Enter on an empty box to browse the curated library. From there it's all keypresses, nothing to memorise, and `?` brings up the full list anytime.
 
 ## Finding something
 
@@ -129,6 +132,7 @@ Before opening a PR, skim [CONTRIBUTING.md](CONTRIBUTING.md); it lays out the ba
 | Media Streaming | ❌ | ✅ |
 | Completion Tab | ❌ | ✅ |
 | Confirmation Dialogs | ❌ | ✅ |
+| Expanded Categories (E-Books & Audiobooks) | ❌ | ✅ |
 | WebTorrent null-ref patch | ❌ | ✅ |
 
 ## Privacy
