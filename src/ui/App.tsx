@@ -564,7 +564,7 @@ export function App({
         setEditingFolder(true);
         return;
       }
-      if (input === "t") {
+      if (input === "t" && !(region === "content" && section !== "downloads" && section !== "seeding")) {
         setShowHelp(false);
         setEditingTrackers(true);
         return;
