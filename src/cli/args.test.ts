@@ -40,6 +40,44 @@ describe("parseCliArgs", () => {
     expect(parseCliArgs(["update"])).toEqual({ kind: "update", force: false });
     expect(parseCliArgs(["update", "--force"])).toEqual({ kind: "update", force: true });
   });
+  it("parses headless searches", () => {
+    expect(parseCliArgs(["search", "ubuntu"])).toEqual({ kind: "search", query: "ubuntu" });
+    expect(parseCliArgs(["search", "example", "movie", "--category", "movies"])).toEqual({
+      kind: "search",
+      query: "example movie",
+      category: "movies",
+    });
+    expect(parseCliArgs(["search", "--category", "games", "ubuntu"])).toEqual({
+      kind: "search",
+      query: "ubuntu",
+      category: "games",
+    });
+    expect(parseCliArgs(["search", "tolkien", "--category", "ebooks"])).toEqual({
+      kind: "search",
+      query: "tolkien",
+      category: "ebooks",
+    });
+    expect(parseCliArgs(["search", "sanderson", "--category", "audiobooks"])).toEqual({
+      kind: "search",
+      query: "sanderson",
+      category: "audiobooks",
+    });
+  });
+  it("rejects invalid headless searches", () => {
+    expect(parseCliArgs(["search"])).toEqual({ kind: "invalid", arg: "search (missing query)" });
+    expect(parseCliArgs(["search", "ubuntu", "--category", "invalidcat"])).toEqual({
+      kind: "invalid",
+      arg: "search (invalid category 'invalidcat')",
+    });
+    expect(parseCliArgs(["search", "ubuntu", "--limit", "10"])).toEqual({
+      kind: "invalid",
+      arg: "search (unknown --limit)",
+    });
+    expect(parseCliArgs(["search", "ubuntu", "--category"])).toEqual({
+      kind: "invalid",
+      arg: "search (invalid --category)",
+    });
+  });
   it("parses watch with a directory", () => {
     expect(parseCliArgs(["watch", "/srv/blackhole"])).toEqual({
       kind: "watch",

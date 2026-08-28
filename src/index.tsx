@@ -29,7 +29,12 @@ if (cmd.kind === "invalid") {
 // try/catch or error event can reach (see util/crashlog.ts). Contained and
 // logged for every mode; headless runs also echo one line to their log.
 containUnhandledRejections({
-  echo: cmd.kind === "update" || cmd.kind === "watch" || cmd.kind === "serve" || cmd.kind === "files",
+  echo:
+    cmd.kind === "update" ||
+    cmd.kind === "search" ||
+    cmd.kind === "watch" ||
+    cmd.kind === "serve" ||
+    cmd.kind === "files",
 });
 
 // Run/reattach the TUI inside a persistent tmux session (execs tmux, then exits).
@@ -74,6 +79,17 @@ if (cmd.kind === "update") {
     dir: cmd.dir,
   };
   void import("./daemon/files").then(({ runFiles }) => runFiles(options).catch(failHeadless));
+} else if (cmd.kind === "search") {
+  // One JSON document on stdout, then exit: the shape a script can pipe into
+  // jq. Exit 1 only when every source failed, so an empty-but-healthy search
+  // is still a success.
+  void import("./cli/search")
+    .then(({ runSearch }) => runSearch({ query: cmd.query, category: cmd.category }))
+    .then(({ document, exitCode }) => {
+      process.exitCode = exitCode;
+      process.stdout.write(`${JSON.stringify(document)}\n`);
+    })
+    .catch(failHeadless);
 } else {
 
 // Enter the alt-screen and hide the hardware cursor: the TUI draws its own
