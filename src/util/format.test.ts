@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   formatBytes,
   parseSize,
+  parseUnixSeconds,
   formatBytesPerSec,
   formatCount,
   formatRelative,
@@ -116,5 +117,34 @@ describe("stripControl", () => {
     expect(stripControl(hash)).toBe(hash);
     expect(stripControl("a  b")).toBe("a  b");
     expect(stripControl("")).toBe("");
+  });
+});
+
+describe("parseUnixSeconds", () => {
+  it("parses the date shapes the feeds actually send", () => {
+    // nyaa.si RSS pubDate and the SubsPlease API release_date are both RFC 822.
+    expect(parseUnixSeconds("Thu, 27 Aug 2026 11:49:25 -0000")).toBe(
+      Date.UTC(2026, 7, 27, 11, 49, 25) / 1000,
+    );
+    expect(parseUnixSeconds("2026-08-27T11:49:25Z")).toBe(
+      Date.UTC(2026, 7, 27, 11, 49, 25) / 1000,
+    );
+  });
+
+  it("returns undefined rather than NaN for anything unreadable", () => {
+    for (const bad of [undefined, "", "   ", "not a date", "0000-13-45", "Thu, 32 Xxx"]) {
+      expect(parseUnixSeconds(bad)).toBeUndefined();
+    }
+  });
+
+  it("never yields a value that breaks a sort comparator", () => {
+    // NaN is a number, so `added ?? 0` would pass it through, and a comparator
+    // that returns NaN leaves Array.prototype.sort implementation-defined.
+    const added = ["Thu, 27 Aug 2026 11:49:25 -0000", "not a date", undefined].map(
+      parseUnixSeconds,
+    );
+    for (const a of added) expect(a === undefined || Number.isFinite(a)).toBe(true);
+    const cmp = (a?: number, b?: number): number => (b ?? 0) - (a ?? 0);
+    for (const a of added) for (const b of added) expect(Number.isNaN(cmp(a, b))).toBe(false);
   });
 });

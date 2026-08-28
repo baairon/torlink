@@ -28,6 +28,19 @@ export function parseSize(s: string): number {
   return Math.round(parseFloat(m[1]!) * (SIZE_UNITS[m[2]!.toUpperCase()] ?? 1));
 }
 
+// Feed timestamps arrive as free text: an RSS pubDate, a JSON release_date.
+// Date.parse returns NaN for anything it cannot read, and NaN is a number, so
+// the `added ?? 0` guards downstream never catch it — it flows straight into a
+// sort comparator, and a comparator that returns NaN makes Array.prototype.sort
+// implementation-defined for the whole array. Returning undefined keeps `added`
+// honest: absent, rather than zero or NaN. Same instinct as the Number.isFinite
+// guards nyaa.ts already applies to its seeders and leechers.
+export function parseUnixSeconds(value?: string): number | undefined {
+  if (!value) return undefined;
+  const ms = new Date(value).getTime();
+  return Number.isFinite(ms) ? ms / 1000 : undefined;
+}
+
 export function formatBytesPerSec(bytes?: number): string {
   if (bytes === undefined || !Number.isFinite(bytes) || bytes <= 0) return "";
   const units = ["B/s", "KB/s", "MB/s", "GB/s"];

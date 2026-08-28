@@ -1,7 +1,7 @@
 import { fetchResilient, HttpError, USER_AGENT } from "../util/net";
 import { buildMagnet } from "./magnet";
 import { unescapeEntities } from "./rss";
-import { parseSize } from "../util/format";
+import { parseSize, parseUnixSeconds } from "../util/format";
 import type { SearchOptions, Source, TorrentResult } from "./types";
 
 const BASE = "https://nyaa.si/";
@@ -35,7 +35,7 @@ async function search(query: string, opts: SearchOptions = {}): Promise<TorrentR
       leechers: Number.isFinite(leechers) ? leechers : 0,
       source: "nyaa",
       magnet: buildMagnet(infoHash, name),
-      added: dateStr ? new Date(dateStr).getTime() / 1000 : undefined,
+      added: parseUnixSeconds(dateStr),
     });
   }
   return out;
