@@ -51,6 +51,7 @@ describe("uint8-util quarantine pin", () => {
 // the platform package, which keeps scripts/ensure-webrtc.cjs working as the
 // compile-from-source fallback where no prebuilt exists.
 const PREBUILT_LINE = "^0.33.1";
+const ANDROID_PUBLISHED = "0.33.0";
 
 function atLeast(version: string, min: string): boolean {
   const a = version.split(".").map(Number);
@@ -88,5 +89,34 @@ describe("node-datachannel prebuilt binaries", () => {
   it("the native binding loads without any build step", async () => {
     const ndc = await import("node-datachannel");
     expect(typeof ndc.PeerConnection).toBe("function");
+  });
+
+  // 0.33.1 lists @node-datachannel/android-arm64@0.33.1 among its
+  // optionalDependencies and that version was never published -- 0.33.0 is the
+  // only one on the registry. npm then leaves the package out of the lockfile,
+  // and `npm ci` refuses the result outright: "Missing:
+  // @node-datachannel/android-arm64@ from lock file". So the override names the
+  // version that does exist. 0.33.1 only added a Windows ARM64 build, so the
+  // Android binary is the same one either way. Drop this once upstream
+  // publishes the missing package.
+  it("pins the platform package upstream declares but never published", () => {
+    const pkg = readJson("../package.json");
+    expect(pkg.overrides["@node-datachannel/android-arm64"]).toBe(ANDROID_PUBLISHED);
+    const lock = readJson("../package-lock.json");
+    expect(lock.packages["node_modules/@node-datachannel/android-arm64"].version).toBe(
+      ANDROID_PUBLISHED,
+    );
+  });
+
+  it("the lockfile carries every platform package the module declares", () => {
+    const declared = Object.keys(
+      readJson("../node_modules/node-datachannel/package.json").optionalDependencies ?? {},
+    );
+    const lock = readJson("../package-lock.json");
+    expect(declared.length).toBeGreaterThan(0);
+    for (const name of declared) {
+      expect(lock.packages[`node_modules/${name}`], `${name} missing from the lockfile`)
+        .toBeDefined();
+    }
   });
 });

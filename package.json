@@ -66,6 +66,7 @@
     "webtorrent": "^2.4.1"
   },
   "overrides": {
+    "@node-datachannel/android-arm64": "0.33.0",
     "node-datachannel": "^0.33.1",
     "uint8-util": "2.2.6"
   },
