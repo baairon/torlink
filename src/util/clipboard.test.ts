@@ -165,7 +165,7 @@ describe("writeClipboard OSC 52 fallback", () => {
       await onPlatform("linux", async () => {
         vi.stubEnv("SSH_TTY", "");
         vi.stubEnv("SSH_CONNECTION", "");
-        vi.stubEnv("TMUX", "/tmp/tmux-1000/default,1234,0");
+        vi.stubEnv("TMUX", "/run/user/1000/tmux-1000/default,1234,0");
         mockSpawn(1);
         const { writeClipboard } = await import("./clipboard");
 
