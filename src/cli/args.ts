@@ -1,6 +1,8 @@
 import { isInfoHash } from "../sources/magnet";
 import { parseDuration } from "../util/duration";
 
+export type SearchCategory = "games" | "movies" | "tv" | "anime";
+
 export type CliCommand =
   | { kind: "version" }
   | { kind: "help" }
@@ -26,6 +28,7 @@ export type CliCommand =
   | { kind: "files"; port?: number; host?: string; token?: string; dir?: string; daemon?: boolean }
   | { kind: "attach" }
   | { kind: "update"; force?: boolean }
+  | { kind: "search"; query: string; category?: SearchCategory }
   | { kind: "invalid"; arg: string };
 
 // Valueless boolean flags for the headless subcommands (everything else is a
@@ -77,6 +80,28 @@ export function parseCliArgs(argv: string[]): CliCommand {
   if (a === "--help" || a === "-h") return { kind: "help" };
   if (a === "attach") return { kind: "attach" };
   if (a === "update") return { kind: "update", force: args.slice(1).includes("--force") };
+  if (a === "search") {
+    const { flags, rest } = readFlags(args.slice(1));
+    const unknownFlag = Object.keys(flags).find((flag) => flag !== "category");
+    const danglingFlag = rest.find((arg) => arg.startsWith("--"));
+    if (unknownFlag) return { kind: "invalid", arg: `search (unknown --${unknownFlag})` };
+    if (danglingFlag) return { kind: "invalid", arg: `search (invalid ${danglingFlag})` };
+
+    const query = rest.join(" ").trim();
+    if (!query) return { kind: "invalid", arg: "search (missing query)" };
+
+    const category = flags.category;
+    if (category === undefined) return { kind: "search", query };
+    if (
+      category === "games" ||
+      category === "movies" ||
+      category === "tv" ||
+      category === "anime"
+    ) {
+      return { kind: "search", query, category };
+    }
+    return { kind: "invalid", arg: `search (invalid category '${category}')` };
+  }
   if (a === "watch") {
     const { bools, rest: r0 } = splitBooleans(args.slice(1));
     const { flags, rest } = readFlags(r0);
@@ -129,6 +154,8 @@ usage
   torlnk                      open the search TUI
   torlnk "magnet:?xt=..."     start a download on launch
   torlnk path/to/file.torrent open a .torrent file on launch
+  torlnk search <query>        headless: print search results as JSON
+    [--category games|movies|tv|anime]
   torlnk watch <dir>          headless: download torrents dropped into <dir>
   torlnk serve                headless: HTTP add API (POST /add) on :9161
   torlnk files                headless: serve downloads over HTTP on :9160

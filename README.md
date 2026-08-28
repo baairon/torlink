@@ -53,6 +53,8 @@ Games are the only category that can run code, so they come from FitGirl alone, 
 
 torlink also runs without the TUI, for servers and seedboxes:
 
+    torlnk search "<query>" [--category games|movies|tv|anime]
+                            print one JSON document of merged search results
     torlnk watch <dir>    download anything dropped into a folder
     torlnk serve          take magnets over HTTP
     torlnk files          stream finished downloads over HTTP
