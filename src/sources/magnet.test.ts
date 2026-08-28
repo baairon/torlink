@@ -1,5 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { parseMagnet, parseInput, isInfoHash, normalizeInfoHash, buildMagnet } from "./magnet";
+import {
+  parseMagnet,
+  parseInput,
+  isInfoHash,
+  normalizeInfoHash,
+  buildMagnet,
+  mergeMagnetTrackers,
+} from "./magnet";
 
 describe("parseMagnet", () => {
   it("keeps a full 40-char hex info hash", () => {
@@ -109,5 +116,44 @@ describe("parseInput", () => {
     expect(parseInput("g".repeat(40))).toBeNull(); // 40 chars but not hex
     expect(parseInput("magnet:?xt=urn:btih:tooshort")).toBeNull();
     expect(parseInput("")).toBeNull();
+  });
+});
+
+describe("mergeMagnetTrackers", () => {
+  const hash = "abcdef0123456789abcdef0123456789abcdef01";
+  const own = "udp://private.example:6969/announce/passkey";
+
+  it("appends only the trackers the primary is missing", () => {
+    const primary = buildMagnet(hash, "X");
+    const merged = mergeMagnetTrackers(primary, [buildMagnet(hash, "X", [own])]);
+    const tr = new URL(merged).searchParams.getAll("tr");
+    expect(tr).toContain(own);
+    expect(new Set(tr).size).toBe(tr.length);
+    expect(merged.startsWith(primary)).toBe(true);
+  });
+
+  it("returns the primary untouched when the others add nothing", () => {
+    const primary = buildMagnet(hash, "X");
+    expect(mergeMagnetTrackers(primary, [buildMagnet(hash, "X")])).toBe(primary);
+    expect(mergeMagnetTrackers(primary, [])).toBe(primary);
+  });
+
+  it("keeps parameters buildMagnet does not write", () => {
+    const primary = `magnet:?xt=urn:btih:${hash}&dn=X&xl=1234`;
+    const merged = mergeMagnetTrackers(primary, [buildMagnet(hash, "X", [own])]);
+    expect(new URL(merged).searchParams.get("xl")).toBe("1234");
+    expect(new URL(merged).searchParams.getAll("tr")).toContain(own);
+  });
+
+  it("leaves anything that is not a magnet exactly as it came", () => {
+    expect(mergeMagnetTrackers("not a magnet", [buildMagnet(hash, "X", [own])])).toBe(
+      "not a magnet",
+    );
+    expect(mergeMagnetTrackers("", [])).toBe("");
+  });
+
+  it("ignores others that are not magnets", () => {
+    const primary = buildMagnet(hash, "X");
+    expect(mergeMagnetTrackers(primary, ["nonsense", ""])).toBe(primary);
   });
 });

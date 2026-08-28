@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { SOURCES } from "../../sources/registry";
 import { cachedSearch } from "../../sources/cache";
+import { dedupeResults } from "../dedupe";
 import { HttpError } from "../../util/net";
 import type { SourceId, TorrentResult } from "../../sources/types";
 
@@ -28,15 +29,6 @@ function blankPerSource(loading: boolean): Record<SourceId, SourceState> {
   const out = {} as Record<SourceId, SourceState>;
   for (const s of SOURCES) out[s.id] = { loading, error: null, code: null, count: 0 };
   return out;
-}
-
-function dedupe(list: TorrentResult[]): TorrentResult[] {
-  const byHash = new Map<string, TorrentResult>();
-  for (const r of list) {
-    const existing = byHash.get(r.infoHash);
-    if (!existing || r.seeders > existing.seeders) byHash.set(r.infoHash, r);
-  }
-  return [...byHash.values()];
 }
 
 // torlink's default ordering: healthiest first. The results view can re-sort
@@ -78,7 +70,7 @@ export function useConcurrentSearch(query: string): ConcurrentSearchState {
 
     const flush = (): void => {
       setState({
-        results: defaultOrder(dedupe(collected.slice())),
+        results: defaultOrder(dedupeResults(collected.slice())),
         perSource: { ...per },
         loading: done < SOURCES.length,
         done,
