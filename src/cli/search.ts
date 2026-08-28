@@ -1,7 +1,8 @@
 import type { SearchCategory } from "./args";
 import { cachedSearch } from "../sources/cache";
 import { SOURCES, sourcesByGroup } from "../sources/registry";
-import { dedupe, defaultOrder } from "../sources/results";
+import { dedupeResults } from "../ui/dedupe";
+import { defaultOrder } from "../ui/sort";
 import type { Source, SourceGroup, SourceId, TorrentResult } from "../sources/types";
 import { HttpError } from "../util/net";
 
@@ -86,7 +87,7 @@ export async function runSearch(options: {
     collected.push(...attempt.results);
   }
 
-  const results = defaultOrder(dedupe(collected));
+  const results = defaultOrder(dedupeResults(collected));
   return {
     document: {
       query: options.query,

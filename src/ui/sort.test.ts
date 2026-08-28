@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { nextSort, sortResults, sortArrow, SORT_CYCLE } from "./sort";
+import { defaultOrder, nextSort, sortResults, sortArrow, SORT_CYCLE } from "./sort";
 import type { Sort } from "./sort";
 import type { SourceId, TorrentResult } from "../sources/types";
 
@@ -150,5 +150,27 @@ describe("sortResults", () => {
     const before = ids(list);
     sortResults(list, { field: "size", dir: "asc" });
     expect(ids(list)).toEqual(before);
+  });
+});
+
+describe("defaultOrder", () => {
+  it("orders by seeders, then newest first", () => {
+    const ordered = defaultOrder([
+      r({ infoHash: "few", seeders: 2, added: 300 }),
+      r({ infoHash: "older", seeders: 8, added: 100 }),
+      r({ infoHash: "newer", seeders: 8, added: 200 }),
+      r({ infoHash: "undated", seeders: 8 }),
+    ]);
+    expect(ids(ordered)).toEqual(["newer", "older", "undated", "few"]);
+  });
+
+  // The TUI and the headless `search` command both order through this, so a
+  // change here has to stay one change rather than two that drift.
+  it("puts a missing added last among equal seeders", () => {
+    const ordered = defaultOrder([
+      r({ infoHash: "undated", seeders: 5 }),
+      r({ infoHash: "dated", seeders: 5, added: 1 }),
+    ]);
+    expect(ids(ordered)).toEqual(["dated", "undated"]);
   });
 });

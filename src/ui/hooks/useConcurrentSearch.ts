@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { SOURCES } from "../../sources/registry";
 import { cachedSearch } from "../../sources/cache";
-import { dedupe, defaultOrder } from "../../sources/results";
+import { dedupeResults } from "../dedupe";
+import { defaultOrder } from "../sort";
 import { HttpError } from "../../util/net";
 import type { SourceId, TorrentResult } from "../../sources/types";
 
@@ -61,7 +62,7 @@ export function useConcurrentSearch(query: string): ConcurrentSearchState {
 
     const flush = (): void => {
       setState({
-        results: defaultOrder(dedupe(collected.slice())),
+        results: defaultOrder(dedupeResults(collected.slice())),
         perSource: { ...per },
         loading: done < SOURCES.length,
         done,

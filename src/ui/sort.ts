@@ -45,6 +45,16 @@ export function sortLabel(sort: Sort): string {
   return `${sort.field} ${sortArrow(sort.dir)}`;
 }
 
+// torlink's default ordering: healthiest first. This is what "none" above
+// preserves, and it is what both the TUI and the headless `search` command
+// hand their merged result list to, so the two orders can never drift.
+export function defaultOrder(list: TorrentResult[]): TorrentResult[] {
+  return list.sort((a, b) => {
+    if (b.seeders !== a.seeders) return b.seeders - a.seeders;
+    return (b.added ?? 0) - (a.added ?? 0);
+  });
+}
+
 export function sortResults(list: TorrentResult[], sort: Sort): TorrentResult[] {
   const arr = list.slice();
   if (sort === "none") return arr;

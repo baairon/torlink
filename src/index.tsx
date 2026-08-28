@@ -52,9 +52,7 @@ function failHeadless(err: unknown): never {
 }
 
 if (cmd.kind === "update") {
-  void import("./update/run").then(({ runUpdate }) =>
-    runUpdate({ force: cmd.force }).catch(failHeadless),
-  );
+  void import("./update/run").then(({ runUpdate }) => runUpdate({ force: cmd.force }).catch(failHeadless));
 } else if (cmd.kind === "watch") {
   if (cmd.daemon) daemonize("watch"); // parent exits here; the detached child continues
   const { dir, downloadDir, seedTimeMs, deleteFiles } = cmd;
@@ -82,6 +80,9 @@ if (cmd.kind === "update") {
   };
   void import("./daemon/files").then(({ runFiles }) => runFiles(options).catch(failHeadless));
 } else if (cmd.kind === "search") {
+  // One JSON document on stdout, then exit: the shape a script can pipe into
+  // jq. Exit 1 only when every source failed, so an empty-but-healthy search
+  // is still a success.
   void import("./cli/search")
     .then(({ runSearch }) => runSearch({ query: cmd.query, category: cmd.category }))
     .then(({ document, exitCode }) => {
@@ -90,64 +91,66 @@ if (cmd.kind === "update") {
     })
     .catch(failHeadless);
 } else {
-  // Enter the alt-screen and hide the hardware cursor: the TUI draws its own
-  // cursor (the search field block, list pointers), so the terminal's should
-  // stay hidden. restoreTerminal shows it again on exit.
-  process.stdout.write("\x1b[?1049h\x1b[?25l\x1b[22;0t\x1b]0;torlink\x07");
-  if (process.platform === "win32") process.title = "torlink";
 
-  let restored = false;
-  function restoreTerminal(): void {
-    if (restored) return;
-    restored = true;
-    process.stdout.write("\x1b[?1000l\x1b[?1006l\x1b[?25h\x1b[23;0t\x1b[?1049l");
-  }
+// Enter the alt-screen and hide the hardware cursor: the TUI draws its own
+// cursor (the search field block, list pointers), so the terminal's should
+// stay hidden. restoreTerminal shows it again on exit.
+process.stdout.write("\x1b[?1049h\x1b[?25l\x1b[22;0t\x1b]0;torlink\x07");
+if (process.platform === "win32") process.title = "torlink";
 
-  let exiting = false;
-  function forceExit(code = 0): void {
-    // Re-entry (e.g. ctrl-c after q): never get stuck, just leave now.
-    if (exiting) {
-      restoreTerminal();
-      process.exit(code);
-    }
-    exiting = true;
-    // Exit synchronously and unconditionally. State is already flushed
-    // (quitAll -> persistSync, and the unmount effect runs suspend()), so we never
-    // wait on webtorrent releasing its sockets; the OS reclaims them. Unmount
-    // first to restore raw mode, then our own terminal sequences, then go.
-    try {
-      app?.unmount();
-    } catch {}
+let restored = false;
+function restoreTerminal(): void {
+  if (restored) return;
+  restored = true;
+  process.stdout.write("\x1b[?1000l\x1b[?1006l\x1b[?25h\x1b[23;0t\x1b[?1049l");
+}
+
+let exiting = false;
+function forceExit(code = 0): void {
+  // Re-entry (e.g. ctrl-c after q): never get stuck, just leave now.
+  if (exiting) {
     restoreTerminal();
     process.exit(code);
   }
+  exiting = true;
+  // Exit synchronously and unconditionally. State is already flushed
+  // (quitAll -> persistSync, and the unmount effect runs suspend()), so we never
+  // wait on webtorrent releasing its sockets; the OS reclaims them. Unmount
+  // first to restore raw mode, then our own terminal sequences, then go.
+  try {
+    app?.unmount();
+  } catch {}
+  restoreTerminal();
+  process.exit(code);
+}
 
-  const app = render(
-    <App
-      initialMagnet={cmd.initialMagnet}
-      initialTorrent={cmd.initialTorrent}
-      onQuit={() => forceExit(0)}
-    />,
-    { exitOnCtrlC: false },
-  );
+const app = render(
+  <App
+    initialMagnet={cmd.initialMagnet}
+    initialTorrent={cmd.initialTorrent}
+    onQuit={() => forceExit(0)}
+  />,
+  { exitOnCtrlC: false },
+);
 
-  app
-    .waitUntilExit()
-    .then(() => forceExit(0))
-    .catch((err) => {
-      restoreTerminal();
-      console.error(err);
-      process.exit(1);
-    });
-
-  process.on("SIGINT", () => forceExit(0));
-  process.on("SIGTERM", () => forceExit(0));
-  process.on("exit", restoreTerminal);
-
-  process.on("uncaughtException", (err) => {
-    logCrash("uncaughtException", err);
+app
+  .waitUntilExit()
+  .then(() => forceExit(0))
+  .catch((err) => {
     restoreTerminal();
     console.error(err);
     process.exit(1);
   });
+
+process.on("SIGINT", () => forceExit(0));
+process.on("SIGTERM", () => forceExit(0));
+process.on("exit", restoreTerminal);
+
+process.on("uncaughtException", (err) => {
+  logCrash("uncaughtException", err);
+  restoreTerminal();
+  console.error(err);
+  process.exit(1);
+});
+
 }
