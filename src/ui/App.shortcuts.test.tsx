@@ -83,6 +83,12 @@ vi.mock("../download/queue", () => {
           upSpeed: 10,
         }
       ]);
+      getMetadata = vi.fn().mockResolvedValue({
+        infoHash: "1234567890123456789012345678901234567890",
+        name: "Fake Torrent",
+        announce: [],
+        length: 1024,
+      });
     },
   };
 });
@@ -150,6 +156,21 @@ describe("App Keyboard Shortcuts", () => {
     
     // Press 'w' again or 'esc' to close
     stdin.write("w");
+    await new Promise((r) => setTimeout(r, 50));
+  });
+
+  it("handles the 'v' shortcut to toggle the MetadataInspector", async () => {
+    const { lastFrame, stdin } = render(<App initialMagnet="magnet:?xt=urn:btih:1234567890123456789012345678901234567890" />);
+    
+    // Wait for async boot
+    await new Promise((r) => setTimeout(r, 50));
+    
+    // Press 'v' to open metadata inspector
+    stdin.write("v");
+    await new Promise((r) => setTimeout(r, 50));
+    
+    // Press 'esc' to close
+    stdin.write("\x1b");
     await new Promise((r) => setTimeout(r, 50));
   });
 });

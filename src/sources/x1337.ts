@@ -1,6 +1,7 @@
 import { fetchResilient, HttpError, USER_AGENT } from "../util/net";
 import { unescapeEntities } from "./rss";
 import { parseSize } from "../util/format";
+import { normalizeInfoHash } from "./magnet";
 import type { SearchOptions, Source, SourceId, TorrentResult } from "./types";
 
 const HOSTS = ["1337x.to", "1337x.st", "x1337x.ws", "1337xx.to"];
@@ -144,8 +145,9 @@ async function search(
   const settled = await Promise.all(
     rows.map(async (row): Promise<TorrentResult | null> => {
       const detail = await detailInfo(base, row.path, opts);
-      const infoHash = detail?.magnet?.match(/urn:btih:([a-zA-Z0-9]+)/i)?.[1]?.toLowerCase();
-      if (!detail || !infoHash) return null;
+      const rawHash = detail?.magnet?.match(/urn:btih:([a-zA-Z0-9]+)/i)?.[1];
+      if (!detail || !rawHash) return null;
+      const infoHash = normalizeInfoHash(rawHash);
       return {
         infoHash,
         name: row.name,

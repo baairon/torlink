@@ -90,8 +90,16 @@ export function footerHints(
   inspecting?: boolean,
   inspectFocusSelected?: boolean,
   resultFocus?: ResultFocus | null,
+  inspectingMeta?: boolean,
 ): Hint[] {
   const getHints = (): Hint[] => {
+    if (inspectingMeta) {
+      return [
+        { keys: "esc / v", label: "Back" },
+        SWITCH,
+        ALWAYS,
+      ];
+    }
     if (inspecting) {
       const spaceLabel = inspectFocusSelected ? "Skip" : "Keep";
       const spaceColor = inspectFocusSelected ? "red" : "green";
@@ -177,7 +185,7 @@ export function footerHints(
 
   const hints = getHints();
   
-  if (!inspectingPeersId && !inspecting && region === "content" && (section === "downloads" || section === "seeding")) {
+  if (!inspectingPeersId && !inspecting && !inspectingMeta && region === "content" && (section === "downloads" || section === "seeding")) {
     const focusExists = section === "downloads" ? !!downloadFocus : !!seedFocus;
     if (focusExists) {
       const peerHint: Hint = { keys: "w", label: "Peers" };

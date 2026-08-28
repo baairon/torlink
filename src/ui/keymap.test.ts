@@ -74,6 +74,16 @@ describe("footerHints", () => {
       ])
     );
   });
+
+  it("shows metadata inspection hints when inspectingMeta is true", () => {
+    const hints = footerHints("content", "all", false, null, null, null, false, false, null, true);
+    
+    expect(hints).toEqual(
+      expect.arrayContaining([
+        { keys: "esc / v", label: "Back" },
+      ])
+    );
+  });
 });
 
 describe("HELP_GROUPS", () => {

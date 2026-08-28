@@ -714,11 +714,19 @@ export function App({
       }
       if (input === "w") {
         if (inspectingPeersId) setInspectingPeersId(null);
+        if (inspectingMetaId) setInspectingMetaId(null);
         return;
+      }
+      if (input === "v") {
+        if (inspectingMetaId) {
+          setInspectingMetaId(null);
+          return;
+        }
       }
       if (key.tab) {
         if (inspectingId) setInspectingId(null);
         if (inspectingPeersId) setInspectingPeersId(null);
+        if (inspectingMetaId) setInspectingMetaId(null);
         setRegion(region === "sidebar" ? "content" : "sidebar");
         return;
       }
@@ -735,6 +743,10 @@ export function App({
           setInspectingPeersId(null);
           return;
         }
+        if (inspectingMetaId) {
+          setInspectingMetaId(null);
+          return;
+        }
         if (region === "content") setRegion("sidebar");
         return;
       }
@@ -746,6 +758,10 @@ export function App({
         }
         if (inspectingPeersId) {
           setInspectingPeersId(null);
+          return;
+        }
+        if (inspectingMetaId) {
+          setInspectingMetaId(null);
           return;
         }
         if (region === "content") {
@@ -889,6 +905,8 @@ export function App({
               <Files />
             ) : inspectingPeersId ? (
               <PeerInspector id={inspectingPeersId} />
+            ) : inspectingMetaId ? (
+              <MetadataInspector />
             ) : section === "downloads" ? (
               <Downloads />
             ) : section === "seeding" ? (
@@ -903,11 +921,10 @@ export function App({
 
         {showFooter ? (
           <Box display={showHelp || editingFolder || editingTrackers || pendingDownload ? "none" : "flex"}>
-            <Footer hints={footerHints(region, section, store.config.throttleEnabled, inspectingPeersId, downloadFocus, seedFocus, !!inspectingId, inspectFocusSelected, resultFocus)} />
+            <Footer hints={footerHints(region, section, store.config.throttleEnabled, inspectingPeersId, downloadFocus, seedFocus, !!inspectingId, inspectFocusSelected, resultFocus, !!inspectingMetaId)} />
           </Box>
         ) : null}
       </Box>
-      <MetadataInspector />
     </StoreContext.Provider>
   );
 }
