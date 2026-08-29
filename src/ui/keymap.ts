@@ -29,6 +29,7 @@ export const HELP_GROUPS: HelpGroup[] = [
       { keys: "/", label: "Edit search" },
       { keys: "f", label: "Filter list" },
       { keys: "d", label: "Download (shift+d: folder)" },
+      { keys: "x", label: "Pick files to exclude" },
       { keys: "s", label: "Sort results" },
       { keys: "z", label: "Hide dead torrents" },
       { keys: "y", label: "Copy magnet" },
@@ -42,6 +43,7 @@ export const HELP_GROUPS: HelpGroup[] = [
     hints: [
       { keys: "p", label: "Pause/resume" },
       { keys: "c", label: "Cancel or remove (shift+c: all)" },
+      { keys: "x", label: "Change excluded files" },
       { keys: "f", label: "Retry failed" },
       { keys: "d", label: "Download again" },
       { keys: "e", label: "Open folder" },
@@ -71,6 +73,9 @@ const FOLDER: Hint = { keys: "e", label: "Folder" };
 
 const TORRENT: Hint = { keys: "s", label: "Export" };
 
+// Re-pick which files a download in progress fetches (Downloads pane only).
+const FILES: Hint = { keys: "x", label: "Files" };
+
 const EXPORT: Hint = { keys: "e", label: "Export" };
 
 export function footerHints(
@@ -96,10 +101,10 @@ export function footerHints(
   }
   if (section === "downloads") {
     if (downloadFocus === "paused") {
-      return [{ keys: "p", label: "Resume" }, { keys: "c", label: "Cancel" }, FOLDER, TORRENT, SWITCH, ALWAYS];
+      return [{ keys: "p", label: "Resume" }, { keys: "c", label: "Cancel" }, FILES, FOLDER, TORRENT, SWITCH, ALWAYS];
     }
     if (downloadFocus === "failed") {
-      return [{ keys: "f", label: "Retry" }, { keys: "c", label: "Remove" }, FOLDER, TORRENT, SWITCH, ALWAYS];
+      return [{ keys: "f", label: "Retry" }, { keys: "c", label: "Remove" }, FILES, FOLDER, TORRENT, SWITCH, ALWAYS];
     }
     if (downloadFocus === "recent") {
       // Removal is list bookkeeping, never file deletion, and the label says
@@ -113,7 +118,7 @@ export function footerHints(
         ALWAYS,
       ];
     }
-    return [{ keys: "p", label: "Pause" }, { keys: "c", label: "Cancel" }, FOLDER, TORRENT, SWITCH, ALWAYS];
+    return [{ keys: "p", label: "Pause" }, { keys: "c", label: "Cancel" }, FILES, FOLDER, TORRENT, SWITCH, ALWAYS];
   }
   return [
     NAVIGATE,

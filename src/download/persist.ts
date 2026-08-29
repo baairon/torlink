@@ -92,6 +92,14 @@ export async function saveTorrentMeta(id: string, data: Uint8Array): Promise<voi
   } catch {}
 }
 
+export async function loadTorrentMeta(id: string): Promise<Uint8Array | null> {
+  try {
+    return await fs.readFile(torrentMetaPath(id));
+  } catch {
+    return null;
+  }
+}
+
 export async function exportTorrentMeta(id: string, name: string, dir: string): Promise<string | null> {
   try {
     const source = torrentMetaPath(id);

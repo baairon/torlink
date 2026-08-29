@@ -69,6 +69,19 @@ export interface Store {
     source?: SourceId;
     sizeBytes?: number;
   }) => void;
+  // Fetches the torrent's file list, then opens the exclude-files picker so the
+  // user can drop files before the download starts. Falls back to a normal
+  // download when the list can't be read or holds a single file.
+  requestFileSelection: (input: {
+    id: string;
+    name: string;
+    magnet: string;
+    source?: SourceId;
+    sizeBytes?: number;
+  }) => void;
+  // Re-opens the file picker for a download already in the queue, preloaded with
+  // its current exclusions, and applies the new choice to the running torrent.
+  requestReselect: (id: string) => void;
   copyMagnet: (input: { name: string; magnet: string }) => void;
   openDownloadFolder: (dir: string) => void;
   // Copies the cached .torrent metadata into the item's download folder and

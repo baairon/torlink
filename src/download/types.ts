@@ -20,6 +20,13 @@ export interface SeedItem {
   peers: number;
 }
 
+// One file inside a torrent, as offered to the exclude-before-download picker.
+export interface TorrentFileEntry {
+  index: number;
+  name: string;
+  length: number;
+}
+
 export interface QueueItem {
   id: string;
   name: string;
@@ -34,6 +41,9 @@ export interface QueueItem {
   peers: number;
   eta?: number;
   files?: number;
+  // File indices the user chose to skip before starting. Persisted so a resume
+  // or retry re-applies the same exclusions when the engine re-adds the torrent.
+  excludedFiles?: number[];
   error?: string;
   addedAt: number;
 }

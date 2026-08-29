@@ -5,6 +5,10 @@ declare module "webtorrent" {
     name: string;
     path: string;
     length: number;
+    // Piece-selection controls. select() marks the file wanted; deselect()
+    // drops it so its bytes are never downloaded (see engine file exclusion).
+    select(priority?: number): void;
+    deselect(): void;
   }
 
   interface Torrent extends EventEmitter {
@@ -34,6 +38,9 @@ declare module "webtorrent" {
   interface TorrentOptions {
     path?: string;
     announce?: string[];
+    // Create the torrent with no pieces selected. Combined with per-file
+    // select(), this is how we download only a chosen subset of files.
+    deselect?: boolean;
   }
 
   interface WebTorrentOptions {
