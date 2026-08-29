@@ -69,7 +69,10 @@ if (cmd.kind === "update") {
     seedTimeMs: cmd.seedTimeMs,
     deleteFiles: cmd.deleteFiles,
   };
-  void import("./daemon/serve").then(({ runServe }) => runServe(options).catch(failHeadless));
+  void import("./daemon/serve")
+    .then(({ runServe }) => runServe(options))
+    .then(() => process.exit(0))
+    .catch(failHeadless);
 } else if (cmd.kind === "files") {
   if (cmd.daemon) daemonize("files");
   const options = {
