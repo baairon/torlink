@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import os from "node:os";
 import path from "node:path";
 import { promises as fs } from "node:fs";
-import { handleApi, isAuthorized, extractMagnet, parseControl, applyControl } from "./serve";
+import { handleApi, isAuthorized, extractMagnet, extractTorrentBytes, parseControl, applyControl } from "./serve";
 import type { Runtime } from "./runtime";
 
 const HASH = "abcdef0123456789abcdef0123456789abcdef01";
@@ -189,5 +189,37 @@ describe("applyControl", () => {
     const rt = mkRuntime({ remove: vi.fn().mockResolvedValue(false) });
     expect(await applyControl(rt, { id: "z", action: "remove", deleteFiles: false })).toBe("not-found");
     expect(await applyControl(mkRuntime({}), { id: "z", action: "nope", deleteFiles: false })).toBe("unknown-action");
+  });
+});
+
+describe("extractTorrentBytes", () => {
+  // Every torrent is a bencoded dictionary, so it starts with "d".
+  const b64 = Buffer.from("d4:name4:teste", "utf8").toString("base64");
+
+  it("reads a base64 .torrent out of the body", () => {
+    const bytes = extractTorrentBytes(JSON.stringify({ torrent: b64 }));
+    expect(bytes).not.toBeNull();
+    expect(bytes![0]).toBe(0x64);
+  });
+
+  // What a browser's FileReader.readAsDataURL hands you, verbatim.
+  it("accepts a data: URI without making the caller strip it", () => {
+    const uri = `data:application/x-bittorrent;base64,${b64}`;
+    expect(extractTorrentBytes(JSON.stringify({ torrent: uri }))).not.toBeNull();
+  });
+
+  /*
+   * Buffer.from(..., "base64") ignores bytes it cannot decode rather than
+   * throwing, so garbage yields a short buffer instead of an error. Checking
+   * for the leading bencode dictionary is what turns that into a rejection.
+   */
+  it("rejects a string that is not a torrent", () => {
+    expect(extractTorrentBytes(JSON.stringify({ torrent: "hello world" }))).toBeNull();
+    expect(extractTorrentBytes(JSON.stringify({ torrent: "" }))).toBeNull();
+  });
+
+  it("is null for a body that carries no torrent at all", () => {
+    expect(extractTorrentBytes(JSON.stringify({ magnet: "magnet:?xt=urn:btih:" + "a".repeat(40) }))).toBeNull();
+    expect(extractTorrentBytes("not json")).toBeNull();
   });
 });

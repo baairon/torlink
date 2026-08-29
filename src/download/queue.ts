@@ -159,7 +159,16 @@ export class DownloadQueue extends EventEmitter {
 
   private startEngine(item: QueueItem): void {
     try {
-      this.engine.add(item.id, item.magnet, item.dir, this.engineHandlers(item.id), this.trackers);
+      // Prefer the stored .torrent over the magnet, exactly as startSeeding
+      // does. A magnet carries no piece hashes, so the client cannot verify a
+      // single byte until the swarm serves it metadata -- which is merely slow
+      // for a popular torrent and terminal for one that nobody else has yet.
+      // With the metadata on disk it verifies the local files immediately, so
+      // a re-add of something already downloaded, and a torrent created from
+      // local content, both go straight to complete instead of waiting on
+      // peers that may not exist.
+      const source = torrentMetaExists(item.id) ? torrentMetaPath(item.id) : item.magnet;
+      this.engine.add(item.id, source, item.dir, this.engineHandlers(item.id), this.trackers);
     } catch (e) {
       // engine.add routes webtorrent's own synchronous failures through
       // onError, so the only throw that reaches here is the client failing to

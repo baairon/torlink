@@ -58,6 +58,7 @@
     "access": "public"
   },
   "dependencies": {
+    "create-torrent": "^6.1.2",
     "env-paths": "^4.0.0",
     "ink": "^7.0.5",
     "parse-torrent": "^11.0.21",

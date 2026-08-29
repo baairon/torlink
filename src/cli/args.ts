@@ -25,6 +25,13 @@ export type CliCommand =
       deleteFiles?: boolean;
       daemon?: boolean;
     }
+  | {
+      kind: "seed";
+      path: string;
+      seedTimeMs?: number;
+      deleteFiles?: boolean;
+      daemon?: boolean;
+    }
   | { kind: "files"; port?: number; host?: string; token?: string; dir?: string; daemon?: boolean }
   | { kind: "attach" }
   | { kind: "update"; force?: boolean }
@@ -130,6 +137,19 @@ export function parseCliArgs(argv: string[]): CliCommand {
       daemon: bools.has("daemon"),
     };
   }
+  if (a === "seed") {
+    const { bools, rest: r0 } = splitBooleans(args.slice(1));
+    const { flags, rest } = readFlags(r0);
+    const target = rest[0];
+    if (!target) return { kind: "invalid", arg: "seed (missing path)" };
+    return {
+      kind: "seed",
+      path: target,
+      seedTimeMs: seedTimeFrom(flags["seed-time"]),
+      deleteFiles: bools.has("delete-files"),
+      daemon: bools.has("daemon"),
+    };
+  }
   if (a === "files") {
     const { bools, rest: r0 } = splitBooleans(args.slice(1));
     const { flags } = readFlags(r0);
@@ -156,6 +176,7 @@ usage
   torlnk path/to/file.torrent open a .torrent file on launch
   torlnk search <query>        headless: print search results as JSON
     [--category games|movies|tv|anime]
+  torlnk seed <path>          headless: make a torrent of <path> and seed it
   torlnk watch <dir>          headless: download torrents dropped into <dir>
   torlnk serve                headless: HTTP add API (POST /add) on :9161
   torlnk files                headless: serve downloads over HTTP on :9160
@@ -172,7 +193,14 @@ watch mode (no TUI): drop a .torrent, or a .magnet/.txt holding a magnet or
 info hash, into <dir> and it downloads then seeds. Add --to <dir> to choose
 where files land. Handled files move to <dir>/.processed (or /.failed).
 
-seed mode (watch/serve): --seed-time <dur> stops seeding a torrent that long
+seed a path (no TUI): torlnk seed ./album hashes the files, writes
+album.torrent beside them, prints the magnet, and starts seeding. It adds the
+.torrent rather than the magnet on purpose: a magnet carries no piece hashes,
+so the client would have to fetch metadata from a swarm that -- for a torrent
+nobody has seen yet -- has nobody in it, and would sit at zero per cent over
+data already on the disk. Takes --seed-time, --delete-files and --daemon.
+
+seed expiry (seed/watch/serve): --seed-time <dur> stops seeding a torrent that long
 after it finishes (e.g. 1h, 30m, 90s, 2d); files are kept by default. Add
 --delete-files to also remove the downloaded data when the timer expires.
 
@@ -185,6 +213,7 @@ left off. Downloads and seeds keep running while detached.
 
 serve mode (no TUI): a small HTTP API for handing torlink a magnet.
   POST /add {"magnet":"..."}   queue a magnet or info hash
+  POST /add {"torrent":"<b64>"} queue an uploaded .torrent (base64 or data: URI)
   GET  /downloads              list active downloads and seeds
   GET  /health                 liveness (no auth)
 flags: --port <n> (default 9161), --host <addr> (default 127.0.0.1),

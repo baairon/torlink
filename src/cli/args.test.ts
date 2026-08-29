@@ -200,3 +200,28 @@ describe("parseCliArgs", () => {
     });
   });
 });
+
+describe("seed", () => {
+  it("takes the path, and the flags the other headless modes take", () => {
+    expect(parseCliArgs(["seed", "./album"])).toEqual({
+      kind: "seed",
+      path: "./album",
+      seedTimeMs: undefined,
+      deleteFiles: false,
+      daemon: false,
+    });
+    expect(parseCliArgs(["seed", "--seed-time", "2h", "--daemon", "./album"])).toEqual({
+      kind: "seed",
+      path: "./album",
+      seedTimeMs: 2 * 60 * 60 * 1000,
+      deleteFiles: false,
+      daemon: true,
+    });
+  });
+
+  // Without a path there is nothing to hash, and defaulting to the cwd would
+  // make a bare `torlnk seed` start hashing a home directory.
+  it("is invalid with no path", () => {
+    expect(parseCliArgs(["seed"])).toEqual({ kind: "invalid", arg: "seed (missing path)" });
+  });
+});
