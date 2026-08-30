@@ -117,9 +117,9 @@
     <text x="387.2" y="502" textLength="38.4" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill-opacity="0.55">Sort</text>
     <text x="454.4" y="502" textLength="9.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#b9a7e6">/</text>
     <text x="473.6" y="502" textLength="57.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill-opacity="0.55">Search</text>
-    <text x="560" y="502" textLength="28.8" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#b9a7e6">tab</text>
-    <text x="598.4" y="502" textLength="57.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill-opacity="0.55">Switch</text>
-    <text x="684.8" y="502" textLength="9.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#b9a7e6">?</text>
-    <text x="704" y="502" textLength="38.4" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill-opacity="0.55">Keys</text>
+    <text x="560" y="502" textLength="9.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#b9a7e6">f</text>
+    <text x="579.2" y="502" textLength="57.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill-opacity="0.55">Filter</text>
+    <text x="665.6" y="502" textLength="28.8" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#b9a7e6">tab</text>
+    <text x="704" y="502" textLength="86.4" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill-opacity="0.55">Switch  …</text>
   </g>
 </svg>

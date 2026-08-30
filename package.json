@@ -61,6 +61,7 @@
     "create-torrent": "^6.1.2",
     "env-paths": "^4.0.0",
     "ink": "^7.0.5",
+    "jpeg-js": "^0.4.4",
     "parse-torrent": "^11.0.21",
     "react": "^19.2.7",
     "uint8-util": "2.2.6",
