@@ -1,5 +1,5 @@
 import { fetchResilient, HttpError, USER_AGENT } from "../util/net";
-import { normalizeImdbId } from "../meta/cinemeta";
+import { normalizeImdbId } from "../meta/imdbId";
 import { buildMagnet } from "./magnet";
 import type { SearchOptions, Source, TorrentResult } from "./types";
 
@@ -43,6 +43,28 @@ async function fetchMovies(params: URLSearchParams, opts: SearchOptions): Promis
   throw lastError instanceof Error ? lastError : new HttpError(0, "YTS unreachable");
 }
 
+/** Exported for tests: the mapping is where every YTS quirk is absorbed. */
+export function toResult(movie: YtsMovie, t: YtsTorrent): TorrentResult | null {
+  if (!t.hash) return null;
+  const infoHash = t.hash.toLowerCase();
+  const base = movie.title_long || movie.title || "Unknown";
+  const tag = [t.quality, t.type].filter(Boolean).join(" ");
+  const name = tag ? `${base} [${tag}]` : base;
+  return {
+    infoHash,
+    name,
+    sizeBytes: t.size_bytes ?? 0,
+    seeders: t.seeds ?? 0,
+    leechers: t.peers ?? 0,
+    source: "yts",
+    magnet: buildMagnet(infoHash, name),
+    added: movie.date_uploaded_unix,
+    // One id per film, shared by its quality rows: validated here, at the trust boundary, not at
+    // the point of use.
+    imdbId: normalizeImdbId(movie.imdb_code),
+  };
+}
+
 async function search(query: string, opts: SearchOptions = {}): Promise<TorrentResult[]> {
   const q = query.trim();
   const params = new URLSearchParams({ limit: "50" });
@@ -52,26 +74,9 @@ async function search(query: string, opts: SearchOptions = {}): Promise<TorrentR
   const json = await fetchMovies(params, opts);
   const out: TorrentResult[] = [];
   for (const movie of json.data?.movies ?? []) {
-    const base = movie.title_long || movie.title || "Unknown";
-    // One id per film, shared by its quality rows: hoisted so the metadata cache collapses all
-    // four of them onto one entry. Validated here, at the trust boundary, not at the point of use.
-    const imdbId = normalizeImdbId(movie.imdb_code);
     for (const t of movie.torrents ?? []) {
-      if (!t.hash) continue;
-      const infoHash = t.hash.toLowerCase();
-      const tag = [t.quality, t.type].filter(Boolean).join(" ");
-      const name = tag ? `${base} [${tag}]` : base;
-      out.push({
-        infoHash,
-        name,
-        sizeBytes: t.size_bytes ?? 0,
-        seeders: t.seeds ?? 0,
-        leechers: t.peers ?? 0,
-        source: "yts",
-        magnet: buildMagnet(infoHash, name),
-        added: movie.date_uploaded_unix,
-        imdbId,
-      });
+      const r = toResult(movie, t);
+      if (r) out.push(r);
     }
   }
   return out;

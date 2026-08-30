@@ -1,5 +1,6 @@
 import { fetchResilient, USER_AGENT } from "../util/net";
 import { cleanText } from "../util/format";
+import { normalizeImdbId } from "./imdbId";
 import type { CatalogHit, EpisodeMeta, Meta, MetaKind } from "./types";
 
 // Cinemeta is Stremio's public metadata addon: keyless, CORS-open, IMDb-keyed. torlink uses it
@@ -33,39 +34,11 @@ const AMAZON_POSTER = /^https:\/\/m\.media-amazon\.com\/images\/M\/[\w@.-]+\._V1
 // sane rendition rather than the ~200 KB original the API links to.
 const POSTER_WIDTH = "SX120";
 
-// An IMDb id is interpolated into a URL *path*, so it is attacker-controlled routing input the
-// moment it comes back from a remote catalog. Same class of rule as stripControl() in
-// util/format: validate the value you are about to hand to another system, not the value you
-// received. Anchored, digits only — "tt0133093/../../admin" and "tt0133093?x=1" both fail.
-const IMDB_ID = /^tt\d{7,10}$/;
-
 const MAX_GENRES = 6;
 const MAX_CAST = 12;
 const MAX_DIRECTORS = 3;
 const MAX_PLOT = 800;
 
-/**
- * Accept a remote value as an IMDb id only if it still looks like one after cleaning. Returns
- * undefined rather than throwing so callers can treat "no id" and "bad id" identically.
- */
-export function normalizeImdbId(raw: unknown): string | undefined {
-  if (typeof raw !== "string") return undefined;
-  const trimmed = raw.trim().toLowerCase();
-  // Series episodes arrive as "tt0944947:5:14"; the series id is the part before the first colon.
-  const base = trimmed.split(":", 1)[0] ?? "";
-  return IMDB_ID.test(base) ? base : undefined;
-}
-
-/**
- * Some sources (YTS, torrent indexes) carry the bare numeric IMDb id. Zero-pad to IMDb's minimum
- * width of seven, then run the same result-side validation — a caller could hand us anything.
- */
-export function imdbFromNumeric(raw: unknown): string | undefined {
-  const s = typeof raw === "number" ? String(raw) : typeof raw === "string" ? raw.trim() : "";
-  if (!/^\d+$/.test(s)) return undefined;
-  const candidate = `tt${s.padStart(7, "0")}`;
-  return IMDB_ID.test(candidate) ? candidate : undefined;
-}
 // Ceiling on any single remote string, applied before it is cleaned. MAX_META_BYTES lets a 3 MB
 // body through and the list caps below bound the *count* of entries, not the length of one — so
 // without this a single field is free to be the whole body. That costs twice, and both costs are

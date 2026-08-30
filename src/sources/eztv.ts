@@ -1,5 +1,5 @@
 import { fetchResilient, HttpError, USER_AGENT } from "../util/net";
-import { imdbFromNumeric } from "../meta/cinemeta";
+import { imdbFromNumeric } from "../meta/imdbId";
 import { buildMagnet } from "./magnet";
 import type { SearchOptions, Source, TorrentResult } from "./types";
 
@@ -82,7 +82,8 @@ function matches(t: EztvTorrent, tokens: string[]): boolean {
   return tokens.every((token) => name.includes(token));
 }
 
-function toResult(t: EztvTorrent): TorrentResult | null {
+/** Exported for tests: the mapping is where every EZTV quirk is absorbed. */
+export function toResult(t: EztvTorrent): TorrentResult | null {
   const hash = (t.hash ?? "").toLowerCase();
   const name = t.title || t.filename || hash;
   const magnet = t.magnet_url || (hash ? buildMagnet(hash, name) : "");
