@@ -1,4 +1,5 @@
 import { fetchResilient, HttpError, USER_AGENT } from "../util/net";
+import { imdbFromNumeric } from "../meta/cinemeta";
 import { buildMagnet } from "./magnet";
 import type { SearchOptions, Source, TorrentResult } from "./types";
 
@@ -95,6 +96,9 @@ function toResult(t: EztvTorrent): TorrentResult | null {
     source: "eztv",
     magnet,
     added: t.date_released_unix,
+    // EZTV publishes the *series* id, bare digits and unpadded ("399664"), so it needs both the
+    // tt-prefix and the same result-side validation every other remote id gets.
+    imdbId: imdbFromNumeric(t.imdb_id),
   };
 }
 

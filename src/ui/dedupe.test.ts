@@ -69,13 +69,16 @@ describe("dedupeResults", () => {
     expect(new Set(tr).size).toBe(tr.length);
   });
 
-  it("backfills numFiles and added only where the winner has none", () => {
+  it("backfills numFiles, added and imdbId only where the winner has none", () => {
     const out = dedupeResults([
       row({ source: "yts", seeders: 90, added: 1_700_000_000 }),
-      row({ source: "eztv", seeders: 3, numFiles: 7, added: 1_600_000_000 }),
+      row({ source: "eztv", seeders: 3, numFiles: 7, added: 1_600_000_000, imdbId: "tt0133093" }),
     ]);
     expect(out[0]!.numFiles).toBe(7);
     expect(out[0]!.added).toBe(1_700_000_000);
+    // The healthiest row is routinely one from a source that carries no id at all, so the
+    // winner losing the loser's imdbId is the common case, not the corner.
+    expect(out[0]!.imdbId).toBe("tt0133093");
   });
 
   it("keeps the first row when seeders tie", () => {
