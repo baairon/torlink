@@ -45,7 +45,21 @@ export class TorrentEngine {
       // the app the moment a download starts. NAT-PMP can never succeed
       // on macOS because the port is permanently taken, so disable it
       // and let UPnP handle NAT traversal instead.
-      const opts = process.platform === "darwin" ? { natPmp: false } : {};
+      //
+      // Disable uTP across all platforms:
+      // WebTorrent's uTP implementation relies on `utp-native`, which allocates
+      // an independent UDP socket for every outgoing connection attempt. Under
+      // peer discovery churn, this rapidly exhausts socket buffer space and
+      // ephemeral ports (leading to WSAENOBUFS / ENOBUFS: "no buffer space available").
+      // Furthermore, when `utp-native` fails to bind, it emits an unhandled 'error'
+      // on an internal EventEmitter with no listeners, crashing the process as an
+      // uncaught exception. Disabling uTP forces WebTorrent to use standard TCP
+      // connections, which are supported by 100% of BitTorrent clients and operate
+      // reliably without socket buffer exhaustion.
+      const opts = {
+        utp: false,
+        ...(process.platform === "darwin" ? { natPmp: false } : {}),
+      };
       this.client = new WebTorrent(opts);
       this.client.on("error", () => {});
     }
