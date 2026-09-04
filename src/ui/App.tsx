@@ -20,6 +20,7 @@ import { resolveTorrentPath } from "../sources/torrentPath";
 import { readClipboard, writeClipboard } from "../util/clipboard";
 import { openFolder } from "../util/openFolder";
 import { cleanText, formatBytes, truncate } from "../util/format";
+import { logDebug } from "../util/crashlog";
 import {
   StoreContext,
   type CaptureMode,
@@ -358,11 +359,14 @@ export function App({
     (input: { id: string; name: string }) => {
       if (!queue) return;
       void (async () => {
+        logDebug("export", `cached-request id=${input.id} name=${JSON.stringify(input.name)}`);
         const file = await queue.exportTorrentFile(input.id);
         if (file) {
+          logDebug("export", `cached-success id=${input.id} file=${JSON.stringify(file)}`);
           setNotice(`Exported torrent file: ${truncate(file, 48)}`);
           return;
         }
+        logDebug("export", `cached-miss id=${input.id}`);
         setNotice(`No torrent file yet for ${truncate(cleanText(input.name), 32)}.`);
       })();
     },
@@ -373,12 +377,15 @@ export function App({
     (input: { id: string; name: string; magnet: string }) => {
       if (!queue || !config) return;
       setNotice("Fetching torrent metadata…");
+      logDebug("torrent-only", `ui-request id=${input.id} name=${JSON.stringify(input.name)} downloadDir=${JSON.stringify(config.downloadDir)}`);
       void (async () => {
         const file = await queue.fetchAndExportTorrent(input, config.downloadDir);
         if (file) {
+          logDebug("torrent-only", `ui-success id=${input.id} file=${JSON.stringify(file)}`);
           setNotice(`Exported torrent file: ${truncate(file, 48)}`);
           return;
         }
+        logDebug("torrent-only", `ui-failure id=${input.id}`);
         setNotice(`Couldn't export torrent file for ${truncate(cleanText(input.name), 32)}.`);
       })();
     },
