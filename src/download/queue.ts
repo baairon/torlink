@@ -18,6 +18,7 @@ import { disarmBootMarker } from "./bootguard";
 import { trackersOf } from "../sources/magnet";
 import type { QueueItem, SeedItem } from "./types";
 import type { SourceId } from "../sources/types";
+import { logDebug } from "../util/crashlog";
 
 /**
  * A real seed never pulls data off the network: verifying on-disk files reads
@@ -435,13 +436,19 @@ export class DownloadQueue extends EventEmitter {
     input: { id: string; name: string; magnet: string },
     exportDir: string,
   ): Promise<string | null> {
+    logDebug("torrent-only", `request id=${input.id} name=${JSON.stringify(input.name)} exportDir=${JSON.stringify(exportDir)}`);
     // Fast path: cached from a previous download.
     if (torrentMetaExists(input.id)) {
-      return exportTorrentMeta(input.id, input.name, exportDir);
+      logDebug("torrent-only", `cached hit id=${input.id}`);
+      return exportTorrentMeta(input.id, input.name, exportDir).then((file) => {
+        logDebug("torrent-only", `cached export id=${input.id} file=${JSON.stringify(file)}`);
+        return file;
+      });
     }
     // If this torrent is already in the engine (downloading / seeding), its
     // metadata will arrive through the normal queue flow; don't double-add it.
     if (this.items.has(input.id) || this.seeds.has(input.id)) {
+      logDebug("torrent-only", `blocked existing live torrent id=${input.id}`);
       return Promise.resolve(null);
     }
     return new Promise<string | null>((resolve) => {
@@ -450,6 +457,7 @@ export class DownloadQueue extends EventEmitter {
       const timer = setTimeout(() => {
         if (done) return;
         done = true;
+        logDebug("torrent-only", `metadata timeout id=${input.id}`);
         this.engine.remove(tempKey);
         resolve(null);
       }, FETCH_METADATA_TIMEOUT_MS);
@@ -458,17 +466,24 @@ export class DownloadQueue extends EventEmitter {
           if (done) return;
           done = true;
           clearTimeout(timer);
+          logDebug(
+            "torrent-only",
+            `metadata arrived id=${input.id} name=${JSON.stringify(meta.name)} total=${meta.total} files=${meta.files} hasTorrentFile=${Boolean(meta.torrentFile)}`,
+          );
           // Tear down synchronously before any file data can be written.
           this.engine.remove(tempKey);
           void (async () => {
             if (meta.torrentFile) await saveTorrentMeta(input.id, meta.torrentFile);
-            resolve(await exportTorrentMeta(input.id, input.name, exportDir));
+            const file = await exportTorrentMeta(input.id, input.name, exportDir);
+            logDebug("torrent-only", `export result id=${input.id} file=${JSON.stringify(file)}`);
+            resolve(file);
           })();
         },
         onError: () => {
           if (done) return;
           done = true;
           clearTimeout(timer);
+          logDebug("torrent-only", `metadata error id=${input.id}`);
           this.engine.remove(tempKey);
           resolve(null);
         },

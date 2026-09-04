@@ -3,6 +3,7 @@ import path from "node:path";
 import { logsDir } from "../config/paths";
 
 export const crashLogFile = path.join(logsDir, "crash.log");
+export const debugLogFile = path.join(logsDir, "debug.log");
 
 // Append one timestamped entry. Returns false when even logging failed: a
 // crash logger must never become a crash source itself.
@@ -11,6 +12,16 @@ export function logCrash(kind: string, err: unknown): boolean {
     mkdirSync(logsDir, { recursive: true });
     const detail = err instanceof Error ? (err.stack ?? err.message) : String(err);
     appendFileSync(crashLogFile, `${new Date().toISOString()} [${kind}] ${detail}\n`);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function logDebug(kind: string, message: string): boolean {
+  try {
+    mkdirSync(logsDir, { recursive: true });
+    appendFileSync(debugLogFile, `${new Date().toISOString()} [${kind}] ${message}\n`);
     return true;
   } catch {
     return false;
