@@ -36,4 +36,6 @@ export interface QueueItem {
   files?: number;
   error?: string;
   addedAt: number;
+  // Carried from add() into the history entry on completion (see HistoryItem).
+  seedTimeMs?: number;
 }

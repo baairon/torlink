@@ -61,6 +61,9 @@ export interface AddInputOptions {
   // the watch folder opts in; a network caller (the HTTP add API) must never
   // be able to point the daemon at the local filesystem.
   allowTorrentPath?: boolean;
+  // Per-torrent seed limit (ms after completion; 0 = never stop). Unset
+  // inherits the daemon-wide --seed-time.
+  seedTimeMs?: number;
 }
 
 export async function addInput(
@@ -80,7 +83,12 @@ export async function addInput(
   if (runtime.queue.has(parsed.infoHash)) return "duplicate";
   await fs.mkdir(runtime.downloadDir, { recursive: true }).catch(() => {});
   runtime.queue.add(
-    { id: parsed.infoHash, name: parsed.name, magnet: parsed.magnet },
+    {
+      id: parsed.infoHash,
+      name: parsed.name,
+      magnet: parsed.magnet,
+      ...(options.seedTimeMs !== undefined ? { seedTimeMs: options.seedTimeMs } : {}),
+    },
     runtime.downloadDir,
   );
   return "added";

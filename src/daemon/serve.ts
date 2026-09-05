@@ -12,6 +12,7 @@ import { startRuntime, addInput, type Runtime } from "./runtime";
 import { magnetFromTorrentBytes } from "../sources/torrentFile";
 import { startSeedReaper } from "./seed-reaper";
 import { LOOPBACK_HOSTS, isAuthorized, hostHeaderOk } from "./auth";
+import { parseDuration } from "../util/duration";
 import { VERSION } from "../version";
 
 export { isAuthorized } from "./auth";
@@ -92,6 +93,37 @@ export function extractMagnet(bodyText: string): string | null {
   return raw;
 }
 
+// The optional per-torrent seed limit on /add and /control: a `seedTime` field
+// holding a duration in the --seed-time grammar ("30d", "2h", "90m"; a bare
+// number is seconds), or 0 to never stop seeding that torrent. Three answers:
+//   undefined  the field is absent (inherit the daemon-wide --seed-time)
+//   null       it is there but unusable (the caller gets a 400)
+//   number     milliseconds
+// A raw (non-JSON) body carries no seedTime.
+export function extractSeedTime(bodyText: string): number | null | undefined {
+  const raw = bodyText.trim();
+  if (!raw.startsWith("{")) return undefined;
+  let obj: Record<string, unknown>;
+  try {
+    obj = JSON.parse(raw) as Record<string, unknown>;
+  } catch {
+    return undefined;
+  }
+  return seedTimeField(obj.seedTime);
+}
+
+function seedTimeField(value: unknown): number | null | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (typeof value === "number") {
+    return Number.isFinite(value) && value >= 0 ? Math.floor(value) * 1000 : null;
+  }
+  if (typeof value === "string") {
+    if (!value.trim()) return undefined;
+    return parseDuration(value);
+  }
+  return null;
+}
+
 // Control actions the headless API accepts (POST /control). A seedbox web app
 // drives per-torrent buttons through these instead of the interactive keymap.
 export const CONTROL_ACTIONS = [
@@ -101,6 +133,7 @@ export const CONTROL_ACTIONS = [
   "stop-seed", // stop seeding but keep the files
   "remove", // forget the torrent, keep files on disk
   "delete", // forget the torrent AND delete its files
+  "seed-time", // set this torrent's own seed limit ({ seedTime }); "" clears it
 ] as const;
 export type ControlAction = (typeof CONTROL_ACTIONS)[number];
 
@@ -108,11 +141,14 @@ export interface ControlRequest {
   id: string;
   action: string;
   deleteFiles: boolean;
+  // Parsed `seedTime` for the seed-time action: ms, undefined when absent or
+  // blank (clear the override), null when present but unusable.
+  seedTimeMs?: number | null;
 }
 
-// Parse a control request body: JSON { id, action, deleteFiles? }. Returns null
-// for anything missing the two required string fields; the action string itself
-// is validated later so an unknown action gets a precise error.
+// Parse a control request body: JSON { id, action, deleteFiles?, seedTime? }.
+// Returns null for anything missing the two required string fields; the action
+// string itself is validated later so an unknown action gets a precise error.
 export function parseControl(bodyText: string): ControlRequest | null {
   const raw = bodyText.trim();
   if (!raw.startsWith("{")) return null;
@@ -125,10 +161,10 @@ export function parseControl(bodyText: string): ControlRequest | null {
   const id = typeof obj.id === "string" ? obj.id.trim() : "";
   const action = typeof obj.action === "string" ? obj.action.trim() : "";
   if (!id || !action) return null;
-  return { id, action, deleteFiles: obj.deleteFiles === true };
+  return { id, action, deleteFiles: obj.deleteFiles === true, seedTimeMs: seedTimeField(obj.seedTime) };
 }
 
-export type ControlOutcome = "ok" | "not-found" | "unknown-action";
+export type ControlOutcome = "ok" | "not-found" | "unknown-action" | "invalid-seed-time";
 
 // Apply a parsed control request to the queue. Pure over the runtime so it's
 // unit-testable with a fake queue.
@@ -137,7 +173,7 @@ export async function applyControl(
   req: ControlRequest,
 ): Promise<ControlOutcome> {
   const q = runtime.queue;
-  const { id, action, deleteFiles } = req;
+  const { id, action, deleteFiles, seedTimeMs } = req;
   switch (action as ControlAction) {
     case "pause":
       if (!q.has(id)) return "not-found";
@@ -162,6 +198,10 @@ export async function applyControl(
       const found = await q.remove(id, { deleteFiles: action === "delete" || deleteFiles });
       return found ? "ok" : "not-found";
     }
+    case "seed-time": {
+      if (seedTimeMs === null) return "invalid-seed-time";
+      return q.setSeedTime(id, seedTimeMs) ? "ok" : "not-found";
+    }
     default:
       return "unknown-action";
   }
@@ -175,14 +215,27 @@ function statusPayload(runtime: Runtime): Record<string, unknown> {
     progress: it.progress,
     peers: it.peers,
     speed: it.speed,
+    ...(it.seedTimeMs !== undefined ? { seedTimeMs: it.seedTimeMs } : {}),
   }));
-  const seeds = runtime.queue.getSeeds().map((s) => ({
-    id: s.id,
-    name: s.name,
-    status: s.status,
-    peers: s.peers,
-    uploaded: s.uploaded,
-  }));
+  const history = new Map(runtime.queue.getHistory().map((h) => [h.id, h]));
+  const seeds = runtime.queue.getSeeds().map((s) => {
+    const h = history.get(s.id);
+    return {
+      id: s.id,
+      name: s.name,
+      status: s.status,
+      peers: s.peers,
+      uploaded: s.uploaded,
+      // Only a torrent's own limit is reported; a daemon-wide --seed-time is
+      // the caller's to know. seedUntil is when that own limit falls due.
+      ...(h?.seedTimeMs !== undefined
+        ? {
+            seedTimeMs: h.seedTimeMs,
+            seedUntil: h.seedTimeMs > 0 ? h.completedAt + h.seedTimeMs : null,
+          }
+        : {}),
+    };
+  });
   return { downloads, seeds };
 }
 
@@ -208,17 +261,20 @@ export async function handleApi(
     // A .torrent is tried first because it is strictly more information: it
     // carries the piece hashes, so data already on disk verifies locally
     // instead of waiting on a swarm to serve metadata back.
+    const seedTimeMs = extractSeedTime(bodyText);
+    if (seedTimeMs === null) return { status: 400, body: { error: "invalid seedTime" } };
+    const addOptions = seedTimeMs !== undefined ? { seedTimeMs } : {};
     const bytes = extractTorrentBytes(bodyText);
     if (bytes) {
       const parsed = await magnetFromTorrentBytes(bytes);
       if (!parsed) return { status: 400, body: { error: "invalid .torrent" } };
-      const outcome = await addInput(runtime, parsed.magnet);
+      const outcome = await addInput(runtime, parsed.magnet, addOptions);
       if (outcome === "invalid") return { status: 400, body: { error: "invalid .torrent" } };
       return { status: 200, body: { ok: true, outcome, infoHash: parsed.infoHash } };
     }
     const magnet = extractMagnet(bodyText);
     if (!magnet) return { status: 400, body: { error: "missing magnet, info hash or .torrent" } };
-    const outcome = await addInput(runtime, magnet);
+    const outcome = await addInput(runtime, magnet, addOptions);
     if (outcome === "invalid") return { status: 400, body: { error: "invalid magnet or info hash" } };
     return { status: 200, body: { ok: true, outcome } };
   }
@@ -229,6 +285,7 @@ export async function handleApi(
     if (outcome === "unknown-action") {
       return { status: 400, body: { error: `unknown action: ${req.action}` } };
     }
+    if (outcome === "invalid-seed-time") return { status: 400, body: { error: "invalid seedTime" } };
     if (outcome === "not-found") return { status: 404, body: { error: "no such torrent" } };
     return { status: 200, body: { ok: true, id: req.id, action: req.action } };
   }
@@ -287,9 +344,9 @@ export async function runServe(options: ServeOptions = {}): Promise<void> {
 
   const runtime = await startRuntime(options.downloadDir);
 
-  if (options.seedTimeMs && options.seedTimeMs > 0) {
-    startSeedReaper(runtime.queue, options.seedTimeMs, { deleteFiles: options.deleteFiles, log });
-  }
+  // Always on: with no --seed-time it only acts on torrents that carry their
+  // own limit (set over the API), and does nothing at all otherwise.
+  startSeedReaper(runtime.queue, options.seedTimeMs ?? 0, { deleteFiles: options.deleteFiles, log });
 
   const server = http.createServer((req, res) => {
     void (async () => {

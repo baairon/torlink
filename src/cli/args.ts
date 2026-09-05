@@ -201,6 +201,9 @@ anyone the magnet and they pull the files from you. Takes --seed-time,
 seed expiry (seed/watch/serve): --seed-time <dur> stops seeding a torrent that long
 after it finishes (e.g. 1h, 30m, 90s, 2d); files are kept by default. Add
 --delete-files to also remove the downloaded data when the timer expires.
+One torrent can carry its own limit over the serve API (seedTime on /add, or
+the seed-time control action); that wins over --seed-time, and 0 keeps it
+seeding for good.
 
 --daemon (watch/serve/files): background the process (own session, logs to a
 file), so you can log out and it keeps running. Prints the pid and log path.
@@ -211,7 +214,13 @@ left off. Downloads and seeds keep running while detached.
 
 serve mode (no TUI): a small HTTP API for handing torlink a magnet.
   POST /add {"magnet":"..."}   queue a magnet or info hash
+       ... "seedTime":"30d"      optional: this torrent's own seed limit
+                                (0 = never stop); overrides --seed-time
   POST /add {"torrent":"<b64>"} queue an uploaded .torrent (base64 or data: URI)
+  POST /control {"id":"...","action":"seed-time","seedTime":"30d"}
+                               change a torrent's seed limit ("" = inherit);
+                               other actions: pause, resume, start-seed,
+                               stop-seed, remove, delete
   GET  /downloads              list active downloads and seeds
   GET  /health                 liveness (no auth)
 flags: --port <n> (default 9161), --host <addr> (default 127.0.0.1),
