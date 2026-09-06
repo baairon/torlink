@@ -108,19 +108,48 @@ describe("TorrentEngine macOS port-5350 fix (#22)", () => {
     expect(result?.total).toBe(0);
     engine.destroy();
   });
+});
 
-  it("passes utp:false so utp-native does not exhaust UDP buffers or crash on unhandled bind errors", async () => {
+describe("TorrentEngine uTP opt-out (TORLINK_NO_UTP)", () => {
+  it("leaves uTP on by default, the way other BitTorrent clients ship it", async () => {
     const { TorrentEngine } = await import("./engine");
-    const engine = new TorrentEngine();
-    engine.add(
-      "test-id",
-      "magnet:?xt=urn:btih:0000000000000000000000000000000000000000",
-      "/downloads",
-      {},
-    );
-    engine.destroy();
+    const original = process.env.TORLINK_NO_UTP;
+    delete process.env.TORLINK_NO_UTP;
+    try {
+      const engine = new TorrentEngine();
+      engine.add(
+        "test-id",
+        "magnet:?xt=urn:btih:0000000000000000000000000000000000000000",
+        "/downloads",
+        {},
+      );
+      engine.destroy();
+    } finally {
+      if (original === undefined) delete process.env.TORLINK_NO_UTP;
+      else process.env.TORLINK_NO_UTP = original;
+    }
+    expect(constructorCalls).toHaveLength(1);
+    expect(constructorCalls[0]).not.toHaveProperty("utp", false);
+  });
+
+  it("passes utp:false when TORLINK_NO_UTP is set, so utp-native cannot exhaust sockets", async () => {
+    const { TorrentEngine } = await import("./engine");
+    const original = process.env.TORLINK_NO_UTP;
+    process.env.TORLINK_NO_UTP = "1";
+    try {
+      const engine = new TorrentEngine();
+      engine.add(
+        "test-id",
+        "magnet:?xt=urn:btih:0000000000000000000000000000000000000000",
+        "/downloads",
+        {},
+      );
+      engine.destroy();
+    } finally {
+      if (original === undefined) delete process.env.TORLINK_NO_UTP;
+      else process.env.TORLINK_NO_UTP = original;
+    }
     expect(constructorCalls).toHaveLength(1);
     expect(constructorCalls[0]).toMatchObject({ utp: false });
   });
 });
-
