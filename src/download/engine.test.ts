@@ -108,4 +108,19 @@ describe("TorrentEngine macOS port-5350 fix (#22)", () => {
     expect(result?.total).toBe(0);
     engine.destroy();
   });
+
+  it("passes utp:false so utp-native does not exhaust UDP buffers or crash on unhandled bind errors", async () => {
+    const { TorrentEngine } = await import("./engine");
+    const engine = new TorrentEngine();
+    engine.add(
+      "test-id",
+      "magnet:?xt=urn:btih:0000000000000000000000000000000000000000",
+      "/downloads",
+      {},
+    );
+    engine.destroy();
+    expect(constructorCalls).toHaveLength(1);
+    expect(constructorCalls[0]).toMatchObject({ utp: false });
+  });
 });
+
