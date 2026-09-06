@@ -2,7 +2,15 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import os from "node:os";
 import path from "node:path";
 import { promises as fs } from "node:fs";
-import { handleApi, isAuthorized, extractMagnet, extractTorrentBytes, parseControl, applyControl } from "./serve";
+import {
+  handleApi,
+  isAuthorized,
+  extractMagnet,
+  extractTorrentBytes,
+  extractSeedTime,
+  parseControl,
+  applyControl,
+} from "./serve";
 import type { Runtime } from "./runtime";
 
 const HASH = "abcdef0123456789abcdef0123456789abcdef01";
@@ -53,6 +61,7 @@ describe("handleApi", () => {
         add,
         getItems: () => [],
         getSeeds: () => [],
+        getHistory: () => [],
       } as unknown as Runtime["queue"],
       downloadDir: dir,
     };
@@ -119,6 +128,79 @@ describe("handleApi", () => {
     expect(res.status).toBe(404);
   });
 
+  it("forwards a per-torrent seedTime from POST /add", async () => {
+    const res = await handleApi(runtime, null, "POST", "/add", undefined, `{"magnet":"${MAGNET}","seedTime":"30d"}`);
+    expect(res.status).toBe(200);
+    expect(add).toHaveBeenCalledWith(
+      { id: HASH, name: "Example", magnet: MAGNET, seedTimeMs: 30 * 86_400_000 },
+      dir,
+    );
+  });
+
+  it("adds without a seedTime when the field is absent (daemon default applies)", async () => {
+    await handleApi(runtime, null, "POST", "/add", undefined, `{"magnet":"${MAGNET}"}`);
+    const [input] = add.mock.calls[0]!;
+    expect("seedTimeMs" in (input as object)).toBe(false);
+  });
+
+  it("400s an unusable seedTime on POST /add without adding anything", async () => {
+    const res = await handleApi(runtime, null, "POST", "/add", undefined, `{"magnet":"${MAGNET}","seedTime":"soon"}`);
+    expect(res.status).toBe(400);
+    expect(res.body).toEqual({ error: "invalid seedTime" });
+    expect(add).not.toHaveBeenCalled();
+  });
+
+  it("sets a seed limit on a known torrent through POST /control", async () => {
+    const setSeedTime = vi.fn().mockReturnValue(true);
+    runtime.queue = { setSeedTime } as unknown as Runtime["queue"];
+    const res = await handleApi(
+      runtime,
+      null,
+      "POST",
+      "/control",
+      undefined,
+      `{"id":"${HASH}","action":"seed-time","seedTime":"2h"}`,
+    );
+    expect(res.status).toBe(200);
+    expect(setSeedTime).toHaveBeenCalledWith(HASH, 2 * 3_600_000);
+  });
+
+  it("400s a seed-time control with an unusable value, 404s an unknown torrent", async () => {
+    const setSeedTime = vi.fn().mockReturnValue(false);
+    runtime.queue = { setSeedTime } as unknown as Runtime["queue"];
+    const bad = await handleApi(runtime, null, "POST", "/control", undefined, `{"id":"${HASH}","action":"seed-time","seedTime":"eventually"}`);
+    expect(bad.status).toBe(400);
+    expect(bad.body).toEqual({ error: "invalid seedTime" });
+    expect(setSeedTime).not.toHaveBeenCalled();
+    const missing = await handleApi(runtime, null, "POST", "/control", undefined, `{"id":"${HASH}","action":"seed-time","seedTime":"1d"}`);
+    expect(missing.status).toBe(404);
+  });
+
+  it("reports a torrent's own limit and its due time on GET /downloads", async () => {
+    const completedAt = 1_700_000_000_000;
+    runtime.queue = {
+      getItems: () => [
+        { id: "dl", name: "In flight", status: "downloading", progress: 0.5, peers: 1, speed: 0, seedTimeMs: 60_000 },
+      ],
+      getSeeds: () => [
+        { id: "own", name: "Own", status: "seeding", peers: 0, uploaded: 0 },
+        { id: "forever", name: "Forever", status: "seeding", peers: 0, uploaded: 0 },
+        { id: "plain", name: "Plain", status: "seeding", peers: 0, uploaded: 0 },
+      ],
+      getHistory: () => [
+        { id: "own", completedAt, seedTimeMs: 3_600_000 },
+        { id: "forever", completedAt, seedTimeMs: 0 },
+        { id: "plain", completedAt },
+      ],
+    } as unknown as Runtime["queue"];
+    const res = await handleApi(runtime, null, "GET", "/downloads", undefined, "");
+    const body = res.body as { downloads: Record<string, unknown>[]; seeds: Record<string, unknown>[] };
+    expect(body.downloads[0]).toMatchObject({ id: "dl", seedTimeMs: 60_000 });
+    expect(body.seeds[0]).toMatchObject({ id: "own", seedTimeMs: 3_600_000, seedUntil: completedAt + 3_600_000 });
+    expect(body.seeds[1]).toMatchObject({ id: "forever", seedTimeMs: 0, seedUntil: null });
+    expect("seedTimeMs" in body.seeds[2]!).toBe(false);
+  });
+
   it("pauses a known download on POST /control", async () => {
     const pause = vi.fn();
     runtime.queue = { has: (id: string) => id === HASH, pause } as unknown as Runtime["queue"];
@@ -139,6 +221,12 @@ describe("parseControl", () => {
       action: "delete",
       deleteFiles: true,
     });
+  });
+  it("parses seedTime into ms, blank clears, garbage is null", () => {
+    expect(parseControl(`{"id":"abc","action":"seed-time","seedTime":"1d"}`)?.seedTimeMs).toBe(86_400_000);
+    expect(parseControl(`{"id":"abc","action":"seed-time","seedTime":""}`)?.seedTimeMs).toBeUndefined();
+    expect(parseControl(`{"id":"abc","action":"seed-time"}`)?.seedTimeMs).toBeUndefined();
+    expect(parseControl(`{"id":"abc","action":"seed-time","seedTime":"1 week"}`)?.seedTimeMs).toBeNull();
   });
   it("returns null when id or action is missing/blank or the body isn't JSON", () => {
     expect(parseControl(`{"id":"abc"}`)).toBeNull();
@@ -185,6 +273,21 @@ describe("applyControl", () => {
     expect(remove).toHaveBeenCalledWith("z", { deleteFiles: false });
   });
 
+  it("seed-time sets, clears, and refuses an unusable value", async () => {
+    const setSeedTime = vi.fn().mockReturnValue(true);
+    const rt = mkRuntime({ setSeedTime });
+    expect(await applyControl(rt, { id: "s", action: "seed-time", deleteFiles: false, seedTimeMs: 5000 })).toBe("ok");
+    expect(setSeedTime).toHaveBeenCalledWith("s", 5000);
+    expect(await applyControl(rt, { id: "s", action: "seed-time", deleteFiles: false, seedTimeMs: undefined })).toBe("ok");
+    expect(setSeedTime).toHaveBeenLastCalledWith("s", undefined);
+    expect(await applyControl(rt, { id: "s", action: "seed-time", deleteFiles: false, seedTimeMs: null })).toBe(
+      "invalid-seed-time",
+    );
+    expect(setSeedTime).toHaveBeenCalledTimes(2);
+    setSeedTime.mockReturnValue(false);
+    expect(await applyControl(rt, { id: "?", action: "seed-time", deleteFiles: false, seedTimeMs: 1 })).toBe("not-found");
+  });
+
   it("reports not-found when remove finds nothing and unknown-action otherwise", async () => {
     const rt = mkRuntime({ remove: vi.fn().mockResolvedValue(false) });
     expect(await applyControl(rt, { id: "z", action: "remove", deleteFiles: false })).toBe("not-found");
@@ -221,5 +324,32 @@ describe("extractTorrentBytes", () => {
   it("is null for a body that carries no torrent at all", () => {
     expect(extractTorrentBytes(JSON.stringify({ magnet: "magnet:?xt=urn:btih:" + "a".repeat(40) }))).toBeNull();
     expect(extractTorrentBytes("not json")).toBeNull();
+  });
+});
+
+describe("extractSeedTime", () => {
+  it("is undefined when the field is absent, blank, or the body is not JSON", () => {
+    expect(extractSeedTime(`{"magnet":"m"}`)).toBeUndefined();
+    expect(extractSeedTime(`{"magnet":"m","seedTime":""}`)).toBeUndefined();
+    expect(extractSeedTime(`{"magnet":"m","seedTime":null}`)).toBeUndefined();
+    expect(extractSeedTime("magnet:?xt=urn:btih:abc")).toBeUndefined();
+    expect(extractSeedTime("{not json")).toBeUndefined();
+  });
+
+  it("reads the --seed-time grammar, a bare number as seconds, and 0 as never", () => {
+    expect(extractSeedTime(`{"seedTime":"30d"}`)).toBe(30 * 86_400_000);
+    expect(extractSeedTime(`{"seedTime":"90m"}`)).toBe(90 * 60_000);
+    expect(extractSeedTime(`{"seedTime":"45"}`)).toBe(45_000);
+    expect(extractSeedTime(`{"seedTime":3600}`)).toBe(3_600_000);
+    expect(extractSeedTime(`{"seedTime":0}`)).toBe(0);
+    expect(extractSeedTime(`{"seedTime":"0"}`)).toBe(0);
+  });
+
+  it("is null for anything it cannot read, so the caller can 400", () => {
+    expect(extractSeedTime(`{"seedTime":"a month"}`)).toBeNull();
+    expect(extractSeedTime(`{"seedTime":"1w"}`)).toBeNull();
+    expect(extractSeedTime(`{"seedTime":-5}`)).toBeNull();
+    expect(extractSeedTime(`{"seedTime":true}`)).toBeNull();
+    expect(extractSeedTime(`{"seedTime":{}}`)).toBeNull();
   });
 });

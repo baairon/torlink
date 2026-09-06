@@ -59,6 +59,9 @@ export interface AddInput {
   magnet: string;
   source?: SourceId;
   sizeBytes?: number;
+  // Stop seeding this long (ms) after it finishes; 0 = never. Undefined leaves
+  // the daemon-wide --seed-time in charge.
+  seedTimeMs?: number;
 }
 
 export interface RestoreOptions {
@@ -127,6 +130,7 @@ export class DownloadQueue extends EventEmitter {
           status: "downloading",
           error: undefined,
           speed: 0,
+          ...(input.seedTimeMs !== undefined ? { seedTimeMs: input.seedTimeMs } : {}),
           ...(existing.dir === dir
             ? {}
             : { progress: 0, downloadedBytes: 0, eta: undefined }),
@@ -144,6 +148,7 @@ export class DownloadQueue extends EventEmitter {
           speed: 0,
           peers: 0,
           addedAt: Date.now(),
+          ...(input.seedTimeMs !== undefined ? { seedTimeMs: input.seedTimeMs } : {}),
         };
     // Respect the concurrent-download cap: start now if a slot is free, else
     // hold the torrent as "queued" until one frees (see promote()).
@@ -713,6 +718,30 @@ export class DownloadQueue extends EventEmitter {
     return this.history;
   }
 
+  // Set (or with undefined, clear) the per-torrent seed limit on a download
+  // still in flight or on a finished one. Returns false when the id is unknown
+  // to both, so a caller can answer not-found without a second lookup. The
+  // seed reaper reads the value from history, so a finished torrent's timer
+  // changes on its next tick; an in-flight one carries the value into history
+  // when it completes.
+  setSeedTime(id: string, seedTimeMs: number | undefined): boolean {
+    const it = this.items.get(id);
+    if (it) {
+      if (seedTimeMs === undefined) delete it.seedTimeMs;
+      else it.seedTimeMs = seedTimeMs;
+      void this.persist();
+    }
+    const h = this.history.find((x) => x.id === id);
+    if (h) {
+      if (seedTimeMs === undefined) delete h.seedTimeMs;
+      else h.seedTimeMs = seedTimeMs;
+      void saveHistory(this.history).catch(() => {});
+    }
+    if (!it && !h) return false;
+    this.changed();
+    return true;
+  }
+
   private recordHistory(it: QueueItem): void {
     const rec: HistoryItem = {
       id: it.id,
@@ -722,6 +751,7 @@ export class DownloadQueue extends EventEmitter {
       magnet: it.magnet,
       dir: it.dir,
       completedAt: Date.now(),
+      ...(it.seedTimeMs !== undefined ? { seedTimeMs: it.seedTimeMs } : {}),
     };
     this.history = [rec, ...this.history.filter((h) => h.id !== it.id)].slice(0, HISTORY_MAX);
     void saveHistory(this.history).catch(() => {});

@@ -100,9 +100,9 @@ export async function runWatch(
   const runtime = await startRuntime(downloadDir);
   runtime.queue.on("completed", (name: string) => log(`done, now seeding: ${name}`));
 
-  if (options.seedTimeMs && options.seedTimeMs > 0) {
-    startSeedReaper(runtime.queue, options.seedTimeMs, { deleteFiles: options.deleteFiles, log });
-  }
+  // Always on: with no --seed-time it only acts on torrents that carry their
+  // own limit (set over the API), and does nothing at all otherwise.
+  startSeedReaper(runtime.queue, options.seedTimeMs ?? 0, { deleteFiles: options.deleteFiles, log });
 
   log(`watching ${dir}`);
   log(`downloads -> ${runtime.downloadDir}`);

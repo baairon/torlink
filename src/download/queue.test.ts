@@ -297,3 +297,45 @@ describe("DownloadQueue error resilience on boot", () => {
     q.suspend();
   });
 });
+
+describe("DownloadQueue per-torrent seed time", () => {
+  it("setSeedTime updates a history entry and clears it again with undefined", () => {
+    const q = new DownloadQueue();
+    q.restoreHistory([h({ id: "st1" })]);
+    expect(q.setSeedTime("st1", 86_400_000)).toBe(true);
+    expect(q.getHistory()[0]?.seedTimeMs).toBe(86_400_000);
+    expect(q.setSeedTime("st1", undefined)).toBe(true);
+    expect("seedTimeMs" in q.getHistory()[0]!).toBe(false);
+  });
+
+  it("setSeedTime reaches a download that has not finished yet", () => {
+    const q = new DownloadQueue();
+    // Safe mode brings the item back paused without starting an engine.
+    q.restore(
+      [
+        {
+          id: "st2",
+          name: "Still going",
+          magnet: "magnet:?xt=urn:btih:st2",
+          dir: "/d",
+          status: "downloading",
+          progress: 0.2,
+          totalBytes: 10,
+          downloadedBytes: 2,
+          speed: 0,
+          peers: 0,
+          addedAt: 1,
+        },
+      ],
+      { safe: true },
+    );
+    expect(q.setSeedTime("st2", 0)).toBe(true);
+    expect(q.getItems().find((it) => it.id === "st2")?.seedTimeMs).toBe(0);
+    q.suspend();
+  });
+
+  it("setSeedTime reports an id it has never seen", () => {
+    const q = new DownloadQueue();
+    expect(q.setSeedTime("nope", 1000)).toBe(false);
+  });
+});
