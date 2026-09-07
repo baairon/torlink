@@ -188,6 +188,7 @@ usage
 once open: type to search every source at once, enter to run, arrows to move,
 d to download, ? for keys
 tip: quote magnet links (they contain & characters)
+tip: set TORLINK_GRAPHICS=off for coloured blocks instead of real poster art
 
 watch mode (no TUI): drop a .torrent, or a .magnet/.txt holding a magnet or
 info hash, into <dir> and it downloads then seeds. Add --to <dir> to choose

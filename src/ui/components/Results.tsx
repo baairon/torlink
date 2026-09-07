@@ -6,11 +6,16 @@ import { SearchBar } from "./SearchBar";
 import { TextField } from "./TextField";
 import { Panel } from "./Panel";
 import { Rule } from "./Rule";
+import { MetaPane } from "./MetaPane";
 import { useConcurrentSearch } from "../hooks/useConcurrentSearch";
+import { useResultMeta } from "../hooks/useResultMeta";
 import { getSource, SOURCES } from "../../sources/registry";
 import { stickCursor, wrapStep, windowStart, resultsPanelOuter } from "../move";
 import { sortResults, nextSort, sortLabel, sortArrow, type Sort, type SortField } from "../sort";
 import { filterResults } from "../filter";
+import { planMetaRows } from "../metaPlan";
+import { PANE_GAP, previewLayout } from "../previewLayout";
+import { LABEL_W } from "../textWidth";
 import { COLOR, GUTTER, ICON, sourceStyle } from "../theme";
 import { cleanText, formatBytes, formatCount, formatRelative, stripControl, truncate } from "../../util/format";
 import type { Source, TorrentResult } from "../../sources/types";
@@ -22,7 +27,7 @@ const PLACEHOLDER = "Search or paste a magnet link…";
 function DetailRow({ label, value }: { label: string; value: ReactNode }) {
   return (
     <Box>
-      <Box width={9} flexShrink={0}>
+      <Box width={LABEL_W} flexShrink={0}>
         <Text dimColor>{label}</Text>
       </Box>
       <Box flexGrow={1} minWidth={0}>{value}</Box>
@@ -30,9 +35,27 @@ function DetailRow({ label, value }: { label: string; value: ReactNode }) {
   );
 }
 
-function Detail({ r, width }: { r: TorrentResult; width: number }) {
+function Detail({ r, width, panelHeight }: { r: TorrentResult; width: number; panelHeight: number }) {
   const ss = sourceStyle(r.source);
   const date = formatRelative(r.added);
+  // No debounce: Enter is an explicit commit (unlike the list cursor sweeping past rows), and
+  // the cache behind this hook usually resolves the same title's earlier lookup instantly.
+  const { meta } = useResultMeta(r, true, 0);
+
+  // Same column math DetailRow itself uses (LABEL_W plus whatever remains), needed here because
+  // planMetaRows must know a value's wrapped line count before render.
+  const valueWidth = Math.max(1, width - LABEL_W);
+  // The four unconditional facts rows plus whichever of Files/Added this result actually has.
+  const factsRows = 4 + (r.numFiles ? 1 : 0) + (date ? 1 : 0);
+  // Fixed chrome that is never negotiable: title, rule, the blank line above the facts block,
+  // the blank line above the hint row, and the hint row itself.
+  const CHROME_ROWS = 5;
+  // Panel renders its own bottom border inside `panelHeight` (its top border is the separate
+  // title-bar row above it), so one row of that budget is never available to Detail's content.
+  const innerRows = Math.max(0, panelHeight - 1);
+  const metaBudget = Math.max(0, innerRows - CHROME_ROWS - factsRows);
+  const plan = planMetaRows(meta, valueWidth, metaBudget);
+
   const health =
     r.seeders || r.leechers ? (
       <Text>
@@ -91,6 +114,24 @@ function Detail({ r, width }: { r: TorrentResult; width: number }) {
             </Text>
           }
         />
+        {plan.rating !== null ? (
+          <DetailRow label="Rating" value={<Text dimColor>{plan.rating}</Text>} />
+        ) : null}
+        {plan.genres !== null ? (
+          <DetailRow label="Genres" value={<Text dimColor>{plan.genres}</Text>} />
+        ) : null}
+        {/* Cinemeta sends no director for most series — an empty row here would be a label with
+            nothing after it, so absence of data means absence of the row (planMetaRows never
+            admits an empty list in the first place). */}
+        {plan.director !== null ? (
+          <DetailRow label="Director" value={<Text dimColor>{plan.director}</Text>} />
+        ) : null}
+        {plan.cast !== null ? (
+          <DetailRow label="Cast" value={<Text dimColor>{plan.cast}</Text>} />
+        ) : null}
+        {plan.plot !== null ? (
+          <DetailRow label="Plot" value={<Text dimColor wrap="wrap">{plan.plot}</Text>} />
+        ) : null}
       </Box>
       <Box marginTop={1}>
         <Text color={COLOR.accent} bold>
@@ -128,6 +169,7 @@ export function Results() {
     copyMagnet,
     fetchAndExportTorrent,
     setResultFocus,
+    setPreviewOpen,
     contentWidth,
     listRows,
   } = useStore();
@@ -136,6 +178,9 @@ export function Results() {
 
   const [sort, setSort] = useState<Sort>("none");
   const [hideDead, setHideDead] = useState(false);
+  // On by default: the pane answers the question the list cannot ("what *is* this release"), and
+  // it costs nothing on a terminal too narrow to hold it, where previewLayout hides it anyway.
+  const [showInfo, setShowInfo] = useState(true);
   const [textFilter, setTextFilter] = useState("");
   const results = useMemo(() => {
     const cat = CATEGORIES.find((c) => c.key === section);
@@ -146,6 +191,9 @@ export function Results() {
   }, [search.results, section, sort, hideDead, textFilter]);
 
   const focused = region === "content";
+  // The pane holding the keyboard is still the list's own selection being read, so the list keeps
+  // its pointer on the row the pane describes — it just stops answering keys.
+  const paneFocused = region === "preview";
   const [mode, setMode] = useState<Mode>("list");
   const [cursor, setCursor] = useState(0);
   // The row the user navigated to, by infohash; null until they move. Keeps
@@ -186,6 +234,35 @@ export function Results() {
   const panelOuter = resultsPanelOuter(listRows, searchH + filterH);
   const listHeight = Math.max(3, panelOuter - 4);
   const pageJump = Math.max(1, listHeight - 1);
+
+  // One value settles both the pane's existence and the list's width, so the two can never
+  // disagree and render a pane overlapping the list's own right border. Null — toggled off, a
+  // terminal too narrow to split, or a section with no metadata behind it — means the list keeps
+  // the full content width it always had.
+  //
+  // Games is out because nothing looks it up: every row would read "No metadata", which is a
+  // column of nothing where the list could have had 34 more of them. `all` stays in — it carries
+  // real video, and the Games rows inside it already answer "No metadata" one row at a time,
+  // which is a different thing from a tab that can never answer anything else.
+  // panelOuter less the bottom border Panel draws inside it: the pane's own content height, which
+  // a focused split needs because how wide the poster comes out is a question about height.
+  const pane =
+    showInfo && section !== "games"
+      ? previewLayout(contentWidth, paneFocused, panelOuter - 1)
+      : null;
+  const listWidth = pane ? pane.list : contentWidth;
+  // What App needs to know to decide whether → has a third column to step into. Reported rather
+  // than re-derived there: the `i` toggle lives here, and a second copy of this rule would be one
+  // resize away from disagreeing with the pane it is describing.
+  const paneOpen = pane !== null;
+  useEffect(() => {
+    setPreviewOpen(paneOpen);
+    return () => setPreviewOpen(false);
+  }, [paneOpen, setPreviewOpen]);
+  // The row the pane describes. `clamped`, not `detail`: the pane follows the cursor even while
+  // the detail view is open over the list, so closing that view leaves the pane already on the
+  // right row instead of starting a fresh lookup.
+  const selected = results[clamped] ?? null;
 
   const openDownload = (r: TorrentResult): void =>
     startDownload({
@@ -230,6 +307,10 @@ export function Results() {
         setHideDead((on) => !on);
       } else if (input === "f") {
         setMode("filter");
+      } else if (input === "i") {
+        // Above the empty-list return: an empty list is exactly when a user wonders whether the
+        // pane is what is eating their columns, so the toggle has to answer there too.
+        setShowInfo((on) => !on);
       } else if (results.length === 0) {
         return;
       } else if (key.downArrow || input === "j") {
@@ -401,13 +482,13 @@ export function Results() {
       <Box marginTop={1}>
         <Panel
           title={mode === "detail" ? "details" : browsing ? "latest" : "results"}
-          width={contentWidth}
+          width={listWidth}
           focused={focused && mode !== "search"}
           count={mode === "detail" ? undefined : count}
           height={panelOuter}
         >
           {mode === "detail" && detail ? (
-            <Detail r={detail} width={Math.max(10, contentWidth - 4)} />
+            <Detail r={detail} width={Math.max(10, listWidth - 4)} panelHeight={panelOuter} />
           ) : (
             <>
               <Box>{status()}</Box>
@@ -442,7 +523,7 @@ export function Results() {
                 ) : null}
                 {visible.map((r, i) => {
                   const index = start + i;
-                  const here = index === clamped && focused && mode === "list";
+                  const here = index === clamped && (focused || paneFocused) && mode === "list";
                   const ss = sourceStyle(r.source);
                   return (
                     <Box key={r.infoHash}>
@@ -506,9 +587,20 @@ export function Results() {
             </>
           )}
         </Panel>
+        {pane ? (
+          <Box marginLeft={PANE_GAP}>
+            <MetaPane
+              result={selected}
+              width={pane.pane}
+              height={panelOuter}
+              poster={pane.poster}
+              focused={paneFocused}
+            />
+          </Box>
+        ) : null}
       </Box>
       {(mode === "filter" || textFilter.trim()) && (
-        <Box width={contentWidth} paddingLeft={1}>
+        <Box width={listWidth} paddingLeft={1}>
           <Box flexShrink={0}>
             <Text color={COLOR.accent}>{`Filter ${ICON.pointer} `}</Text>
           </Box>
@@ -516,7 +608,7 @@ export function Results() {
             {mode === "filter" ? (
               <TextField
                 defaultValue={textFilter}
-                width={Math.max(1, contentWidth - 10)}
+                width={Math.max(1, listWidth - 10)}
                 onChange={setTextFilter}
                 // Commit from the submit value / functional form, not the
                 // render closure: a same-tick burst (ctrl+u then enter) would

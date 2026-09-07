@@ -19,7 +19,12 @@ export const CATEGORIES: { key: Category; label: string; group?: SourceGroup }[]
   { key: "anime", label: "Anime", group: "Anime" },
 ];
 
-export type Region = "sidebar" | "content" | "help";
+/**
+ * Which column owns the keyboard. `sidebar → content → preview` is one horizontal model the arrow
+ * keys walk in both directions; "help" is not a column at all but the flag a modal raises so every
+ * region-aware component reads as unfocused while the overlay owns the screen.
+ */
+export type Region = "sidebar" | "content" | "preview" | "help";
 
 export type CaptureMode = "none" | "text" | "esc";
 
@@ -52,6 +57,12 @@ export interface Store {
   setSeedFocus: (f: SeedFocus | null) => void;
   resultFocus: ResultFocus | null;
   setResultFocus: (f: ResultFocus | null) => void;
+  // Whether the info pane is actually on screen. Only the results view can answer that — it owns
+  // the `i` toggle, the section it is showing and the width split — so it reports up rather than
+  // App re-deriving two of the three and getting the third wrong. App uses it for one decision:
+  // whether → has a third column to step into.
+  previewOpen: boolean;
+  setPreviewOpen: (open: boolean) => void;
 
   startDownload: (input: {
     id: string;

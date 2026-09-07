@@ -22,6 +22,12 @@ export interface TorrentResult {
   source: SourceId;
   magnet: string;
   added?: number;
+  /**
+   * IMDb id (`tt` + 7-10 digits) when the source's API hands one over. Lets the
+   * metadata lookup skip title guessing. Never trusted verbatim: it is remote
+   * text interpolated into a URL path, so producers validate the shape first.
+   */
+  imdbId?: string;
 }
 
 export interface SearchOptions {
