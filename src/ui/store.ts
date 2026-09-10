@@ -77,6 +77,9 @@ export interface Store {
   // Fetches the .torrent metadata for a search result (via magnet if not yet
   // cached) and exports it to the configured download folder.
   fetchAndExportTorrent: (input: { id: string; name: string; magnet: string }) => void;
+  // Fetches the .torrent metadata for a search result (via magnet if not yet
+  // cached) and exports it to the configured download folder without downloading.
+  getTorrent: (input: { id: string; name: string; magnet: string }) => void;
 
   notice: string | null;
   setNotice: (s: string | null) => void;

@@ -19,7 +19,7 @@ export const HELP_GROUPS: HelpGroup[] = [
       { keys: "tab", label: "Switch pane" },
       { keys: "esc", label: "Back" },
       { keys: "o", label: "Default download folder" },
-      { keys: "t", label: "Extra trackers" },
+      { keys: "t", label: "Trackers / .torrent only in results" },
       { keys: "q", label: "Quit" },
     ],
   },
@@ -73,6 +73,8 @@ const TORRENT: Hint = { keys: "s", label: "Export" };
 
 const EXPORT: Hint = { keys: "e", label: "Export" };
 
+const TORRENT_ONLY: Hint = { keys: "t", label: ".torrent only" };
+
 export function footerHints(
   region: Region,
   section: Section,
@@ -122,6 +124,7 @@ export function footerHints(
     { keys: "d", label: "Download" },
     { keys: "y", label: "Copy" },
     resultFocus === "detail" ? EXPORT : { keys: "s", label: "Sort" },
+    TORRENT_ONLY,
     { keys: "/", label: "Search" },
     { keys: "f", label: "Filter" },
     SWITCH,

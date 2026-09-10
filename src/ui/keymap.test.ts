@@ -23,6 +23,12 @@ describe("downloads/seeding key vocabulary", () => {
     expect(seeding.find((h) => h.keys === "c")?.label).toBe("Remove from list");
   });
 
+  it("shows the torrent-only action in the results footer", () => {
+    const row = footerHints("content", "all", null, null);
+    expect(row.some((h) => h.keys === "t")).toBe(true);
+    expect(row.find((h) => h.keys === "t")?.label).toBe(".torrent only");
+  });
+
   // The results row carries a known pre-existing overflow (f Filter), so the
   // budget is pinned only for the rows this vocabulary owns.
   it("keeps the downloads and seeding footer rows inside the 80-col budget", () => {

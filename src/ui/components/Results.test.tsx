@@ -184,4 +184,25 @@ describe("Results filter UI", () => {
     await vi.waitFor(() => expect(u.frame()).not.toContain("Filter"));
     expect(u.frame()).toContain("Results (8)");
   });
+
+  it("t exports the selected result without starting a download", async () => {
+    const fetchAndExportTorrent = vi.fn();
+    searchState.current = settled(LIST);
+    ui = renderUI(
+      <StoreContext.Provider value={makeTestStore({ query: "linux iso", fetchAndExportTorrent })}>
+        <Results />
+      </StoreContext.Provider>,
+    );
+    const u = ui;
+    await vi.waitFor(() => expect(u.frame()).toContain("Results (8)"));
+
+    u.press("t");
+    await vi.waitFor(() => expect(fetchAndExportTorrent).toHaveBeenCalledTimes(1));
+    expect(fetchAndExportTorrent).toHaveBeenCalledWith({
+      id: "a1",
+      name: "ubuntu 24.04 desktop amd64 iso",
+      magnet: "magnet:?xt=urn:btih:a1",
+    });
+    expect(u.frame()).toContain("Results (8)");
+  });
 });
