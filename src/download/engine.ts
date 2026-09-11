@@ -1,4 +1,4 @@
-import WebTorrent, { type Torrent } from "webtorrent";
+import WebTorrent, { type Torrent, type WebTorrentServer } from "webtorrent";
 
 export interface TorrentProgress {
   progress: number;
@@ -34,6 +34,7 @@ export function message(e: unknown): string {
 
 export class TorrentEngine {
   private client: WebTorrent | null = null;
+  private streamingServer: WebTorrentServer | null = null;
   private torrents = new Map<string, Torrent>();
 
   private ensureClient(): WebTorrent {
@@ -64,6 +65,17 @@ export class TorrentEngine {
       };
       this.client = new WebTorrent(opts);
       this.client.on("error", () => {});
+      // ponytail: bind 0.0.0.0 so cast devices (Apple TV, Chromecast) on the LAN can
+      // fetch stream URLs. Local players use 127.0.0.1; cast uses the LAN IP. No auth
+      // token — add one if this becomes a concern on a shared network.
+      try {
+        const streaming = this.client.createServer();
+        this.streamingServer = streaming;
+        streaming.server.on("error", () => {});
+        streaming.server.listen(9162, "0.0.0.0");
+      } catch {
+        // Streaming is optional; downloads should still work if the server fails.
+      }
     }
     return this.client;
   }
@@ -186,6 +198,7 @@ export class TorrentEngine {
     // destroy to a later tick and let the OS reclaim sockets if we exit first.
     const client = this.client;
     this.client = null;
+    this.streamingServer = null;
     if (client) {
       setImmediate(() => {
         try {

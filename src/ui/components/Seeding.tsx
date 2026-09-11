@@ -30,7 +30,7 @@ function statusCell(seed: SeedItem | undefined): { text: string; color?: string;
 }
 
 export function Seeding() {
-  const { queue, region, contentWidth, listRows, setNotice, openDownloadFolder, setSeedFocus } =
+  const { queue, region, contentWidth, listRows, setNotice, openDownloadFolder, streamTorrent, deleteTorrent, setSeedFocus } =
     useStore();
   const history = useQueueHistory(queue);
   const seeds = useSeeds(queue);
@@ -66,6 +66,12 @@ export function Seeding() {
       } else if (input === "e") {
         const h = history[clamped];
         if (h) openDownloadFolder(h.dir);
+      } else if (input === "v") {
+        const h = history[clamped];
+        if (h) streamTorrent({ id: h.id, name: h.name });
+      } else if (input === "x") {
+        const h = history[clamped];
+        if (h) deleteTorrent({ id: h.id, name: h.name });
       }
     },
     { isActive: focused && total > 0 },

@@ -7,16 +7,15 @@ const rowWidth = (hints: Hint[]): number =>
   hints.reduce((n, h) => n + h.keys.length + 1 + h.label.length, 0) + (hints.length - 1) * 3;
 
 describe("downloads/seeding key vocabulary", () => {
-  it("folds clear-all into shift+c on the c row and drops x", () => {
+  it("folds clear-all into shift+c on the c row and has x for delete", () => {
     const downloads = HELP_GROUPS.find((g) => g.title === "Downloads")!;
-    expect(downloads.hints.some((h) => h.keys === "x")).toBe(false);
+    expect(downloads.hints.some((h) => h.keys === "x")).toBe(true);
     expect(downloads.hints.some((h) => h.keys === "shift+c")).toBe(false);
     expect(downloads.hints.find((h) => h.keys === "c")?.label).toContain("(shift+c");
   });
 
   it("labels one-entry removal as list bookkeeping in the footers", () => {
     const recent = footerHints("content", "downloads", "recent", null);
-    expect(recent.some((h) => h.keys === "x")).toBe(false);
     expect(recent.find((h) => h.keys === "c")?.label).toBe("Remove from list");
 
     const seeding = footerHints("content", "seeding", null, "seeding");

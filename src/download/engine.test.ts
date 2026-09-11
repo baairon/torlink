@@ -2,6 +2,7 @@ import { EventEmitter } from "node:events";
 import { describe, it, expect, vi, afterEach } from "vitest";
 
 const constructorCalls: Record<string, unknown>[] = [];
+const listenCalls: unknown[][] = [];
 
 vi.mock("webtorrent", () => {
   return {
@@ -14,6 +15,13 @@ vi.mock("webtorrent", () => {
       add(): EventEmitter {
         return new EventEmitter();
       }
+      createServer() {
+        const server = new EventEmitter() as EventEmitter & { listen: (...args: unknown[]) => void };
+        server.listen = (...args: unknown[]) => {
+          listenCalls.push(args);
+        };
+        return { server, close(): void {} };
+      }
       destroy(): void {}
     },
   };
@@ -21,6 +29,7 @@ vi.mock("webtorrent", () => {
 
 afterEach(() => {
   constructorCalls.length = 0;
+  listenCalls.length = 0;
   vi.resetModules();
 });
 
@@ -83,6 +92,14 @@ describe("TorrentEngine macOS port-5350 fix (#22)", () => {
     }
     expect(constructorCalls).toHaveLength(1);
     expect(constructorCalls[0]).not.toHaveProperty("natPmp", false);
+  });
+
+  it("binds the optional streaming server on port 9162 for LAN cast access", async () => {
+    const { TorrentEngine } = await import("./engine");
+    const engine = new TorrentEngine();
+    engine.add("test-id", "magnet:?xt=urn:btih:test", "/downloads", {});
+    expect(listenCalls).toEqual([[9162, "0.0.0.0"]]);
+    engine.destroy();
   });
 
   it("stats(id) ignores getter errors and returns safe defaults", async () => {

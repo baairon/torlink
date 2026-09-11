@@ -44,6 +44,9 @@ import { TabTitle } from "./components/TabTitle";
 import { Splash } from "./views/Splash";
 import { FolderPrompt } from "./components/FolderPrompt";
 import { TrackersPrompt } from "./components/TrackersPrompt";
+import { PlayerPicker } from "./components/PlayerPicker";
+import { CastStatus as CastStatusView } from "./components/CastBar";
+import { stopActiveCast, type CastStatus } from "../util/players";
 import { footerHints } from "./keymap";
 import { COLOR, ICON } from "./theme";
 import { useMouseWheel } from "./hooks/useMouseWheel";
@@ -109,6 +112,8 @@ export function App({
     sizeBytes?: number;
   } | null>(null);
   const [lastDownloadToDir, setLastDownloadToDir] = useState<string | null>(null);
+  const [playerPickerTarget, setPlayerPickerTarget] = useState<{ id: string; name: string } | null>(null);
+  const [cast, setCast] = useState<{ deviceName: string; title: string; status: CastStatus | null } | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [updateVersion, setUpdateVersion] = useState<string | null>(null);
   const [recovered, setRecovered] = useState(false);
@@ -354,6 +359,23 @@ export function App({
     })();
   }, []);
 
+  const streamTorrent = useCallback((input: { id: string; name: string }) => {
+    setPlayerPickerTarget(input);
+  }, []);
+
+  const onCastStatus = useCallback((status: CastStatus) => {
+    setCast((current) => (current ? { ...current, status } : current));
+  }, []);
+
+  const deleteTorrent = useCallback((input: { id: string; name: string }) => {
+    if (!queue) return;
+    void (async () => {
+      const ok = await queue.remove(input.id, { deleteFiles: true });
+      if (ok) setNotice(`Deleted: ${truncate(cleanText(input.name), 32)}`);
+      else setNotice(`Couldn't delete: ${truncate(cleanText(input.name), 32)}`);
+    })();
+  }, [queue]);
+
   const exportTorrent = useCallback(
     (input: { id: string; name: string }) => {
       if (!queue) return;
@@ -486,7 +508,7 @@ export function App({
       submitQuery,
       section,
       setSection,
-      region: showHelp || editingFolder || editingTrackers || pendingDownload ? "help" : region,
+      region: showHelp || editingFolder || editingTrackers || pendingDownload || playerPickerTarget ? "help" : region,
       setRegion,
       captureMode,
       setCaptureMode,
@@ -500,6 +522,8 @@ export function App({
       requestDownloadTo,
       copyMagnet,
       openDownloadFolder,
+      streamTorrent,
+      deleteTorrent,
       exportTorrent,
       fetchAndExportTorrent,
       notice,
@@ -523,6 +547,7 @@ export function App({
     editingFolder,
     editingTrackers,
     pendingDownload,
+    playerPickerTarget,
     captureMode,
     downloadFocus,
     seedFocus,
@@ -531,6 +556,8 @@ export function App({
     requestDownloadTo,
     copyMagnet,
     openDownloadFolder,
+    streamTorrent,
+    deleteTorrent,
     exportTorrent,
     fetchAndExportTorrent,
     notice,
@@ -549,7 +576,7 @@ export function App({
         quitAll();
         return;
       }
-      if (editingFolder || editingTrackers || pendingDownload) return; // the prompt owns input (its own esc + enter)
+      if (editingFolder || editingTrackers || pendingDownload || playerPickerTarget) return; // the prompt owns input (its own esc + enter)
       if (captureMode === "text") return;
       if (showHelp) {
         setShowHelp(false);
@@ -571,6 +598,12 @@ export function App({
       }
       if (input === "m") {
         void pasteFromClipboard();
+        return;
+      }
+      if (input === "S" && cast) {
+        stopActiveCast();
+        setNotice(`Stopped casting to ${truncate(cast.deviceName, 24)}`);
+        setCast(null);
         return;
       }
       if (key.tab) {
@@ -685,10 +718,23 @@ export function App({
           </Box>
         ) : null}
 
+        {playerPickerTarget ? (
+          <PlayerPicker
+            target={playerPickerTarget}
+            onLaunch={(launch, deviceName) => {
+              setCast({ deviceName, title: cleanText(playerPickerTarget.name), status: null });
+              launch();
+              setPlayerPickerTarget(null);
+            }}
+            onStatus={onCastStatus}
+            onCancel={() => setPlayerPickerTarget(null)}
+          />
+        ) : null}
+
         <Box
           height={bodyH}
           marginTop={compact ? 0 : 1}
-          display={showHelp || editingFolder || editingTrackers || pendingDownload ? "none" : "flex"}
+          display={showHelp || editingFolder || editingTrackers || pendingDownload || playerPickerTarget ? "none" : "flex"}
           overflow="hidden"
         >
           <Sidebar />
@@ -704,8 +750,15 @@ export function App({
         </Box>
 
         {showFooter ? (
-          <Box display={showHelp || editingFolder || editingTrackers || pendingDownload ? "none" : "flex"}>
-            <Footer hints={footerHints(region, section, downloadFocus, seedFocus, resultFocus)} />
+          <Box display={showHelp || editingFolder || editingTrackers || pendingDownload || playerPickerTarget ? "none" : "flex"}>
+            <Footer
+              hints={
+                cast
+                  ? [...footerHints(region, section, downloadFocus, seedFocus, resultFocus), { keys: "S", label: "Stop cast" }]
+                  : footerHints(region, section, downloadFocus, seedFocus, resultFocus)
+              }
+              right={cast && cols >= 90 ? <CastStatusView deviceName={cast.deviceName} title={cast.title} status={cast.status} /> : null}
+            />
           </Box>
         ) : null}
       </Box>

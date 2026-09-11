@@ -5,6 +5,12 @@ declare module "webtorrent" {
     name: string;
     path: string;
     length: number;
+    streamURL?: string;
+  }
+
+  interface WebTorrentServer {
+    server: import("node:http").Server;
+    close(cb?: (err?: Error) => void): void;
   }
 
   interface Torrent extends EventEmitter {
@@ -52,6 +58,15 @@ declare module "webtorrent" {
     readonly downloadSpeed: number;
     readonly uploadSpeed: number;
     readonly torrentPort: number;
+    createServer(
+      opts?: {
+        origin?: string | false;
+        hostname?: string;
+        pathname?: string;
+        controller?: unknown;
+      },
+      force?: "node" | "browser",
+    ): WebTorrentServer;
     add(
       torrentId: string,
       opts?: TorrentOptions,
@@ -68,5 +83,5 @@ declare module "webtorrent" {
   }
 
   export default WebTorrent;
-  export type { Torrent, TorrentFile };
+  export type { Torrent, TorrentFile, WebTorrentServer };
 }

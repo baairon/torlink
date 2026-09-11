@@ -60,6 +60,7 @@
   "dependencies": {
     "create-torrent": "^6.1.2",
     "env-paths": "^4.0.0",
+    "chromecasts": "^1.10.2",
     "ink": "^7.0.5",
     "parse-torrent": "^11.0.21",
     "react": "^19.2.7",

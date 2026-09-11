@@ -10,6 +10,7 @@ import { useConcurrentSearch } from "../hooks/useConcurrentSearch";
 import { getSource, SOURCES } from "../../sources/registry";
 import { stickCursor, wrapStep, windowStart, resultsPanelOuter } from "../move";
 import { sortResults, nextSort, sortLabel, sortArrow, type Sort, type SortField } from "../sort";
+import { dedupeResults } from "../dedupe";
 import { filterResults } from "../filter";
 import { COLOR, GUTTER, ICON, sourceStyle } from "../theme";
 import { cleanText, formatBytes, formatCount, formatRelative, stripControl, truncate } from "../../util/format";
@@ -127,6 +128,7 @@ export function Results() {
     requestDownloadTo,
     copyMagnet,
     fetchAndExportTorrent,
+    streamTorrent,
     setResultFocus,
     contentWidth,
     listRows,
@@ -142,7 +144,9 @@ export function Results() {
     const base = cat?.group
       ? search.results.filter((r) => getSource(r.source).groups?.includes(cat.group!))
       : search.results;
-    return sortResults(filterResults(base, hideDead, textFilter), sort);
+    // Multiple sources routinely return the same torrent; the merged row keeps
+    // one copy (and one React key per infohash).
+    return sortResults(filterResults(dedupeResults(base), hideDead, textFilter), sort);
   }, [search.results, section, sort, hideDead, textFilter]);
 
   const focused = region === "content";
@@ -253,6 +257,12 @@ export function Results() {
       } else if (input === "y") {
         const r = results[clamped];
         if (r) copyResultMagnet(r);
+      } else if (input === "v") {
+        const r = results[clamped];
+        if (r) {
+          openDownload(r);
+          streamTorrent({ id: r.infoHash, name: r.name });
+        }
       }
     },
     { isActive: focused && mode === "list" },
@@ -268,6 +278,10 @@ export function Results() {
       else if (input === "y" && detail) copyResultMagnet(detail);
       else if (input === "e" && detail)
         fetchAndExportTorrent({ id: detail.infoHash, name: detail.name, magnet: detail.magnet });
+      else if (input === "v" && detail) {
+        openDownload(detail);
+        streamTorrent({ id: detail.infoHash, name: detail.name });
+      }
     },
     { isActive: focused && mode === "detail" },
   );

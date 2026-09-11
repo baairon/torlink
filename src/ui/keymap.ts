@@ -35,6 +35,7 @@ export const HELP_GROUPS: HelpGroup[] = [
       { keys: "↵", label: "Open details" },
       { keys: "e", label: "Export as .torrent" },
       { keys: "m", label: "Paste magnet" },
+      { keys: "v", label: "Stream" },
     ],
   },
   {
@@ -45,6 +46,8 @@ export const HELP_GROUPS: HelpGroup[] = [
       { keys: "f", label: "Retry failed" },
       { keys: "d", label: "Download again" },
       { keys: "e", label: "Open folder" },
+      { keys: "v", label: "Stream" },
+      { keys: "x", label: "Delete files" },
       { keys: "s", label: "Export torrent file" },
     ],
   },
@@ -54,6 +57,8 @@ export const HELP_GROUPS: HelpGroup[] = [
       { keys: "p", label: "Pause/resume" },
       { keys: "c", label: "Remove (shift+c: all)" },
       { keys: "e", label: "Open folder" },
+      { keys: "v", label: "Stream" },
+      { keys: "x", label: "Delete files" },
     ],
   },
 ];
@@ -68,6 +73,10 @@ const ALWAYS: Hint = { keys: "?", label: "Keys" };
 const SWITCH: Hint = { keys: "tab", label: "Switch" };
 
 const FOLDER: Hint = { keys: "e", label: "Folder" };
+
+const STREAM: Hint = { keys: "v", label: "Stream" };
+
+const DELETE: Hint = { keys: "x", label: "Del" };
 
 const TORRENT: Hint = { keys: "s", label: "Export" };
 
@@ -92,28 +101,26 @@ export function footerHints(
   if (section === "seeding") {
     const label =
       seedFocus === "seeding" ? "Pause" : seedFocus === "missing" ? "Retry" : "Resume";
-    return [{ keys: "p", label }, { keys: "c", label: "Remove from list" }, FOLDER, SWITCH, ALWAYS];
+    return [{ keys: "p", label }, { keys: "c", label: "Remove from list" }, FOLDER, STREAM, DELETE, ALWAYS];
   }
   if (section === "downloads") {
     if (downloadFocus === "paused") {
-      return [{ keys: "p", label: "Resume" }, { keys: "c", label: "Cancel" }, FOLDER, TORRENT, SWITCH, ALWAYS];
+      return [{ keys: "p", label: "Resume" }, { keys: "c", label: "Cancel" }, FOLDER, STREAM, DELETE, ALWAYS];
     }
     if (downloadFocus === "failed") {
-      return [{ keys: "f", label: "Retry" }, { keys: "c", label: "Remove" }, FOLDER, TORRENT, SWITCH, ALWAYS];
+      return [{ keys: "f", label: "Retry" }, { keys: "c", label: "Remove" }, FOLDER, STREAM, DELETE, ALWAYS];
     }
     if (downloadFocus === "recent") {
-      // Removal is list bookkeeping, never file deletion, and the label says
-      // so. Clear-all (shift+c) stays `?`-only, like D.
       return [
         { keys: "d", label: "Redownload" },
         { keys: "c", label: "Remove from list" },
         FOLDER,
-        TORRENT,
-        SWITCH,
+        STREAM,
+        DELETE,
         ALWAYS,
       ];
     }
-    return [{ keys: "p", label: "Pause" }, { keys: "c", label: "Cancel" }, FOLDER, TORRENT, SWITCH, ALWAYS];
+    return [{ keys: "p", label: "Pause" }, { keys: "c", label: "Cancel" }, FOLDER, STREAM, DELETE, ALWAYS];
   }
   return [
     NAVIGATE,
