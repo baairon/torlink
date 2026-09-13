@@ -229,10 +229,21 @@ export function ansiToSvg(frame: string, opts: AnsiToSvgOptions): string {
         const top = baseline - FONT_SIZE;
         const half = LINE_H / 2;
         const dim = st.dim ? ` fill-opacity="${DIM_OPACITY}"` : "";
+        // Same convention as the general path below: a half-block glyph only paints one half of
+        // its cell, so the other half has to come from the background colour, exactly as a real
+        // terminal composites it (bg fills the whole cell, the glyph's fg sits on top of half of
+        // it). Without this a run with a distinct background — a two-tone poster row, not a
+        // single-colour progress-bar fill — silently loses whichever half the glyph doesn't cover.
+        const boxFill = st.inverse ? fg : st.bg;
         const bcells = Array.from(text);
         for (let k = 0; k < n; k++) {
           const ch = bcells[k]!;
           const cellLeft = PAD + (col + k) * CHAR_W;
+          if (boxFill) {
+            out.push(
+              `    <rect x="${fmt(cellLeft)}" y="${fmt(top)}" width="${fmt(CHAR_W)}" height="${LINE_H}" fill="${boxFill}"${dim}/>`,
+            );
+          }
           let rx = cellLeft;
           let ry = top;
           let rw = CHAR_W;
