@@ -73,7 +73,7 @@ export interface RestoreOptions {
 
 export class DownloadQueue extends EventEmitter {
   private items = new Map<string, QueueItem>();
-  private engine = new TorrentEngine();
+  private engine: TorrentEngine;
   private poll: ReturnType<typeof setInterval> | null = null;
   private history: HistoryItem[] = [];
   private seeds = new Map<string, SeedItem>();
@@ -84,8 +84,9 @@ export class DownloadQueue extends EventEmitter {
   // Max torrents allowed to download at once; overflow waits as "queued".
   private readonly maxDownloads: number;
 
-  constructor(opts?: { maxDownloads?: number }) {
+  constructor(opts?: { maxDownloads?: number; playlist?: boolean }) {
     super();
+    this.engine = new TorrentEngine({ playlist: opts?.playlist });
     this.maxDownloads = opts?.maxDownloads ?? readMaxDownloads();
   }
 

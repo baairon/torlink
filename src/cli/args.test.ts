@@ -2,6 +2,22 @@ import { describe, it, expect } from "vitest";
 import { parseCliArgs } from "./args";
 
 describe("parseCliArgs", () => {
+  it.each([
+    [],
+    ["magnet:?xt=urn:btih:abc"],
+    ["./course.torrent"],
+    ["watch", "/srv/incoming", "--to", "/srv/downloads", "--daemon"],
+    ["serve", "--port", "9161", "--daemon"],
+    ["seed", "./course"],
+  ])("allows --no-playlist before or after download arguments: %j", (...args) => {
+    const expected = { ...parseCliArgs(args), playlist: false };
+    expect(parseCliArgs(["--no-playlist", ...args])).toEqual(expected);
+    expect(parseCliArgs([...args, "--no-playlist"])).toEqual(expected);
+  });
+  it("rejects --no-playlist for commands that do not create playlists", () => {
+    expect(parseCliArgs(["files", "--no-playlist"]).kind).toBe("invalid");
+    expect(parseCliArgs(["attach", "--no-playlist"]).kind).toBe("invalid");
+  });
   it("defaults to run with no args", () => {
     expect(parseCliArgs([])).toEqual({ kind: "run" });
   });

@@ -23,6 +23,7 @@ import { startRuntime, addInput } from "./runtime";
 import { startSeedReaper } from "./seed-reaper";
 
 export interface SeedOptions {
+  playlist?: boolean;
   seedTimeMs?: number;
   deleteFiles?: boolean;
 }
@@ -58,7 +59,7 @@ export async function runSeed(target: string, options: SeedOptions = {}): Promis
 
   // The download dir is the content's parent, not the configured one: this
   // torrent's data is already where it is, and moving it is not on offer.
-  const runtime = await startRuntime(root);
+  const runtime = await startRuntime(root, { playlist: options.playlist });
   const outcome = await addInput(runtime, created.torrentPath, { allowTorrentPath: true });
   if (outcome === "invalid") throw new Error(`could not seed ${created.torrentPath}`);
   if (outcome === "duplicate") log("already in the queue — leaving it alone");

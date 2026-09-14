@@ -7,6 +7,7 @@ describe("contentType", () => {
     expect(contentType("Movie.mp4")).toBe("video/mp4");
     expect(contentType("track.MP3")).toBe("audio/mpeg");
     expect(contentType("clip.mkv")).toBe("video/x-matroska");
+    expect(contentType("playlist.m3u")).toBe("audio/x-mpegurl; charset=utf-8");
   });
   it("falls back to octet-stream", () => {
     expect(contentType("archive.xyz")).toBe("application/octet-stream");

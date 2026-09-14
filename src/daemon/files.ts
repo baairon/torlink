@@ -17,6 +17,7 @@ import { LOOPBACK_HOSTS, isAuthorized, hostHeaderOk } from "./auth";
 export const DEFAULT_FILES_PORT = 9160;
 
 const MIME: Record<string, string> = {
+  ".m3u": "audio/x-mpegurl; charset=utf-8",
   ".mp4": "video/mp4",
   ".m4v": "video/mp4",
   ".mkv": "video/x-matroska",

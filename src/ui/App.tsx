@@ -54,8 +54,9 @@ import type { SourceId } from "../sources/types";
 export function App({
   initialMagnet,
   initialTorrent,
+  playlist,
   onQuit,
-}: { initialMagnet?: string; initialTorrent?: string; onQuit?: () => void } = {}) {
+}: { initialMagnet?: string; initialTorrent?: string; playlist?: boolean; onQuit?: () => void } = {}) {
   useMouseWheel();
   const { exit } = useApp();
   const { isRawModeSupported } = useStdin();
@@ -120,7 +121,7 @@ export function App({
     let alive = true;
     void (async () => {
       const cfg = await loadConfig();
-      const q = new DownloadQueue();
+      const q = new DownloadQueue({ playlist });
       q.setTrackers(cfg.trackers);
       // Crash-boot breaker: a marker left behind by the previous boot means it
       // died mid-restore, so this one restores everything paused with the
@@ -169,7 +170,7 @@ export function App({
     return () => {
       alive = false;
     };
-  }, [initialMagnet, initialTorrent]);
+  }, [initialMagnet, initialTorrent, playlist]);
 
   // Best-effort, once per launch, off the hot path: if a newer release exists,
   // surface a quiet banner. Any failure (offline, opt-out) just leaves it hidden.

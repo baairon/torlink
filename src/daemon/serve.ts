@@ -31,6 +31,7 @@ export interface ApiResponse {
 }
 
 export interface ServeOptions {
+  playlist?: boolean;
   port?: number;
   host?: string;
   token?: string;
@@ -342,7 +343,7 @@ export async function runServe(options: ServeOptions = {}): Promise<void> {
     return;
   }
 
-  const runtime = await startRuntime(options.downloadDir);
+  const runtime = await startRuntime(options.downloadDir, { playlist: options.playlist });
 
   // Always on: with no --seed-time it only acts on torrents that carry their
   // own limit (set over the API), and does nothing at all otherwise.

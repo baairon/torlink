@@ -36,6 +36,29 @@ Downloads run in the background while you keep searching, so you can queue up as
   <img src="preview/downloads.svg" alt="torlink's Downloads pane: live progress on top, recently downloaded below" style="max-width: 832px; width: 100%; height: auto;">
 </p>
 
+### Course and media playlists
+
+When a torrent finishes downloading (or an existing seed finishes verification),
+torlink creates `playlist.m3u` in each of its folders with at least two audio or
+video files anywhere beneath it. A course gets a playlist for the whole course
+and for each module with multiple lessons. Entries follow natural filename order
+(`2` before `10`), skip documents and images, and use relative paths so the folder
+can be moved or served with `torlnk files`.
+
+Single-media folders get no playlist. Existing playlists are preserved, and
+playlists stay inside the torrent's folders, never in the shared downloads folder.
+
+This is on by default. Pass `--no-playlist` to disable creation for a run:
+
+```sh
+torlnk --no-playlist
+torlnk serve --no-playlist
+torlnk watch ./incoming --no-playlist
+```
+
+The flag also works with `torlnk seed`. For an environment-based opt-out, set
+`TORLINK_NO_PLAYLIST=1`. Disabling creation leaves existing playlists in place.
+
 ## What it searches
 
 A short, hand-picked list of trusted sources:

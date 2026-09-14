@@ -6,9 +6,10 @@ export type SearchCategory = "games" | "movies" | "tv" | "anime";
 export type CliCommand =
   | { kind: "version" }
   | { kind: "help" }
-  | { kind: "run"; initialMagnet?: string; initialTorrent?: string }
+  | { kind: "run"; initialMagnet?: string; initialTorrent?: string; playlist?: boolean }
   | {
       kind: "watch";
+      playlist?: boolean;
       dir: string;
       downloadDir?: string;
       seedTimeMs?: number;
@@ -17,6 +18,7 @@ export type CliCommand =
     }
   | {
       kind: "serve";
+      playlist?: boolean;
       port?: number;
       host?: string;
       token?: string;
@@ -27,6 +29,7 @@ export type CliCommand =
     }
   | {
       kind: "seed";
+      playlist?: boolean;
       path: string;
       seedTimeMs?: number;
       deleteFiles?: boolean;
@@ -80,6 +83,16 @@ function seedTimeFrom(raw: string | undefined): number | undefined {
 }
 
 export function parseCliArgs(argv: string[]): CliCommand {
+  const noPlaylist = argv.includes("--no-playlist");
+  const cmd = parseCommand(argv.filter((arg) => arg !== "--no-playlist"));
+  if (!noPlaylist || cmd.kind === "invalid" || cmd.kind === "help" || cmd.kind === "version") return cmd;
+  if (cmd.kind === "run" || cmd.kind === "watch" || cmd.kind === "serve" || cmd.kind === "seed") {
+    return { ...cmd, playlist: false };
+  }
+  return { kind: "invalid", arg: "--no-playlist (use with the TUI, watch, serve, or seed)" };
+}
+
+function parseCommand(argv: string[]): CliCommand {
   const args = argv.filter((a) => a.trim() !== "");
   if (args.length === 0) return { kind: "run" };
   const a = args[0]!;
@@ -188,6 +201,12 @@ usage
 once open: type to search every source at once, enter to run, arrows to move,
 d to download, ? for keys
 tip: quote magnet links (they contain & characters)
+
+playlists (TUI/watch/serve/seed): finished torrents automatically get a
+playlist.m3u in each folder containing 2+ audio/video files, including nested
+folders, in natural filename order. Single-file folders are skipped and
+existing playlists are kept. Pass --no-playlist (or set TORLINK_NO_PLAYLIST=1)
+to disable creation; existing playlists remain on disk.
 
 watch mode (no TUI): drop a .torrent, or a .magnet/.txt holding a magnet or
 info hash, into <dir> and it downloads then seeds. Add --to <dir> to choose
