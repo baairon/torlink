@@ -14,6 +14,7 @@ import {
 } from "./persist";
 import { saveHistory, saveHistorySync, type HistoryItem } from "./history";
 import { deleteSeedData } from "./delete-data";
+import { writePlaylists } from "./playlist";
 import { disarmBootMarker } from "./bootguard";
 import { trackersOf } from "../sources/magnet";
 import type { QueueItem, SeedItem } from "./types";
@@ -73,7 +74,7 @@ export interface RestoreOptions {
 
 export class DownloadQueue extends EventEmitter {
   private items = new Map<string, QueueItem>();
-  private engine: TorrentEngine;
+  private engine = new TorrentEngine();
   private poll: ReturnType<typeof setInterval> | null = null;
   private history: HistoryItem[] = [];
   private seeds = new Map<string, SeedItem>();
@@ -83,11 +84,13 @@ export class DownloadQueue extends EventEmitter {
 
   // Max torrents allowed to download at once; overflow waits as "queued".
   private readonly maxDownloads: number;
+  // Write playlist.m3u into a finished download's media folders.
+  private readonly playlist: boolean;
 
   constructor(opts?: { maxDownloads?: number; playlist?: boolean }) {
     super();
-    this.engine = new TorrentEngine({ playlist: opts?.playlist });
     this.maxDownloads = opts?.maxDownloads ?? readMaxDownloads();
+    this.playlist = opts?.playlist ?? !process.env.TORLINK_NO_PLAYLIST;
   }
 
   // Extra announce URLs appended to every torrent added from now on.
@@ -288,6 +291,9 @@ export class DownloadQueue extends EventEmitter {
     // Opt-out seeding: a finished download is already a complete, verified
     // torrent, so keep it alive and seeding instead of tearing it down.
     this.beginSeed(it);
+    // Only here, never when a restored seed passes verification: that fires
+    // on every launch, and would put back a playlist the user deleted.
+    if (this.playlist) void writePlaylists(it.dir, this.engine.filePaths(it.id));
     this.emit("completed", it.name);
     this.changed();
     void this.persist();

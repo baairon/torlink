@@ -8,7 +8,6 @@ describe("parseCliArgs", () => {
     ["./course.torrent"],
     ["watch", "/srv/incoming", "--to", "/srv/downloads", "--daemon"],
     ["serve", "--port", "9161", "--daemon"],
-    ["seed", "./course"],
   ])("allows --no-playlist before or after download arguments: %j", (...args) => {
     const expected = { ...parseCliArgs(args), playlist: false };
     expect(parseCliArgs(["--no-playlist", ...args])).toEqual(expected);
@@ -17,6 +16,7 @@ describe("parseCliArgs", () => {
   it("rejects --no-playlist for commands that do not create playlists", () => {
     expect(parseCliArgs(["files", "--no-playlist"]).kind).toBe("invalid");
     expect(parseCliArgs(["attach", "--no-playlist"]).kind).toBe("invalid");
+    expect(parseCliArgs(["seed", "./course", "--no-playlist"]).kind).toBe("invalid");
   });
   it("defaults to run with no args", () => {
     expect(parseCliArgs([])).toEqual({ kind: "run" });

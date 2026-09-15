@@ -2,7 +2,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
 import { buildPlaylists, writePlaylists } from "./playlist";
 import { logCrash } from "../util/crashlog";
 
@@ -23,7 +22,7 @@ describe("buildPlaylists", () => {
     ]);
     expect([...playlists.keys()].sort()).toEqual(["Course/Module 2/playlist.m3u", "Course/playlist.m3u"]);
     expect(playlists.get("Course/playlist.m3u")).toBe(
-      "#EXTM3U\n./Module%201/1.mp4\n./Module%202/1.MP4\n./Module%202/2.mp4\n./Module%202/10.mp4\n./Module%2010/1.mp4\n",
+      "#EXTM3U\n./Module 1/1.mp4\n./Module 2/1.MP4\n./Module 2/2.mp4\n./Module 2/10.mp4\n./Module 10/1.mp4\n",
     );
     expect(playlists.get("Course/Module 2/playlist.m3u")).toBe("#EXTM3U\n./1.MP4\n./2.mp4\n./10.mp4\n");
   });
@@ -48,19 +47,16 @@ describe("buildPlaylists", () => {
     expect(buildPlaylists(files as string[]).size).toBe(0);
   });
 
-  it("uses native torrent paths and portable relative URI entries", () => {
-    const names = ["1 #intro 100%.mp4", "2 café & résumé?.mp3", "3: recap.mp4"];
+  it("uses native torrent paths and writes entries that open as-is from the playlist's folder", () => {
+    // mpv joins an entry onto the playlist's folder verbatim, so nothing may be
+    // percent-encoded. The `./` keeps "#4 bonus" from reading as a comment.
+    const names = ["1 #intro 100%.mp4", "2 café & résumé?.mp3", "3: recap.mp4", "#4 bonus.mp4"];
     const playlists = buildPlaylists(names.map((name) => path.join("Course", name)));
     const entries = playlists.get("Course/playlist.m3u")!.trim().split("\n").slice(1);
     expect(entries).toHaveLength(names.length);
-    const local = pathToFileURL(path.resolve("Course/playlist.m3u"));
-    entries.forEach((entry, i) => {
-      expect(fileURLToPath(new URL(entry, local))).toBe(path.resolve("Course", names[i]!));
-      const remote = new URL(entry, "https://example.test/Course/playlist.m3u");
-      expect(decodeURIComponent(remote.pathname)).toBe(`/Course/${names[i]}`);
-      expect(remote.hash).toBe("");
-      expect(remote.search).toBe("");
-    });
+    expect(entries.every((entry) => entry.startsWith("./"))).toBe(true);
+    expect(entries.map((entry) => path.resolve("Course", entry)).sort())
+      .toEqual(names.map((name) => path.resolve("Course", name)).sort());
   });
 
   it("reserves playlists supplied by the torrent, including differently cased names", () => {

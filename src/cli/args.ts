@@ -29,7 +29,6 @@ export type CliCommand =
     }
   | {
       kind: "seed";
-      playlist?: boolean;
       path: string;
       seedTimeMs?: number;
       deleteFiles?: boolean;
@@ -86,10 +85,10 @@ export function parseCliArgs(argv: string[]): CliCommand {
   const noPlaylist = argv.includes("--no-playlist");
   const cmd = parseCommand(argv.filter((arg) => arg !== "--no-playlist"));
   if (!noPlaylist || cmd.kind === "invalid" || cmd.kind === "help" || cmd.kind === "version") return cmd;
-  if (cmd.kind === "run" || cmd.kind === "watch" || cmd.kind === "serve" || cmd.kind === "seed") {
+  if (cmd.kind === "run" || cmd.kind === "watch" || cmd.kind === "serve") {
     return { ...cmd, playlist: false };
   }
-  return { kind: "invalid", arg: "--no-playlist (use with the TUI, watch, serve, or seed)" };
+  return { kind: "invalid", arg: "--no-playlist (use with the TUI, watch, or serve)" };
 }
 
 function parseCommand(argv: string[]): CliCommand {
@@ -202,7 +201,7 @@ once open: type to search every source at once, enter to run, arrows to move,
 d to download, ? for keys
 tip: quote magnet links (they contain & characters)
 
-playlists (TUI/watch/serve/seed): finished torrents automatically get a
+playlists (TUI/watch/serve): finished downloads automatically get a
 playlist.m3u in each folder containing 2+ audio/video files, including nested
 folders, in natural filename order. Single-file folders are skipped and
 existing playlists are kept. Pass --no-playlist (or set TORLINK_NO_PLAYLIST=1)

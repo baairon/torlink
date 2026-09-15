@@ -1,5 +1,4 @@
 import WebTorrent, { type Torrent } from "webtorrent";
-import { writePlaylists } from "./playlist";
 
 export interface TorrentProgress {
   progress: number;
@@ -36,11 +35,6 @@ export function message(e: unknown): string {
 export class TorrentEngine {
   private client: WebTorrent | null = null;
   private torrents = new Map<string, Torrent>();
-  private readonly playlist: boolean;
-
-  constructor(options: { playlist?: boolean } = {}) {
-    this.playlist = options.playlist ?? !process.env.TORLINK_NO_PLAYLIST;
-  }
 
   private ensureClient(): WebTorrent {
     if (!this.client) {
@@ -114,7 +108,6 @@ export class TorrentEngine {
       });
     });
     torrent.on("done", () => {
-      if (this.playlist) void writePlaylists(dir, (torrent.files ?? []).map((file) => file.path));
       // A finished torrent is a complete, verified torrent: keep it alive so it
       // can seed. The queue owns its lifetime from here (remove/destroy).
       handlers.onDone?.();
@@ -131,6 +124,12 @@ export class TorrentEngine {
   // The TCP port the client accepts incoming peers on (diagnostics / tests).
   listenPort(): number | null {
     return this.client?.torrentPort ?? null;
+  }
+
+  // A torrent's file paths relative to its download dir, top-level folder
+  // included; empty before metadata arrives or once the torrent is gone.
+  filePaths(id: string): string[] {
+    return (this.torrents.get(id)?.files ?? []).map((file) => file.path);
   }
 
   stats(id: string): TorrentProgress | null {

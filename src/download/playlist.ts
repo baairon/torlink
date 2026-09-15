@@ -40,8 +40,12 @@ export function buildPlaylists(filePaths: string[]): Map<string, string> {
     // disk. Also leave single-file folders alone: opening the file is enough.
     if (entries.length < 2 || occupied.has(target.toLowerCase())) continue;
     entries.sort((a, b) => natural.compare(a, b) || (a < b ? -1 : a > b ? 1 : 0));
-    const uris = entries.map((entry) => `./${entry.split("/").map(encodeURIComponent).join("/")}`);
-    playlists.set(target, `#EXTM3U\n${uris.join("\n")}\n`);
+    // Plain relative paths, not URIs: mpv joins an entry onto the playlist's
+    // folder verbatim, so `Module%201` would never be found, while VLC fixes up
+    // raw spaces and Unicode itself. The `./` keeps a name that starts with `#`
+    // from reading as a comment.
+    const lines = entries.map((entry) => `./${entry}`);
+    playlists.set(target, `#EXTM3U\n${lines.join("\n")}\n`);
   }
   return playlists;
 }
