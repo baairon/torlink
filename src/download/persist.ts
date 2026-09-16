@@ -1,4 +1,4 @@
-import { promises as fs, mkdirSync, writeFileSync, renameSync, existsSync, rmSync } from "node:fs";
+import { promises as fs, mkdirSync, writeFileSync, renameSync, existsSync, rmSync, constants as fsConstants } from "node:fs";
 import path from "node:path";
 import { queueFile, seedsFile, torrentsDir } from "../config/paths";
 import { serializeWrites, writeJsonAtomic } from "../util/atomic";
@@ -98,7 +98,7 @@ export async function exportTorrentMeta(id: string, name: string, dir: string): 
     if (!existsSync(source)) return null;
     await fs.mkdir(dir, { recursive: true });
     const target = path.join(dir, torrentExportName(name, id));
-    await fs.copyFile(source, target);
+    await fs.copyFile(source, target, fsConstants.COPYFILE_EXCL);
     return target;
   } catch {
     return null;
