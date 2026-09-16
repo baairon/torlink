@@ -10,6 +10,20 @@ import { normalizeSearchResult, rankSearchResults } from "./search-rank";
 
 const MAX_SIZE_GB = Number(process.env.MAX_TORRENT_SIZE_GB ?? "6");
 const MAX_SIZE_BYTES = Math.max(1, MAX_SIZE_GB) * 1024 ** 3;
+const DEBUG = process.env.TORLINK_SEARCH_DEBUG !== "0";
+
+function ts(): string {
+  return new Date().toISOString();
+}
+
+function log(message: string): void {
+  if (!DEBUG) return;
+  console.error(`[${ts()}] ${message}`);
+}
+
+function logError(message: string): void {
+  console.error(`[${ts()}] ${message}`);
+}
 
 function readWatchDir(): string | null {
   return process.env.QBIT_WATCH_DIR?.trim() || null;
@@ -43,9 +57,13 @@ async function uniqueCopy(source: string, watchDir: string, name: string): Promi
 }
 
 async function fetchSearchResults(query: string) {
+  log(`searching ${SOURCES.length} sources`);
   const settled = await Promise.allSettled(
     SOURCES.map(async (source) => {
+      log(`source start: ${source.id}`);
+      const started = Date.now();
       const results = await cachedSearch(source, query);
+      log(`source done: ${source.id} (${results.length} results, ${Date.now() - started}ms)`);
       return results.map((r) =>
         normalizeSearchResult({
           infoHash: r.infoHash,
@@ -60,26 +78,46 @@ async function fetchSearchResults(query: string) {
   );
   const all = [];
   for (const item of settled) {
-    if (item.status === "fulfilled") all.push(...item.value);
+    if (item.status === "fulfilled") {
+      all.push(...item.value);
+      continue;
+    }
+    logError(`source failed: ${item.reason instanceof Error ? item.reason.message : String(item.reason)}`);
   }
+  log(`search collected ${all.length} normalized results`);
   return all;
 }
 
 async function main(): Promise<number> {
+  process.on("unhandledRejection", (reason) => {
+    logError(`unhandledRejection: ${reason instanceof Error ? reason.stack ?? reason.message : String(reason)}`);
+  });
+  process.on("uncaughtException", (err) => {
+    logError(`uncaughtException: ${err.stack ?? err.message}`);
+  });
+
   const query = process.argv.slice(2).join(" ").trim();
+  log(`argv: ${JSON.stringify(process.argv.slice(2))}`);
   if (!query) {
-    console.error("Usage: node search.js \"content name\"");
+    logError("Usage: node search.js \"content name\"");
     return 1;
   }
 
   const watchDir = readWatchDir();
   if (!watchDir) {
-    console.error("QBIT_WATCH_DIR is not set.");
+    logError("QBIT_WATCH_DIR is not set.");
     return 1;
   }
 
+  log(`query: ${query}`);
+  log(`watch dir: ${watchDir}`);
+  log(`max size: ${MAX_SIZE_BYTES} bytes (${MAX_SIZE_GB} GB)`);
+
   console.log(`Search: ${query}`);
-  const ranked = rankSearchResults(query, await fetchSearchResults(query), { maxSizeBytes: MAX_SIZE_BYTES });
+  const results = await fetchSearchResults(query);
+  log(`ranking ${results.length} candidates`);
+  const ranked = rankSearchResults(query, results, { maxSizeBytes: MAX_SIZE_BYTES });
+  log(`ranked ${ranked.length} acceptable candidates`);
   if (ranked.length === 0) {
     console.log("No acceptable torrent found.");
     return 0;
@@ -97,28 +135,34 @@ async function main(): Promise<number> {
   const queue = new DownloadQueue();
   const tmpDir = await mkdtemp(path.join(os.tmpdir(), "torlink-search-"));
   try {
+    log(`export staging dir: ${tmpDir}`);
+    log(`fetching torrent metadata for ${selected.infoHash}`);
     const torrentPath = await queue.fetchAndExportTorrent(
       { id: selected.infoHash, name: selected.title, magnet: selected.torrentUrl, source: selected.source },
       tmpDir,
     );
     if (!torrentPath) {
-      console.error("Failed to fetch torrent metadata.");
+      logError("Failed to fetch torrent metadata.");
       return 1;
     }
+    log(`torrent staged at ${torrentPath}`);
     const finalName = torrentExportName(selected.title, selected.torrentUrl);
+    log(`copying to watch folder as ${finalName}`);
     const finalPath = await uniqueCopy(torrentPath, watchDir, finalName);
     const size = (await stat(finalPath)).size;
     console.log(`Wrote: ${finalPath} (${formatBytes(size)})`);
     return 0;
   } finally {
+    log(`cleaning up staging dir ${tmpDir}`);
     await rm(tmpDir, { recursive: true, force: true }).catch(() => {});
     queue.suspend();
+    log("shutdown complete");
   }
 }
 
 main()
   .then((code) => process.exitCode = code)
   .catch((e) => {
-    console.error(e instanceof Error ? e.message : String(e));
+    logError(e instanceof Error ? e.stack ?? e.message : String(e));
     process.exitCode = 1;
   });
