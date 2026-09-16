@@ -103,6 +103,25 @@ const META_TOKENS = new Set([
   "x265",
 ]);
 
+const SEQUEL_TOKENS = new Set([
+  "part",
+  "pt",
+  "episode",
+  "chapter",
+  "volume",
+  "vol",
+  "book",
+  "ii",
+  "iii",
+  "iv",
+  "v",
+  "vi",
+  "vii",
+  "viii",
+  "ix",
+  "x",
+]);
+
 function splitTokens(value: string): string[] {
   return value
     .toLowerCase()
@@ -126,6 +145,38 @@ function isMetadataToken(tok: string): boolean {
   return META_TOKENS.has(tok) || /^\d{4}$/.test(tok) || /^\d+(?:p|k)$/.test(tok);
 }
 
+function isSequelToken(tok: string): boolean {
+  return SEQUEL_TOKENS.has(tok) || /^\d+$/.test(tok);
+}
+
+function canonicalToken(tok: string): string {
+  if (/^\d+$/.test(tok)) return tok;
+  switch (tok) {
+    case "i":
+      return "1";
+    case "ii":
+      return "2";
+    case "iii":
+      return "3";
+    case "iv":
+      return "4";
+    case "v":
+      return "5";
+    case "vi":
+      return "6";
+    case "vii":
+      return "7";
+    case "viii":
+      return "8";
+    case "ix":
+      return "9";
+    case "x":
+      return "10";
+    default:
+      return tok;
+  }
+}
+
 function tokenSet(tokens: string[]): Set<string> {
   return new Set(tokens);
 }
@@ -137,18 +188,26 @@ function titleMatch(
   titleTokens: string[],
 ): { ok: boolean; ratio: number; phrase: boolean } {
   if (queryTokens.length === 0 || titleTokens.length === 0) return { ok: false, ratio: 0 };
-  const titleSet = tokenSet(titleTokens);
+  const queryCanonical = queryTokens.map(canonicalToken);
+  const titleCanonical = titleTokens.map(canonicalToken);
+  const titleSet = tokenSet(titleCanonical);
   let hits = 0;
-  for (const tok of queryTokens) {
+  for (const tok of queryCanonical) {
     if (titleSet.has(tok)) hits++;
   }
-  const ratio = hits / queryTokens.length;
+  const ratio = hits / queryCanonical.length;
   const queryPhrase = normalizedPhrase(query);
   const titlePhrase = normalizedPhrase(title);
   const phrase = titlePhrase.includes(queryPhrase);
-  const tail = titleTokens.slice(queryTokens.length);
-  const tailAcceptable = tail.length === 0 || tail.every(isMetadataToken);
-  return { ok: (phrase && tailAcceptable) || (ratio >= 0.85 && tailAcceptable), ratio, phrase };
+  const titleCore = titleTokens.filter((tok) => !isMetadataToken(tok) && !isSequelToken(tok));
+  const queryCore = queryTokens.filter((tok) => !isMetadataToken(tok) && !isSequelToken(tok));
+  const coreSet = tokenSet(titleCore.map(canonicalToken));
+  let coreHits = 0;
+  for (const tok of queryCore.map(canonicalToken)) {
+    if (coreSet.has(tok)) coreHits++;
+  }
+  const coreRatio = queryCore.length > 0 ? coreHits / queryCore.length : ratio;
+  return { ok: phrase || ratio >= 0.75 || coreRatio >= 0.7, ratio: Math.max(ratio, coreRatio), phrase };
 }
 
 function compare(a: RankedSearchResult, b: RankedSearchResult): number {

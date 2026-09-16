@@ -30,6 +30,19 @@ describe("rankSearchResults", () => {
     expect(ranked[0]?.title).toContain("Spider-Man.No_Way_Home");
   });
 
+  it("handles sequel markers like part ii / 2", () => {
+    const ranked = rankSearchResults(
+      "back to the future 2",
+      [
+        { infoHash: "a", title: "Back.To.The.Future.Part.II.1989.1080p", seeders: 200, sizeBytes: 2e9, torrentUrl: "a" },
+        { infoHash: "b", title: "Back.To.The.Future.1985.1080p", seeders: 300, sizeBytes: 2e9, torrentUrl: "b" },
+      ],
+      opts,
+    );
+
+    expect(ranked[0]?.title).toContain("Part.II");
+  });
+
   it("> 6 GB results are excluded", () => {
     const ranked = rankSearchResults(
       "Big Movie",
