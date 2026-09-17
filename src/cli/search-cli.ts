@@ -7,6 +7,7 @@ import { torrentExportName } from "../download/persist";
 import { DownloadQueue } from "../download/queue";
 import { formatBytes } from "../util/format";
 import { normalizeSearchResult, rankSearchResults } from "./search-rank";
+import { classificationSummary, classifyTorrentFile, watchDirForClassification } from "./torrent-classify";
 
 const MAX_SIZE_GB = Number(process.env.MAX_TORRENT_SIZE_GB ?? "6");
 const MAX_SIZE_BYTES = Math.max(1, MAX_SIZE_GB) * 1024 ** 3;
@@ -103,14 +104,14 @@ async function main(): Promise<number> {
     return 1;
   }
 
-  const watchDir = readWatchDir();
-  if (!watchDir) {
+  const defaultWatchDir = readWatchDir();
+  if (!defaultWatchDir) {
     logError("QBIT_WATCH_DIR is not set.");
     return 1;
   }
 
   log(`query: ${query}`);
-  log(`watch dir: ${watchDir}`);
+  log(`watch dir: ${defaultWatchDir}`);
   log(`max size: ${MAX_SIZE_BYTES} bytes (${MAX_SIZE_GB} GB)`);
 
   console.log(`Search: ${query}`);
@@ -138,14 +139,24 @@ async function main(): Promise<number> {
     log(`export staging dir: ${tmpDir}`);
     log(`fetching torrent metadata for ${selected.infoHash}`);
     const torrentPath = await queue.fetchAndExportTorrent(
-      { id: selected.infoHash, name: selected.title, magnet: selected.torrentUrl, source: selected.source },
+      { id: selected.infoHash, name: selected.title, magnet: selected.torrentUrl },
       tmpDir,
+      (reason) => logError(`Torrent metadata retrieval failed: ${reason}`),
     );
     if (!torrentPath) {
       logError("Failed to fetch torrent metadata.");
       return 1;
     }
     log(`torrent staged at ${torrentPath}`);
+    let classification;
+    try {
+      classification = await classifyTorrentFile(torrentPath);
+    } catch (e) {
+      logError(`Torrent metadata inspection failed: ${e instanceof Error ? e.stack ?? e.message : String(e)}`);
+      classification = { type: "unknown" as const, audioBytes: 0, videoBytes: 0, totalBytes: 0 };
+    }
+    const watchDir = watchDirForClassification(classification, defaultWatchDir);
+    log(`${classificationSummary(classification)} -> ${watchDir}`);
     const finalName = torrentExportName(selected.title, selected.torrentUrl);
     log(`copying to watch folder as ${finalName}`);
     const finalPath = await uniqueCopy(torrentPath, watchDir, finalName);

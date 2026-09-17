@@ -60,6 +60,10 @@ torlink also runs without the TUI, for servers and seedboxes:
 
 Add `--daemon` to keep watch, serve, or files running after you log out; `torlnk --help` has the full list of modes and flags.
 
+### qBittorrent watched folders
+
+The standalone `node search.js "query"` helper writes video and unclassified torrents to `QBIT_WATCH_DIR`. Set `QBIT_MUSIC_WATCH_DIR` to send torrents whose metainfo files are predominantly audio to a separate qBittorrent watched folder; if it is unset, audio uses `QBIT_WATCH_DIR` too.
+
 ## Contributing
 
 To run or work on torlink locally:

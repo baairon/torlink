@@ -419,6 +419,7 @@ export class DownloadQueue extends EventEmitter {
   fetchAndExportTorrent(
     input: { id: string; name: string; magnet: string },
     exportDir: string,
+    onFailure?: (reason: string) => void,
   ): Promise<string | null> {
     logDebug("torrent-only", `request id=${input.id} name=${JSON.stringify(input.name)} exportDir=${JSON.stringify(exportDir)}`);
     // Fast path: cached from a previous download.
@@ -433,6 +434,7 @@ export class DownloadQueue extends EventEmitter {
     // metadata will arrive through the normal queue flow; don't double-add it.
     if (this.items.has(input.id) || this.seeds.has(input.id)) {
       logDebug("torrent-only", `blocked existing live torrent id=${input.id}`);
+      onFailure?.("torrent is already active in the download queue");
       return Promise.resolve(null);
     }
     return new Promise<string | null>((resolve) => {
@@ -443,6 +445,7 @@ export class DownloadQueue extends EventEmitter {
         done = true;
         logDebug("torrent-only", `metadata timeout id=${input.id}`);
         this.engine.remove(tempKey);
+        onFailure?.("timed out waiting for torrent metadata");
         resolve(null);
       }, FETCH_METADATA_TIMEOUT_MS);
       this.engine.add(tempKey, input.magnet, exportDir, {
@@ -457,18 +460,27 @@ export class DownloadQueue extends EventEmitter {
           // Tear down synchronously before any file data can be written.
           this.engine.remove(tempKey);
           void (async () => {
-            if (meta.torrentFile) await saveTorrentMeta(input.id, meta.torrentFile);
-            const file = await exportTorrentMeta(input.id, input.name, exportDir);
-            logDebug("torrent-only", `export result id=${input.id} file=${JSON.stringify(file)}`);
-            resolve(file);
+            try {
+              if (meta.torrentFile) await saveTorrentMeta(input.id, meta.torrentFile);
+              const file = await exportTorrentMeta(input.id, input.name, exportDir);
+              logDebug("torrent-only", `export result id=${input.id} file=${JSON.stringify(file)}`);
+              if (!file) onFailure?.("torrent metadata arrived but no .torrent file was available");
+              resolve(file);
+            } catch (e) {
+              const reason = message(e);
+              logDebug("torrent-only", `metadata export failed id=${input.id} reason=${JSON.stringify(reason)}`);
+              onFailure?.(`could not save torrent metadata: ${reason}`);
+              resolve(null);
+            }
           })();
         },
-        onError: () => {
+        onError: (reason) => {
           if (done) return;
           done = true;
           clearTimeout(timer);
-          logDebug("torrent-only", `metadata error id=${input.id}`);
+          logDebug("torrent-only", `metadata error id=${input.id} reason=${JSON.stringify(reason)}`);
           this.engine.remove(tempKey);
+          onFailure?.(reason);
           resolve(null);
         },
       });

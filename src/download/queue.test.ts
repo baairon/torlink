@@ -163,6 +163,7 @@ describe("DownloadQueue.fetchAndExportTorrent", () => {
     const q = new DownloadQueue();
     const outDir = await fs.mkdtemp(path.join(os.tmpdir(), "torlink-fetch-export-"));
     const removed: string[] = [];
+    const failures: string[] = [];
     const fakeEngine = (
       q as unknown as {
         engine: {
@@ -183,9 +184,11 @@ describe("DownloadQueue.fetchAndExportTorrent", () => {
           magnet: "magnet:?xt=urn:btih:dddddddddddddddddddddddddddddddddddddddd",
         },
         outDir,
+        (reason) => failures.push(reason),
       );
       expect(file).toBeNull();
       expect(removed).toEqual(["__meta__gone1"]);
+      expect(failures).toEqual(["no peers"]);
     } finally {
       await fs.rm(outDir, { recursive: true, force: true });
       q.suspend();
