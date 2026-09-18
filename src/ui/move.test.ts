@@ -1,5 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { stickCursor, wrapStep, windowStart, resultsPanelOuter } from "./move";
+import {
+  stickCursor,
+  wrapStep,
+  windowStart,
+  resultsPanelOuter,
+  scrollStart,
+  stepRegion,
+} from "./move";
 
 describe("stickCursor", () => {
   const rows = (...hashes: string[]) => hashes.map((infoHash) => ({ infoHash }));
@@ -34,6 +41,63 @@ describe("windowStart", () => {
     expect(windowStart(9, 10, 5)).toBe(5);
     expect(windowStart(5, 10, 5)).toBe(3);
     expect(windowStart(2, 4, 10)).toBe(0);
+  });
+});
+
+describe("scrollStart", () => {
+  it("clamps at both ends instead of wrapping", () => {
+    expect(scrollStart(-3, 20, 5)).toBe(0);
+    expect(scrollStart(0, 20, 5)).toBe(0);
+    expect(scrollStart(7, 20, 5)).toBe(7);
+    // The last window shows the final row and nothing past it.
+    expect(scrollStart(15, 20, 5)).toBe(15);
+    expect(scrollStart(16, 20, 5)).toBe(15);
+    expect(scrollStart(999, 20, 5)).toBe(15);
+  });
+
+  it("pins to the top whenever the content fits", () => {
+    expect(scrollStart(4, 5, 5)).toBe(0);
+    expect(scrollStart(4, 2, 5)).toBe(0);
+    expect(scrollStart(0, 0, 5)).toBe(0);
+  });
+
+  it("does not centre the way windowStart does", () => {
+    // The two are not interchangeable, which is the reason both exist: a scrolled pane has no
+    // cursor to centre, so row 7 of a 20-row card sits at the top of the window and not in it.
+    expect(scrollStart(7, 20, 5)).toBe(7);
+    expect(windowStart(7, 20, 5)).toBe(5);
+  });
+});
+
+describe("stepRegion", () => {
+  it("walks the three columns in both directions", () => {
+    expect(stepRegion("sidebar", 1, true)).toBe("content");
+    expect(stepRegion("content", 1, true)).toBe("preview");
+    expect(stepRegion("preview", -1, true)).toBe("content");
+    expect(stepRegion("content", -1, true)).toBe("sidebar");
+  });
+
+  it("stops at both ends rather than wrapping around the screen", () => {
+    expect(stepRegion("sidebar", -1, true)).toBe("sidebar");
+    expect(stepRegion("preview", 1, true)).toBe("preview");
+  });
+
+  it("keeps → a no-op in the list when the pane is not on screen", () => {
+    // Exactly today's behaviour at 80 columns, on the Games tab, and with the pane toggled off.
+    expect(stepRegion("content", 1, false)).toBe("content");
+    expect(stepRegion("sidebar", 1, false)).toBe("content");
+  });
+
+  it("rescues focus that was inside the pane when the pane disappeared", () => {
+    // A resize or the `i` toggle can take the pane away while it holds the keyboard; every key
+    // that moves horizontally has to lead back out rather than into a column that is not drawn.
+    expect(stepRegion("preview", -1, false)).toBe("content");
+    expect(stepRegion("preview", 1, false)).toBe("content");
+  });
+
+  it("leaves the modal flag alone — it is a state, not a column", () => {
+    expect(stepRegion("help", 1, true)).toBe("help");
+    expect(stepRegion("help", -1, true)).toBe("help");
   });
 });
 

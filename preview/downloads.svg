@@ -48,8 +48,8 @@
     <text x="224" y="216" textLength="9.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#a78bfa" font-weight="600">❯</text>
     <text x="243.2" y="216" textLength="9.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#a78bfa">↓</text>
     <text x="262.4" y="216" textLength="345.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#a78bfa" font-weight="600">Dune: Part Two (2024) [2160p BluRay]</text>
-    <text x="656" y="216" textLength="67.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill-opacity="0.55">7.82 GB</text>
-    <text x="742.4" y="216" textLength="28.8" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#86d6a2">YTS</text>
+    <text x="656" y="216" textLength="67.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve" font-weight="600">7.82 GB</text>
+    <text x="742.4" y="216" textLength="28.8" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#86d6a2" font-weight="600">YTS</text>
     <rect x="784.9" y="200" width="1.4" height="22" fill="#a78bfa"/>
     <text x="60.8" y="238" textLength="57.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill-opacity="0.55">Movies</text>
     <rect x="208.9" y="222" width="1.4" height="22" fill="#a78bfa"/>
