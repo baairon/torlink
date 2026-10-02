@@ -11,8 +11,10 @@ import type { TorrentResult } from "../sources/types";
 //     defaults, so keeping the higher-seeder row alone can trade a working
 //     announce list for a generic one. Same loss #146 fixed for a .torrent
 //     file's own trackers.
-//   - numFiles and added, but only where the winner has none. A field the
-//     winner never reported is a gap, not a decision.
+//   - numFiles, added and imdbId, but only where the winner has none. A field
+//     the winner never reported is a gap, not a decision — and an imdbId is
+//     worth more than a blank column, since losing it sends the metadata
+//     lookup back to guessing a title from the release name.
 //
 // Everything else stays the winner's, including its magnet URI byte for byte.
 function merge(a: TorrentResult, b: TorrentResult): TorrentResult {
@@ -22,6 +24,7 @@ function merge(a: TorrentResult, b: TorrentResult): TorrentResult {
     magnet: mergeMagnetTrackers(win.magnet, [lost.magnet]),
     numFiles: win.numFiles ?? lost.numFiles,
     added: win.added ?? lost.added,
+    imdbId: win.imdbId ?? lost.imdbId,
   };
 }
 

@@ -200,6 +200,7 @@ usage
 once open: type to search every source at once, enter to run, arrows to move,
 d to download, ? for keys
 tip: quote magnet links (they contain & characters)
+tip: set TORLINK_GRAPHICS=off for coloured blocks instead of real poster art
 
 playlists (TUI/watch/serve): finished downloads automatically get a
 playlist.m3u in each folder containing 2+ audio/video files, including nested
