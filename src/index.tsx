@@ -96,10 +96,15 @@ if (cmd.kind === "update") {
   // jq. Exit 1 only when every source failed, so an empty-but-healthy search
   // is still a success.
   void import("./cli/search")
-    .then(({ runSearch }) => runSearch({ query: cmd.query, category: cmd.category }))
+    .then(({ runSearch }) =>
+      runSearch({ query: cmd.query, category: cmd.category, timeoutMs: cmd.timeoutMs }),
+    )
     .then(({ document, exitCode }) => {
-      process.exitCode = exitCode;
-      process.stdout.write(`${JSON.stringify(document)}\n`);
+      // Leave once the document is flushed instead of when the event loop
+      // empties. A source cut off at the deadline leaves work behind that
+      // nothing can cancel (a connect or a DNS lookup still in flight), and
+      // the caller's pipe would stay open until that gave up on its own.
+      process.stdout.write(`${JSON.stringify(document)}\n`, () => process.exit(exitCode));
     })
     .catch(failHeadless);
 } else {

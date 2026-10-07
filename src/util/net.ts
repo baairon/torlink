@@ -129,6 +129,17 @@ export async function fetchResilient(
     }
 
     const retryAfterMs = parseRetryAfter(res.headers.get("retry-after"));
+    // Retry-After floors the backoff, so it needs the bound the backoff has. A
+    // source that went invite-only answered every search with a 503 asking for
+    // 86400 seconds, and this sleep held the search for the full day. Retrying
+    // sooner would ignore what the server asked, so past the cap the request
+    // fails with the status it got.
+    if (retryAfterMs !== undefined && retryAfterMs > capMs) {
+      throw new HttpError(
+        res.status,
+        `Request to ${url} was told to retry in ${Math.ceil(retryAfterMs / 1000)}s (HTTP ${res.status}).`,
+      );
+    }
     await sleepImpl(backoffDelay(attempt, baseMs, capMs, retryAfterMs), signal ?? undefined);
   }
 

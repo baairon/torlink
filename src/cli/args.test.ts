@@ -69,6 +69,43 @@ describe("parseCliArgs", () => {
       category: "games",
     });
   });
+  it("parses a headless search --timeout in the --seed-time grammar", () => {
+    expect(parseCliArgs(["search", "ubuntu", "--timeout", "30s"])).toEqual({
+      kind: "search",
+      query: "ubuntu",
+      timeoutMs: 30_000,
+    });
+    expect(parseCliArgs(["search", "ubuntu", "--timeout", "90"])).toEqual({
+      kind: "search",
+      query: "ubuntu",
+      timeoutMs: 90_000,
+    });
+    expect(
+      parseCliArgs(["search", "--timeout", "2m", "example", "movie", "--category", "movies"]),
+    ).toEqual({
+      kind: "search",
+      query: "example movie",
+      category: "movies",
+      timeoutMs: 120_000,
+    });
+    expect(parseCliArgs(["search", "ubuntu"])).toHaveProperty("timeoutMs", undefined);
+  });
+  // 0 would mean "never give up" under the --seed-time reading, which is the
+  // hang the flag exists to rule out.
+  it("rejects a headless search --timeout that is not a positive duration", () => {
+    expect(parseCliArgs(["search", "ubuntu", "--timeout", "soon"])).toEqual({
+      kind: "invalid",
+      arg: "search (invalid timeout 'soon')",
+    });
+    expect(parseCliArgs(["search", "ubuntu", "--timeout", "0"])).toEqual({
+      kind: "invalid",
+      arg: "search (invalid timeout '0')",
+    });
+    expect(parseCliArgs(["search", "ubuntu", "--timeout"])).toEqual({
+      kind: "invalid",
+      arg: "search (invalid --timeout)",
+    });
+  });
   it("rejects invalid headless searches", () => {
     expect(parseCliArgs(["search"])).toEqual({ kind: "invalid", arg: "search (missing query)" });
     expect(parseCliArgs(["search", "ubuntu", "--category", "books"])).toEqual({
