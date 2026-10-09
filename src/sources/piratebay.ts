@@ -1,4 +1,5 @@
 import { fetchResilient, HttpError, USER_AGENT } from "../util/net";
+import { normalizeImdbId } from "../meta/imdbId";
 import { buildMagnet } from "./magnet";
 import type { SearchOptions, Source, SourceId, TorrentResult } from "./types";
 
@@ -20,11 +21,13 @@ interface ApibayItem {
   size?: string;
   added?: string;
   category?: string;
+  imdb?: string;
 }
 
 const ZERO_HASH = "0000000000000000000000000000000000000000";
 
-function toResult(it: ApibayItem, source: SourceId): TorrentResult | null {
+/** Exported for tests: the mapping is where every apibay quirk is absorbed. */
+export function toResult(it: ApibayItem, source: SourceId): TorrentResult | null {
   const infoHash = (it.info_hash ?? "").toLowerCase();
   if (!infoHash || infoHash === ZERO_HASH || it.id === "0") return null;
   const name = it.name || "Unknown";
@@ -39,6 +42,9 @@ function toResult(it: ApibayItem, source: SourceId): TorrentResult | null {
     source,
     magnet: buildMagnet(infoHash, name),
     added: Number(it.added) || undefined,
+    // apibay carries the id on both category feeds, and sends the string "0" on rows that have
+    // none. normalizeImdbId rejects that on shape alone, so no separate sentinel check is needed.
+    imdbId: normalizeImdbId(it.imdb),
   };
 }
 
