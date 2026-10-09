@@ -91,16 +91,16 @@ describe("fetchWordpressRss", () => {
     await expect(fetchWordpressRss("https://x.site", "fitgirl", "")).rejects.toThrow("404");
   });
 
-  it("builds search urls with the query and pages with &paged=", async () => {
+  it("builds relevance-sorted search urls and pages with &paged=", async () => {
     mockFetch
       .mockResolvedValueOnce(page(feed(...hashes(10, "a").map(item))))
       .mockResolvedValueOnce(page(feed()))
       .mockResolvedValueOnce(page(feed()));
     await fetchWordpressRss("https://x.site", "fitgirl", "elden ring");
     expect(mockFetch.mock.calls.map((c) => c[0])).toEqual([
-      "https://x.site/?s=elden%20ring&feed=rss2",
-      "https://x.site/?s=elden%20ring&feed=rss2&paged=2",
-      "https://x.site/?s=elden%20ring&feed=rss2&paged=3",
+      "https://x.site/?s=elden%20ring&feed=rss2&orderby=relevance",
+      "https://x.site/?s=elden%20ring&feed=rss2&orderby=relevance&paged=2",
+      "https://x.site/?s=elden%20ring&feed=rss2&orderby=relevance&paged=3",
     ]);
   });
 });

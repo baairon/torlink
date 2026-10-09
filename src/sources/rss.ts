@@ -34,10 +34,13 @@ const WP_FEED_PAGE_SIZE = 10;
 const FEED_DEPTH = 3;
 const DEEP_PAGE_RETRIES = 2;
 
+// WordPress sorts search feeds by date, so without orderby=relevance an older
+// post with an exact title match sinks below FEED_DEPTH pages of newer posts
+// that merely mention the query's words.
 function feedUrl(base: string, query: string, page: number): string {
   const q = query.trim();
   const url = q
-    ? `${base}/?s=${encodeURIComponent(q)}&feed=rss2`
+    ? `${base}/?s=${encodeURIComponent(q)}&feed=rss2&orderby=relevance`
     : `${base}/feed/`;
   if (page <= 1) return url;
   return `${url}${q ? "&" : "?"}paged=${page}`;
