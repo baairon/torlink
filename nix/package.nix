@@ -48,18 +48,18 @@ in
 
 buildNpmPackage (finalAttrs: {
   pname = "torlink";
-  version = "1.9.0";
+  version = "1.9.1";
   src = fetchFromGitHub {
     owner = "baairon";
     repo = "torlink";
     tag = "v${finalAttrs.version}";
-    hash = "sha256-DE4ZlIF1nHn2btHpT+X4BlhnW35OgDMWDbCVruMYN5s=";
+    hash = "sha256-p95bNiXhuV7D5dp3PTPxWb5XWZMOtEHkQHRAGUW/lsk=";
   };
   __structuredAttrs = true;
   strictDeps = true;
 
   nodejs = nodejs_22;
-  npmDepsHash = "sha256-VWa4IQLNRxZWjHJfW2c/BFkfaG4Hvtb+n1A2R24G8cc=";
+  npmDepsHash = "sha256-qmEy9hBhbad9NX8cTdRWN3JM/Y+ezkewW2AvnqzfiPw=";
   npmFlags = [ "--ignore-scripts" ]; # ignore-scripts for ip-set broken preinstall
 
   nativeBuildInputs = [ cmake ];
