@@ -7,10 +7,13 @@ import { TextField } from "./TextField";
 import { Panel } from "./Panel";
 import { Rule } from "./Rule";
 import { useConcurrentSearch } from "../hooks/useConcurrentSearch";
+import { useResultMeta } from "../hooks/useResultMeta";
 import { getSource, SOURCES } from "../../sources/registry";
 import { stickCursor, wrapStep, windowStart, resultsPanelOuter } from "../move";
 import { sortResults, nextSort, sortLabel, sortArrow, type Sort, type SortField } from "../sort";
 import { filterResults } from "../filter";
+import { planMetaRows } from "../metaPlan";
+import { LABEL_W } from "../textWidth";
 import { COLOR, GUTTER, ICON, sourceStyle } from "../theme";
 import { cleanText, formatBytes, formatCount, formatRelative, stripControl, truncate } from "../../util/format";
 import type { Source, TorrentResult } from "../../sources/types";
@@ -22,7 +25,7 @@ const PLACEHOLDER = "Search or paste a magnet link…";
 function DetailRow({ label, value }: { label: string; value: ReactNode }) {
   return (
     <Box>
-      <Box width={9} flexShrink={0}>
+      <Box width={LABEL_W} flexShrink={0}>
         <Text dimColor>{label}</Text>
       </Box>
       <Box flexGrow={1} minWidth={0}>{value}</Box>
@@ -30,9 +33,27 @@ function DetailRow({ label, value }: { label: string; value: ReactNode }) {
   );
 }
 
-function Detail({ r, width }: { r: TorrentResult; width: number }) {
+function Detail({ r, width, panelHeight }: { r: TorrentResult; width: number; panelHeight: number }) {
   const ss = sourceStyle(r.source);
   const date = formatRelative(r.added);
+  // No debounce: Enter is an explicit commit (unlike the list cursor sweeping past rows), and
+  // the cache behind this hook usually resolves the same title's earlier lookup instantly.
+  const { meta } = useResultMeta(r, true, 0);
+
+  // Same column math DetailRow itself uses (LABEL_W plus whatever remains), needed here because
+  // planMetaRows must know a value's wrapped line count before render.
+  const valueWidth = Math.max(1, width - LABEL_W);
+  // The four unconditional facts rows plus whichever of Files/Added this result actually has.
+  const factsRows = 4 + (r.numFiles ? 1 : 0) + (date ? 1 : 0);
+  // Fixed chrome that is never negotiable: title, rule, the blank line above the facts block,
+  // the blank line above the hint row, and the hint row itself.
+  const CHROME_ROWS = 5;
+  // Panel renders its own bottom border inside `panelHeight` (its top border is the separate
+  // title-bar row above it), so one row of that budget is never available to Detail's content.
+  const innerRows = Math.max(0, panelHeight - 1);
+  const metaBudget = Math.max(0, innerRows - CHROME_ROWS - factsRows);
+  const plan = planMetaRows(meta, valueWidth, metaBudget);
+
   const health =
     r.seeders || r.leechers ? (
       <Text>
@@ -91,6 +112,24 @@ function Detail({ r, width }: { r: TorrentResult; width: number }) {
             </Text>
           }
         />
+        {plan.rating !== null ? (
+          <DetailRow label="Rating" value={<Text dimColor>{plan.rating}</Text>} />
+        ) : null}
+        {plan.genres !== null ? (
+          <DetailRow label="Genres" value={<Text dimColor>{plan.genres}</Text>} />
+        ) : null}
+        {/* Cinemeta sends no director for most series — an empty row here would be a label with
+            nothing after it, so absence of data means absence of the row (planMetaRows never
+            admits an empty list in the first place). */}
+        {plan.director !== null ? (
+          <DetailRow label="Director" value={<Text dimColor>{plan.director}</Text>} />
+        ) : null}
+        {plan.cast !== null ? (
+          <DetailRow label="Cast" value={<Text dimColor>{plan.cast}</Text>} />
+        ) : null}
+        {plan.plot !== null ? (
+          <DetailRow label="Plot" value={<Text dimColor wrap="wrap">{plan.plot}</Text>} />
+        ) : null}
       </Box>
       <Box marginTop={1}>
         <Text color={COLOR.accent} bold>
@@ -407,7 +446,7 @@ export function Results() {
           height={panelOuter}
         >
           {mode === "detail" && detail ? (
-            <Detail r={detail} width={Math.max(10, contentWidth - 4)} />
+            <Detail r={detail} width={Math.max(10, contentWidth - 4)} panelHeight={panelOuter} />
           ) : (
             <>
               <Box>{status()}</Box>
