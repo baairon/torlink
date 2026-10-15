@@ -29,6 +29,14 @@ export type SeedFocus = "seeding" | "paused" | "missing" | "idle";
 
 export type ResultFocus = "list" | "detail";
 
+export interface DownloadInput {
+  id: string;
+  name: string;
+  magnet: string;
+  source?: SourceId;
+  sizeBytes?: number;
+}
+
 export interface Store {
   config: Config;
   setConfig: (c: Config) => void;
@@ -53,22 +61,11 @@ export interface Store {
   resultFocus: ResultFocus | null;
   setResultFocus: (f: ResultFocus | null) => void;
 
-  startDownload: (input: {
-    id: string;
-    name: string;
-    magnet: string;
-    source?: SourceId;
-    sizeBytes?: number;
-  }) => void;
-  // Opens the "download to" prompt (D) so this one download can land in a
-  // folder other than the configured default.
-  requestDownloadTo: (input: {
-    id: string;
-    name: string;
-    magnet: string;
-    source?: SourceId;
-    sizeBytes?: number;
-  }) => void;
+  startDownload: (input: DownloadInput) => void;
+  // Opens the "download to" prompt (D) so these downloads (one, or a marked
+  // batch) can land in a folder other than the configured default. onQueued
+  // fires only once they are queued, never when the prompt is cancelled.
+  requestDownloadTo: (inputs: DownloadInput[], onQueued?: () => void) => void;
   copyMagnet: (input: { name: string; magnet: string }) => void;
   openDownloadFolder: (dir: string) => void;
   // Copies the cached .torrent metadata into the item's download folder and

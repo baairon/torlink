@@ -28,6 +28,7 @@ export const HELP_GROUPS: HelpGroup[] = [
     hints: [
       { keys: "/", label: "Edit search" },
       { keys: "f", label: "Filter list" },
+      { keys: "␣", label: "Mark for batch" },
       { keys: "d", label: "Download (shift+d: folder)" },
       { keys: "s", label: "Sort results" },
       { keys: "z", label: "Hide dead torrents" },

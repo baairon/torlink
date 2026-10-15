@@ -23,6 +23,7 @@ export const KEY = {
   enter: "\r",
   esc: "\u001b",
   ctrlU: "\u0015",
+  space: " ",
 } as const;
 
 // SGR/CSI sequences only. util/format's stripControl drops the ESC byte but

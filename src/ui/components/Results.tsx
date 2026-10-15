@@ -17,6 +17,10 @@ import type { Source, TorrentResult } from "../../sources/types";
 
 type Mode = "list" | "search" | "detail" | "filter";
 
+// Own column for the batch-select tick, so it never shifts when the pointer
+// shares the row; the second cell is the gap before the row number.
+const MARK_W = 2;
+
 const PLACEHOLDER = "Search or paste a magnet link…";
 
 function DetailRow({ label, value }: { label: string; value: ReactNode }) {
@@ -152,6 +156,9 @@ export function Results() {
   // the cursor on their row while streamed-in sources reshuffle the list.
   const selRef = useRef<string | null>(null);
   const [detail, setDetail] = useState<TorrentResult | null>(null);
+  // Rows marked with space for a batch download, by infohash so the marks
+  // survive re-sorting and streamed-in results.
+  const [marked, setMarked] = useState<ReadonlySet<string>>(new Set());
 
   useEffect(() => {
     setCursor((c) => stickCursor(results, selRef.current, c));
@@ -161,6 +168,7 @@ export function Results() {
     selRef.current = null;
     setCursor(0);
     setTextFilter("");
+    setMarked(new Set());
   }, [query, section]);
 
   useEffect(() => {
@@ -196,17 +204,27 @@ export function Results() {
       sizeBytes: r.sizeBytes,
     });
 
-  const openDownloadTo = (r: TorrentResult): void =>
-    requestDownloadTo({
-      id: r.infoHash,
-      name: r.name,
-      magnet: r.magnet,
-      source: r.source,
-      sizeBytes: r.sizeBytes,
-    });
+  const openDownloadTo = (rs: TorrentResult[], onQueued?: () => void): void =>
+    requestDownloadTo(
+      rs.map((r) => ({
+        id: r.infoHash,
+        name: r.name,
+        magnet: r.magnet,
+        source: r.source,
+        sizeBytes: r.sizeBytes,
+      })),
+      onQueued,
+    );
 
   const copyResultMagnet = (r: TorrentResult): void =>
     copyMagnet({ name: r.name, magnet: r.magnet });
+
+  const toggleMark = (id: string): void =>
+    setMarked((cur) => {
+      const next = new Set(cur);
+      if (!next.delete(id)) next.add(id);
+      return next;
+    });
 
   const moveTo = (n: number): void => {
     setCursor(n);
@@ -244,12 +262,25 @@ export function Results() {
           setDetail(r);
           setMode("detail");
         }
-      } else if (input === "d") {
+      } else if (input === " ") {
         const r = results[clamped];
-        if (r) openDownload(r);
-      } else if (input === "D") {
+        if (r) toggleMark(r.infoHash);
+      } else if (input === "d" || input === "D") {
+        // Only marks still in view count: a filter can hide a marked row, and
+        // downloading something the user can't see would be a surprise.
+        const batch = results.filter((r) => marked.has(r.infoHash));
         const r = results[clamped];
-        if (r) openDownloadTo(r);
+        const targets = batch.length > 0 ? batch : r ? [r] : [];
+        if (targets.length === 0) return;
+        const clearMarks = (): void => setMarked(new Set());
+        if (input === "d") {
+          targets.forEach(openDownload);
+          clearMarks();
+        } else {
+          // Keep the selection while the folder prompt is open: cancelling it
+          // should not cost the user their marks.
+          openDownloadTo(targets, clearMarks);
+        }
       } else if (input === "y") {
         const r = results[clamped];
         if (r) copyResultMagnet(r);
@@ -264,7 +295,7 @@ export function Results() {
         setMode("list");
         setDetail(null);
       } else if (input === "d" && detail) openDownload(detail);
-      else if (input === "D" && detail) openDownloadTo(detail);
+      else if (input === "D" && detail) openDownloadTo([detail]);
       else if (input === "y" && detail) copyResultMagnet(detail);
       else if (input === "e" && detail)
         fetchAndExportTorrent({ id: detail.infoHash, name: detail.name, magnet: detail.magnet });
@@ -415,6 +446,7 @@ export function Results() {
                 {results.length > 0 ? (
                   <Box>
                     <Box width={GUTTER} flexShrink={0} />
+                    <Box width={MARK_W} flexShrink={0} />
                     <Box width={numW} flexShrink={0} justifyContent="flex-end">
                       <Text bold dimColor>#</Text>
                     </Box>
@@ -448,6 +480,9 @@ export function Results() {
                     <Box key={r.infoHash}>
                       <Box width={GUTTER} flexShrink={0}>
                         <Text color={COLOR.accent}>{here ? ICON.pointer : ""}</Text>
+                      </Box>
+                      <Box width={MARK_W} flexShrink={0}>
+                        <Text color={COLOR.good}>{marked.has(r.infoHash) ? ICON.done : ""}</Text>
                       </Box>
                       <Box width={numW} flexShrink={0} justifyContent="flex-end">
                         <Text dimColor>{index + 1}</Text>

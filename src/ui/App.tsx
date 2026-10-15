@@ -24,6 +24,7 @@ import {
   StoreContext,
   type CaptureMode,
   type DownloadFocus,
+  type DownloadInput,
   type Region,
   type ResultFocus,
   type Section,
@@ -49,7 +50,21 @@ import { COLOR, ICON } from "./theme";
 import { useMouseWheel } from "./hooks/useMouseWheel";
 import { VERSION } from "../version";
 import { fetchLatestVersion, isNewer } from "../update/version";
-import type { SourceId } from "../sources/types";
+
+// The "download to" prompt's subject line: the name for one torrent, a count
+// (and total size when known) for a marked batch.
+function downloadSubject(inputs: DownloadInput[]): string {
+  if (inputs.length === 1) {
+    const only = inputs[0]!;
+    return only.sizeBytes
+      ? `${cleanText(only.name)}  ${ICON.dot}  ${formatBytes(only.sizeBytes)}`
+      : cleanText(only.name);
+  }
+  const total = inputs.reduce((n, i) => n + (i.sizeBytes ?? 0), 0);
+  return total > 0
+    ? `${inputs.length} torrents  ${ICON.dot}  ${formatBytes(total)}`
+    : `${inputs.length} torrents`;
+}
 
 export function App({
   initialMagnet,
@@ -99,16 +114,11 @@ export function App({
   const [showHelp, setShowHelp] = useState(false);
   const [editingFolder, setEditingFolder] = useState(false);
   const [editingTrackers, setEditingTrackers] = useState(false);
-  // A result waiting on the "download to" prompt (D); null when the prompt is
+  // Results waiting on the "download to" prompt (D); null when the prompt is
   // closed. lastDownloadToDir pre-fills the next prompt so queueing a batch
   // into the same alternate folder only costs one typed path per session.
-  const [pendingDownload, setPendingDownload] = useState<{
-    id: string;
-    name: string;
-    magnet: string;
-    source?: SourceId;
-    sizeBytes?: number;
-  } | null>(null);
+  const [pendingDownload, setPendingDownload] = useState<DownloadInput[] | null>(null);
+  const onQueuedRef = useRef<(() => void) | undefined>(undefined);
   const [lastDownloadToDir, setLastDownloadToDir] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [updateVersion, setUpdateVersion] = useState<string | null>(null);
@@ -268,13 +278,7 @@ export function App({
   );
 
   const startDownload = useCallback(
-    (input: {
-      id: string;
-      name: string;
-      magnet: string;
-      source?: SourceId;
-      sizeBytes?: number;
-    }) => {
+    (input: DownloadInput) => {
       if (!config || !queue) return;
       void fs.mkdir(config.downloadDir, { recursive: true }).catch(() => {});
       queue.add(input, config.downloadDir);
@@ -286,34 +290,42 @@ export function App({
   );
 
   const requestDownloadTo = useCallback(
-    (input: {
-      id: string;
-      name: string;
-      magnet: string;
-      source?: SourceId;
-      sizeBytes?: number;
-    }) => {
-      setPendingDownload(input);
+    (inputs: DownloadInput[], onQueued?: () => void) => {
+      if (inputs.length === 0) return;
+      onQueuedRef.current = onQueued;
+      setPendingDownload(inputs);
     },
     [],
   );
 
   const closeDownloadToPrompt = useCallback(() => {
+    onQueuedRef.current = undefined;
     setPendingDownload(null);
   }, []);
 
   const startDownloadTo = useCallback(
     (raw: string) => {
-      const input = pendingDownload;
+      const inputs = pendingDownload;
+      const onQueued = onQueuedRef.current;
+      onQueuedRef.current = undefined;
       setPendingDownload(null);
       const dir = normalizeDownloadDir(raw);
-      if (!queue || !input || !dir) return;
+      if (!queue || !inputs || !dir) return;
       // add() ignores the dir for anything already active, so don't claim a
       // folder that won't be used. Failed items fall through: a re-add with a
       // fresh dir is exactly how a bad-disk download gets redirected.
-      const existing = queue.getItems().find((it) => it.id === input.id);
-      if (existing && existing.status !== "failed") {
-        setNotice(`Already in queue: ${truncate(cleanText(input.name), 40)}`);
+      const queued = queue.getItems();
+      const fresh = inputs.filter((input) => {
+        const existing = queued.find((it) => it.id === input.id);
+        return !existing || existing.status === "failed";
+      });
+      if (fresh.length === 0) {
+        onQueued?.();
+        setNotice(
+          inputs.length === 1
+            ? `Already in queue: ${truncate(cleanText(inputs[0]!.name), 40)}`
+            : `Already in queue: all ${inputs.length} torrents`,
+        );
         return;
       }
       void (async () => {
@@ -324,8 +336,13 @@ export function App({
           return;
         }
         setLastDownloadToDir(dir);
-        queue.add(input, dir);
-        setNotice(`Added: ${truncate(cleanText(input.name), 28)} → ${truncate(dir, 36)}`);
+        for (const input of fresh) queue.add(input, dir);
+        onQueued?.();
+        setNotice(
+          fresh.length === 1
+            ? `Added: ${truncate(cleanText(fresh[0]!.name), 28)} → ${truncate(dir, 36)}`
+            : `Added ${fresh.length} torrents → ${truncate(dir, 36)}`,
+        );
         setSection("downloads");
         setRegion("content");
       })();
@@ -673,11 +690,7 @@ export function App({
             <FolderPrompt
               title="download to"
               width={Math.max(24, Math.min(cols - 4, 62))}
-              subject={
-                pendingDownload.sizeBytes
-                  ? `${cleanText(pendingDownload.name)}  ${ICON.dot}  ${formatBytes(pendingDownload.sizeBytes)}`
-                  : cleanText(pendingDownload.name)
-              }
+              subject={downloadSubject(pendingDownload)}
               submitLabel="download"
               value={lastDownloadToDir ?? store.config.downloadDir}
               onSubmit={startDownloadTo}
