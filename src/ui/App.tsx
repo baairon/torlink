@@ -45,6 +45,7 @@ import { TabTitle } from "./components/TabTitle";
 import { Splash } from "./views/Splash";
 import { FolderPrompt } from "./components/FolderPrompt";
 import { TrackersPrompt } from "./components/TrackersPrompt";
+import { ConfirmPrompt } from "./components/ConfirmPrompt";
 import { footerHints } from "./keymap";
 import { COLOR, ICON } from "./theme";
 import { useMouseWheel } from "./hooks/useMouseWheel";
@@ -120,6 +121,10 @@ export function App({
   const [pendingDownload, setPendingDownload] = useState<DownloadInput[] | null>(null);
   const onQueuedRef = useRef<(() => void) | undefined>(undefined);
   const [lastDownloadToDir, setLastDownloadToDir] = useState<string | null>(null);
+  const [pendingConfirm, setPendingConfirm] = useState<{
+    message: string;
+    onConfirm: () => void;
+  } | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [updateVersion, setUpdateVersion] = useState<string | null>(null);
   const [recovered, setRecovered] = useState(false);
@@ -350,6 +355,14 @@ export function App({
     [queue, pendingDownload],
   );
 
+  const requestConfirm = useCallback((message: string, onConfirm: () => void) => {
+    setPendingConfirm({ message, onConfirm });
+  }, []);
+
+  const closeConfirmPrompt = useCallback(() => {
+    setPendingConfirm(null);
+  }, []);
+
   const copyMagnet = useCallback((input: { name: string; magnet: string }) => {
     void (async () => {
       const ok = await writeClipboard(input.magnet);
@@ -486,7 +499,8 @@ export function App({
     3 +
     (showTopRule ? 1 : 0) +
     (compact ? 0 : 1) +
-    (showFooter ? 1 : 0);
+    (showFooter ? 1 : 0) +
+    (pendingConfirm ? 2 : 0);
   const bodyH = Math.max(6, rows - 1 - chrome);
   const listRows = Math.max(4, bodyH);
   const contentWidth = Math.max(24, cols - RAIL_WIDTH - 3);
@@ -504,7 +518,7 @@ export function App({
       submitQuery,
       section,
       setSection,
-      region: showHelp || editingFolder || editingTrackers || pendingDownload ? "help" : region,
+      region: showHelp || editingFolder || editingTrackers || pendingDownload || pendingConfirm ? "help" : region,
       setRegion,
       captureMode,
       setCaptureMode,
@@ -522,6 +536,7 @@ export function App({
       fetchAndExportTorrent,
       notice,
       setNotice,
+      requestConfirm,
       quitAll,
       listRows,
       compact,
@@ -541,6 +556,7 @@ export function App({
     editingFolder,
     editingTrackers,
     pendingDownload,
+    pendingConfirm,
     captureMode,
     downloadFocus,
     seedFocus,
@@ -552,6 +568,7 @@ export function App({
     exportTorrent,
     fetchAndExportTorrent,
     notice,
+    requestConfirm,
     listRows,
     compact,
     contentWidth,
@@ -567,7 +584,7 @@ export function App({
         quitAll();
         return;
       }
-      if (editingFolder || editingTrackers || pendingDownload) return; // the prompt owns input (its own esc + enter)
+      if (editingFolder || editingTrackers || pendingDownload || pendingConfirm) return; // the prompt owns input (its own esc + enter)
       if (captureMode === "text") return;
       if (showHelp) {
         setShowHelp(false);
@@ -641,17 +658,31 @@ export function App({
     <StoreContext.Provider value={store}>
       <TabTitle />
       <Box flexDirection="column" paddingX={1}>
-        <Box justifyContent="space-between">
-          {/* The wordmark never shrinks: without these constraints a long notice
-              squeezes the logo box and wraps its own text through the art. */}
-          <Box flexShrink={0}>
-            <Logo />
+        <Box flexDirection="column" justifyContent="space-between">
+          <Box justifyContent="space-between">
+            {/* The wordmark never shrinks: without these constraints a long notice
+                squeezes the logo box and wraps its own text through the art. */}
+            <Box flexShrink={0}>
+              <Logo />
+            </Box>
+            {notice ? (
+              <Box flexShrink={1} minWidth={0} marginLeft={2}>
+                <Text color={COLOR.good} wrap="truncate-end">
+                  {notice}
+                </Text>
+              </Box>
+            ) : null}
           </Box>
-          {notice ? (
-            <Box flexShrink={1} minWidth={0} marginLeft={2}>
-              <Text color={COLOR.good} wrap="truncate-end">
-                {notice}
-              </Text>
+          {pendingConfirm ? (
+            <Box marginTop={1}>
+              <ConfirmPrompt
+                message={pendingConfirm.message}
+                onConfirm={() => {
+                  pendingConfirm.onConfirm();
+                  setPendingConfirm(null);
+                }}
+                onCancel={closeConfirmPrompt}
+              />
             </Box>
           ) : null}
         </Box>

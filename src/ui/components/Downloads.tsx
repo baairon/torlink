@@ -55,6 +55,7 @@ export function Downloads() {
     openDownloadFolder,
     setDownloadFocus,
     exportTorrent,
+    requestConfirm,
   } = useStore();
   const active = useQueueItems(queue);
   const recent = useQueueHistory(queue);
@@ -80,8 +81,9 @@ export function Downloads() {
       } else if (inActive) {
         const it = active[clamped];
         if (!it) return;
-        if (input === "c") queue.cancel(it.id);
-        else if (input === "p") queue.togglePause(it.id);
+        if (input === "c") {
+          requestConfirm(`Cancel '${truncate(cleanText(it.name), 40)}'?`, () => queue.cancel(it.id));
+        } else if (input === "p") queue.togglePause(it.id);
       } else {
         const h = recent[recentCursor];
         if (!h) return;
@@ -93,10 +95,14 @@ export function Downloads() {
             source: h.source,
             sizeBytes: h.sizeBytes,
           });
-        else if (input === "c") queue.removeHistory(h.id);
+        else if (input === "c") {
+          requestConfirm(`Remove '${truncate(cleanText(h.name), 40)}' from history?`, () => queue.removeHistory(h.id));
+        }
         // Clear-all lives here, not at the top of the chain, so it can only
         // fire while the cursor is actually on the recent list.
-        else if (input === "C") queue.clearHistory();
+        else if (input === "C") {
+          requestConfirm("Clear recent downloads history?", () => queue.clearHistory());
+        }
       }
     },
     { isActive: focused && total > 0 },

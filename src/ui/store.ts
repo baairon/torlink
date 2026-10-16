@@ -77,6 +77,7 @@ export interface Store {
 
   notice: string | null;
   setNotice: (s: string | null) => void;
+  requestConfirm: (message: string, onConfirm: () => void) => void;
 
   quitAll: () => void;
 
