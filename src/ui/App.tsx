@@ -121,6 +121,8 @@ export function App({
   const onQueuedRef = useRef<(() => void) | undefined>(undefined);
   const [lastDownloadToDir, setLastDownloadToDir] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [autoClose, setAutoClose] = useState(false);
+  const autoCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [updateVersion, setUpdateVersion] = useState<string | null>(null);
   const [recovered, setRecovered] = useState(false);
   const booting = useRef(false);
@@ -196,30 +198,74 @@ export function App({
     };
   }, []);
 
-  useEffect(() => {
-    if (!queue) return;
-    const onCompleted = (name: string): void =>
-      setNotice(`${ICON.done} ${truncate(cleanText(name), 40)}`);
-    queue.on("completed", onCompleted);
-    return () => {
-      queue.off("completed", onCompleted);
-    };
-  }, [queue]);
-
-  useEffect(
-    () => () => {
-      queue?.suspend();
-    },
-    [queue],
-  );
-
   const quitAll = useCallback(() => {
+    if (autoCloseTimerRef.current) {
+      clearTimeout(autoCloseTimerRef.current);
+      autoCloseTimerRef.current = null;
+    }
     // Flush all state synchronously up front so nothing is lost to the hard
     // exit; the unmount effect still runs suspend() for the engine teardown.
     queue?.persistSync();
     if (onQuit) onQuit();
     else exit();
   }, [queue, onQuit, exit]);
+
+  useEffect(() => {
+    if (!queue) return;
+    const onCompleted = (name: string): void => {
+      setNotice(`${ICON.done} ${truncate(cleanText(name), 40)}`);
+      if (autoClose) {
+        const remaining = queue.getItems().some(
+          (item) => item.status === "downloading" || item.status === "queued",
+        );
+        if (!remaining) {
+          const anyFailed = queue.getItems().some(
+            (item) => item.status === "failed",
+          );
+          if (anyFailed) {
+            setNotice("Downloads finished with errors · Auto-close cancelled");
+            if (autoCloseTimerRef.current) {
+              clearTimeout(autoCloseTimerRef.current);
+              autoCloseTimerRef.current = null;
+            }
+          } else {
+            setNotice("All downloads completed · Closing app in 2s...");
+            if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
+            autoCloseTimerRef.current = setTimeout(() => {
+              quitAll();
+            }, 2000);
+          }
+        }
+      }
+    };
+    queue.on("completed", onCompleted);
+    return () => {
+      queue.off("completed", onCompleted);
+    };
+  }, [queue, autoClose, quitAll]);
+
+  useEffect(
+    () => () => {
+      if (autoCloseTimerRef.current) {
+        clearTimeout(autoCloseTimerRef.current);
+        autoCloseTimerRef.current = null;
+      }
+      queue?.suspend();
+    },
+    [queue],
+  );
+
+  const toggleAutoClose = useCallback(() => {
+    if (autoCloseTimerRef.current) {
+      clearTimeout(autoCloseTimerRef.current);
+      autoCloseTimerRef.current = null;
+    }
+    setAutoClose((prev) => {
+      const next = !prev;
+      setNotice(next ? "Auto-close enabled · will close when downloads finish" : "Auto-close disabled");
+      return next;
+    });
+  }, []);
 
   const setConfig = useCallback(
     (c: Config) => {
@@ -522,6 +568,8 @@ export function App({
       fetchAndExportTorrent,
       notice,
       setNotice,
+      autoClose,
+      toggleAutoClose,
       quitAll,
       listRows,
       compact,
@@ -552,6 +600,8 @@ export function App({
     exportTorrent,
     fetchAndExportTorrent,
     notice,
+    autoClose,
+    toggleAutoClose,
     listRows,
     compact,
     contentWidth,
@@ -616,6 +666,10 @@ export function App({
         quitAll();
         return;
       }
+      if (input === "Q") {
+        toggleAutoClose();
+        return;
+      }
     },
     { isActive: isRawModeSupported && view === "browser" && !!store },
   );
@@ -644,8 +698,9 @@ export function App({
         <Box justifyContent="space-between">
           {/* The wordmark never shrinks: without these constraints a long notice
               squeezes the logo box and wraps its own text through the art. */}
-          <Box flexShrink={0}>
+          <Box flexShrink={0} gap={1} alignItems="center">
             <Logo />
+            {store.autoClose ? <Text color="yellow">⏱ Auto-close</Text> : null}
           </Box>
           {notice ? (
             <Box flexShrink={1} minWidth={0} marginLeft={2}>

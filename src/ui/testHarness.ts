@@ -168,6 +168,8 @@ export function makeTestStore(overrides: Partial<Store> = {}): Store {
     fetchAndExportTorrent: noop,
     notice: null,
     setNotice: noop,
+    autoClose: false,
+    toggleAutoClose: noop,
     quitAll: noop,
     listRows: 14,
     compact: false,

@@ -77,6 +77,8 @@ export interface Store {
 
   notice: string | null;
   setNotice: (s: string | null) => void;
+  autoClose: boolean;
+  toggleAutoClose: () => void;
 
   quitAll: () => void;
 
