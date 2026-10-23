@@ -283,8 +283,6 @@ export function App({
       void fs.mkdir(config.downloadDir, { recursive: true }).catch(() => {});
       queue.add(input, config.downloadDir);
       setNotice(`Added: ${truncate(cleanText(input.name), 40)}`);
-      setSection("downloads");
-      setRegion("content");
     },
     [config, queue],
   );
@@ -343,8 +341,6 @@ export function App({
             ? `Added: ${truncate(cleanText(fresh[0]!.name), 28)} → ${truncate(dir, 36)}`
             : `Added ${fresh.length} torrents → ${truncate(dir, 36)}`,
         );
-        setSection("downloads");
-        setRegion("content");
       })();
     },
     [queue, pendingDownload],
