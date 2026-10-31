@@ -19,7 +19,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node: [22, 24]
+        node: [22, "24.22.0"]
 
     steps:
       - uses: https://data.forgejo.org/actions/checkout@v6

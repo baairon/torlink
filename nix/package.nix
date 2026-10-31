@@ -5,7 +5,7 @@
   fetchFromGitHub,
   fetchzip,
   # dependencies
-  nodejs_22,
+  nodejs_24,
   wl-clipboard,
   xclip,
   cmake,
@@ -25,7 +25,7 @@ let
   libdatachannelBuildDeps = stdenv.mkDerivation {
     name = "libdatachannel-build-deps";
     nativeBuildInputs = [
-      nodejs_22
+      nodejs_24
       cacert
     ];
 
@@ -57,7 +57,7 @@ buildNpmPackage (finalAttrs: {
   __structuredAttrs = true;
   strictDeps = true;
 
-  nodejs = nodejs_22;
+  nodejs = nodejs_24;
   npmDepsHash = "sha256-cdpgmNsc0T2q0Cu1gXo0biMaUTR8VNAIFPkx572TsQ0=";
   npmFlags = [ "--ignore-scripts" ]; # ignore-scripts for ip-set broken preinstall
 
@@ -84,7 +84,7 @@ buildNpmPackage (finalAttrs: {
     cp -r ${libdatachannelBuildDeps}/node_modules/. node_modules/
     patchShebangs --build node_modules
 
-    export npm_config_nodedir=${lib.getDev nodejs_22}
+    export npm_config_nodedir=${lib.getDev nodejs_24}
 
     # redirect node-datachannel
     node_modules/.bin/cmake-js compile \

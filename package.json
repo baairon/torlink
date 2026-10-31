@@ -58,13 +58,13 @@
     "access": "public"
   },
   "dependencies": {
-    "create-torrent": "^6.1.2",
+    "create-torrent": "^6.1.3",
     "env-paths": "^4.0.0",
-    "ink": "^7.0.5",
-    "parse-torrent": "^11.0.21",
-    "react": "^19.2.7",
+    "ink": "^8.0.0",
+    "parse-torrent": "^11.0.24",
+    "react": "^19.3.1",
     "uint8-util": "2.2.6",
-    "webtorrent": "^2.4.1"
+    "webtorrent": "2.8.5"
   },
   "overrides": {
     "@node-datachannel/android-arm64": "0.33.0",
@@ -72,12 +72,12 @@
     "uint8-util": "2.2.6"
   },
   "devDependencies": {
-    "@types/node": "^25.9.2",
-    "@types/react": "^19.2.17",
+    "@types/node": "^24.19.2",
+    "@types/react": "^19.3.0",
     "ink-testing-library": "^4.0.0",
-    "tsup": "^8.5.1",
-    "tsx": "^4.22.4",
-    "typescript": "^6.0.3",
-    "vitest": "^4.1.8"
+    "tsup": "^9.0.0",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.5"
   }
 }

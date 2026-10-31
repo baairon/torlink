@@ -46,6 +46,7 @@ import { Splash } from "./views/Splash";
 import { FolderPrompt } from "./components/FolderPrompt";
 import { TrackersPrompt } from "./components/TrackersPrompt";
 import { footerHints } from "./keymap";
+import { terminalSize } from "./terminalSize";
 import { COLOR, ICON } from "./theme";
 import { useMouseWheel } from "./hooks/useMouseWheel";
 import { VERSION } from "../version";
@@ -77,15 +78,12 @@ export function App({
   const { isRawModeSupported } = useStdin();
   const { stdout } = useStdout();
 
-  const [size, setSize] = useState({
-    rows: stdout?.rows ?? 24,
-    cols: stdout?.columns ?? 80,
-  });
+  const [size, setSize] = useState(() => terminalSize(stdout));
   useEffect(() => {
     if (!stdout) return;
-    let last = { rows: stdout.rows ?? 24, cols: stdout.columns ?? 80 };
+    let last = terminalSize(stdout);
     const onResize = (): void => {
-      const next = { rows: stdout.rows ?? 24, cols: stdout.columns ?? 80 };
+      const next = terminalSize(stdout);
       if (next.rows === last.rows && next.cols === last.cols) return;
       if (next.rows < last.rows || next.cols < last.cols) {
         stdout.write("\x1b[2J\x1b[H");

@@ -37,6 +37,35 @@ describe("uint8-util quarantine pin", () => {
   });
 });
 
+// Oct-2026 upgrade audit: webtorrent 3 with default settings dials out encrypted
+// and never falls back to plaintext, so it stalls at 0% with no error against a
+// webtorrent 2 seeder -- which is what every existing torlink install seeds with.
+// Pinned exactly, because `npm i -g` and `npx` install without our lockfile.
+// Move to 3.x deliberately, with a mixed-swarm test, and lift this with it.
+const WEBTORRENT = "2.8.5";
+
+describe("webtorrent 2 retention", () => {
+  it("package.json pins the exact version", () => {
+    expect(readJson("../package.json").dependencies.webtorrent).toBe(WEBTORRENT);
+  });
+
+  it("the lockfile and the installed copy both resolved it", () => {
+    const lock = readJson("../package-lock.json");
+    expect(lock.packages["node_modules/webtorrent"].version).toBe(WEBTORRENT);
+    expect(readJson("../node_modules/webtorrent/package.json").version).toBe(WEBTORRENT);
+  });
+
+  it("no second webtorrent is nested anywhere in the tree", () => {
+    const lock = readJson("../package-lock.json");
+    const copies = Object.keys(lock.packages).filter((key) => key.endsWith("node_modules/webtorrent"));
+    expect(copies).toEqual(["node_modules/webtorrent"]);
+  });
+
+  it("the installed uint8-util is the one the pin asks for", () => {
+    expect(readJson("../node_modules/uint8-util/package.json").version).toBe(KNOWN_GOOD);
+  });
+});
+
 // Aug-2026 install breakage: node-datachannel 0.33.0 removed its `install`
 // script entirely (0.32.3 ran `prebuild-install -r napi || (npm install
 // --ignore-scripts --production=false && npm run _prebuild)`) and moved the
