@@ -45,8 +45,8 @@ A short, hand-picked list of trusted sources:
 | Category | Sources |
 | --- | --- |
 | Games | FitGirl |
-| Movies | YTS, The Pirate Bay, 1337x, BitTorrented |
-| TV | EZTV, The Pirate Bay, 1337x, BitTorrented |
+| Movies | YTS, The Pirate Bay, BitTorrented |
+| TV | EZTV, The Pirate Bay, BitTorrented |
 | Anime | Nyaa, SubsPlease |
 
 Games are the only category that can run code, so they come from FitGirl alone, a repacker with a long, trusted track record; everything else is plain video and subtitles. If a source is down, the search carries on without it, and torlink tells you which one is offline.
@@ -73,26 +73,24 @@ Everything else starts with a torrent someone else made. `seed` goes the other w
 
 It turns the folder into a torrent, saves `album.torrent` next to it, prints the magnet, and starts sharing right away. Send anyone the magnet and they pull the files from you.
 
-`serve` takes a `.torrent` as well as a magnet, so you can hand it one you already have:
+### Driving it over HTTP
+
+`serve` takes a magnet or a `.torrent` you already have:
 
     POST /add {"magnet":"magnet:?xt=..."}
     POST /add {"torrent":"<base64>"}
 
-Either can carry a `seedTime` for that one torrent, in the same grammar as `--seed-time` (`"30d"`, `"2h"`; `0` means never stop). It wins over the daemon-wide flag, so a box that normally drops seeds after a couple of hours can keep one release alive for a month. Change it later, or on something already downloading, through the control endpoint:
+Either can carry a `seedTime` for that one torrent, in the same grammar as `--seed-time` (`"30d"`, `"2h"`; `0` means never stop). It wins over the daemon-wide flag, so a box that normally drops seeds after a couple of hours can keep one release alive for a month. Change it later, or on something already downloading, through the control endpoint; `GET /downloads` reports the limit and when it falls due (`seedUntil`):
 
     POST /control {"id":"<info hash>","action":"seed-time","seedTime":"30d"}
 
-`GET /downloads` reports the limit and when it falls due (`seedUntil`) on every torrent that has one.
-
 ### Binding to a VPN or interface
 
-If your torrents should only ever leave through one interface, name it:
+If torrents should only ever leave through one interface, name it:
 
     torlnk serve --interface wg0 --peer-port 51413
 
-Every peer, tracker, DHT and search socket is then bound to that interface's IPv4 address (`wg0`, `tun0`, `NordLynx`, `utun4`, or the address itself), and `--peer-port` fixes the TCP/uTP listen port so one forward on the VPN side covers it. If the interface drops, downloads and seeds pause instead of falling back to another route, and they pick up on their own when it is back, on the new address if that changed. Nothing is tied to a particular VPN: torlink only knows the interface. LSD, UPnP, NAT-PMP and WebRTC peers stay off while bound, since each would use another interface; whoever owns the interface's gateway owns the port mapping. `--dht-port` fixes the DHT port too (it cannot share the peer port, where uTP already listens).
-
-The same flags work on `watch` and `seed`, `search` takes `--interface` alone, and the TUI honors them as `torlnk --interface wg0` or through `TORLINK_INTERFACE`, `TORLINK_PEER_PORT` and `TORLINK_DHT_PORT` (handy for `attach`) without changing anything on screen: a stalled download looks stalled. Daemons should take the flag rather than the variable, since a restart after `torlnk update` keeps the flags and not the environment. `serve` reports the state on `GET /network` (address, whether it is up, the listen port, and how many peers dialed in, which is the proof a forwarded port works), and `POST /network {"interface":"wg0","peerPort":51413,"dhtPort":null}` changes any of them in place with no restart, so a script that reads a forwarded port from your VPN client can hand it over. Limits, stated plainly: IPv4 only, DNS lookups go through the OS resolver, and the `git`/`npm` processes `torlnk update` spawns are not bound.
+Every peer, tracker, DHT and search socket is bound to that interface's IPv4 address, and the fixed peer port is the one to forward. If the interface drops, downloads and seeds pause instead of taking another route, and pick up on their own when it is back. The same flags work on `watch`, `seed` and the TUI, or as `TORLINK_INTERFACE`, `TORLINK_PEER_PORT` and `TORLINK_DHT_PORT`, with nothing new on screen. `serve` reports the state on `GET /network` and takes changes on `POST /network` without a restart. torlink knows nothing about any particular VPN, only the interface; `torlnk --help` has the details and limits.
 
 ## Contributing
 

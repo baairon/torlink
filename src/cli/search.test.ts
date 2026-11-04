@@ -67,7 +67,7 @@ describe("runSearch", () => {
     expect(searchMock.mock.calls.map(([source]) => source.id)).toEqual(movieSourceIds);
     expect(execution.exitCode).toBe(0);
     expect(execution.document.sources.yts).toEqual({ ok: true, count: 1, error: null, code: null });
-    expect(execution.document.sources["x1337-movies"]).toEqual({
+    expect(execution.document.sources.bittorrented).toEqual({
       ok: false,
       count: 0,
       error: "source unavailable",

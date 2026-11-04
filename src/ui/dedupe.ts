@@ -6,8 +6,8 @@ import type { TorrentResult } from "../sources/types";
 // one worth showing — but the rows it beats are folded into it instead of being
 // dropped:
 //
-//   - their announce lists. 1337x and EZTV hand back the torrent's own
-//     trackers, while rows built by buildMagnet() carry only torlink's public
+//   - their announce lists. EZTV hands back the torrent's own trackers,
+//     while rows built by buildMagnet() carry only torlink's public
 //     defaults, so keeping the higher-seeder row alone can trade a working
 //     announce list for a generic one. Same loss #146 fixed for a .torrent
 //     file's own trackers.

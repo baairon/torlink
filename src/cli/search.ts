@@ -108,8 +108,8 @@ export async function runSearch(options: {
         ]);
         // A source cut short may still hand back what it already had (its
         // deeper pages are best-effort), and that is worth keeping. An empty
-        // answer after the deadline is not a search with no matches, though:
-        // 1337x drops every row whose detail page it could not fetch.
+        // answer after the deadline is not a search with no matches, though: a
+        // source cut off mid-way may have dropped every row it could not finish.
         if (results === CUT_OFF || (deadline.signal.aborted && results.length === 0)) {
           return timedOut(source);
         }
