@@ -69,9 +69,13 @@ export interface NetworkStatus {
   incoming: number;
   // While down: the interfaces that do exist, so a typo shows.
   known?: string[];
+  // The client's own last error (a fixed port already taken, uTP that would
+  // not start), until the next rebuild.
+  error?: string;
 }
 
 export function describeNetwork(s: NetworkStatus): string {
+  if (s.error !== undefined) return `network: client error: ${s.error}`;
   if (s.interface !== null && !s.online) {
     const known = s.known ?? [];
     const found = known.some((n) => n.toLowerCase() === s.interface!.toLowerCase());

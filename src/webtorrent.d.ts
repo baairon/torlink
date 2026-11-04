@@ -61,6 +61,7 @@ declare module "webtorrent" {
     readonly uploadSpeed: number;
     readonly torrentPort: number;
     readonly listening: boolean;
+    readonly destroyed: boolean;
     add(
       torrentId: string,
       opts?: TorrentOptions,

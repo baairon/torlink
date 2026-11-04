@@ -77,6 +77,11 @@ interface Registration {
 // is built on the same fixed ports.
 const TEARDOWN_WAIT_MS = 3000;
 
+// How long an interface has to stay up after a drop before everything is
+// re-attached. Re-attaching re-verifies every seed on disk, so a link that
+// bounces for a few seconds must not re-hash a seedbox each time.
+export const RESUME_SETTLE_MS = 3000;
+
 export function message(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
 }
@@ -119,6 +124,12 @@ export class TorrentEngine {
   private pendingTeardowns = 0;
   private rebuilding = false;
   private generation = 0;
+  // True from a drop until the rebuild that follows it has landed.
+  private wasDown = false;
+  private resumeTimer: ReturnType<typeof setTimeout> | null = null;
+  // The last error the client itself raised (a listen that failed, uTP that
+  // would not start), cleared on the next rebuild.
+  private lastError: string | null = null;
 
   constructor(opts: EngineOptions = {}) {
     const { onNetwork, interfaces, guardIntervalMs, ...net } = opts;
@@ -132,6 +143,8 @@ export class TorrentEngine {
   private applyNetwork(): void {
     this.stopGuard?.();
     this.stopGuard = null;
+    this.clearResume();
+    this.wasDown = false;
     this.known = undefined;
     const spec = this.net.interface;
     if (!spec) {
@@ -151,6 +164,8 @@ export class TorrentEngine {
 
   private onInterface(address: string | null, table: InterfaceTable): void {
     if (address === null) {
+      this.clearResume();
+      this.wasDown = true;
       this.online = false;
       this.address = null;
       this.known = interfaceNames(table);
@@ -164,7 +179,23 @@ export class TorrentEngine {
     this.known = undefined;
     setBindAddress(address);
     this.report();
-    this.rebuild();
+    if (!this.wasDown) {
+      this.rebuild();
+      return;
+    }
+    // Back after a drop: let it settle first. Anything added meanwhile waits
+    // with the rest.
+    this.rebuilding = true;
+    this.resumeTimer = setTimeout(() => {
+      this.resumeTimer = null;
+      this.rebuild();
+    }, RESUME_SETTLE_MS);
+    this.resumeTimer.unref();
+  }
+
+  private clearResume(): void {
+    if (this.resumeTimer) clearTimeout(this.resumeTimer);
+    this.resumeTimer = null;
   }
 
   private report(): void {
@@ -223,6 +254,8 @@ export class TorrentEngine {
 
   private attachAll(): void {
     if (!this.online) return;
+    this.wasDown = false;
+    this.lastError = null;
     for (const [id, reg] of this.registry) this.attach(id, reg);
   }
 
@@ -272,7 +305,19 @@ export class TorrentEngine {
         ...(process.platform === "darwin" ? { natPmp: false } : {}),
       };
       const client = new WebTorrent(opts);
-      client.on("error", () => {});
+      // webtorrent raises this for a listen that failed (the fixed port is
+      // taken) or uTP that would not start. The fatal kind has destroyed the
+      // client under its torrents, so drop it here too: the next add, or a
+      // POST /network with a free port, then builds a fresh one.
+      client.on("error", (err: unknown) => {
+        if (this.client !== client) return;
+        this.lastError = message(err);
+        if (client.destroyed) {
+          this.client = null;
+          this.torrents.clear();
+        }
+        this.report();
+      });
       client.once("listening", () => {
         if (this.client === client) this.report();
       });
@@ -388,6 +433,7 @@ export class TorrentEngine {
       peerPort: client?.listening ? client.torrentPort : null,
       incoming,
       ...(this.known ? { known: this.known } : {}),
+      ...(this.lastError !== null ? { error: this.lastError } : {}),
     };
   }
 
@@ -472,6 +518,7 @@ export class TorrentEngine {
     this.generation++;
     this.stopGuard?.();
     this.stopGuard = null;
+    this.clearResume();
     this.registry.clear();
     this.torrents.clear();
     // Never block shutdown on webtorrent's async teardown: hand off the client

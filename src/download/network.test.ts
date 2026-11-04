@@ -47,6 +47,11 @@ describe("describeNetwork", () => {
     );
     expect(describeNetwork({ ...base, known: ["WG0", "lo"] })).toBe("network: wg0 down (no IPv4 address); peers paused");
   });
+  it("puts the client's own error first", () => {
+    expect(describeNetwork({ ...base, online: true, address: "10.2.0.2", error: "listen EADDRINUSE 10.2.0.2:51413" })).toBe(
+      "network: client error: listen EADDRINUSE 10.2.0.2:51413",
+    );
+  });
   it("reports up, then the listen port, and a plain listen port when unbound", () => {
     expect(describeNetwork({ ...base, address: "10.2.0.2", online: true })).toBe("network: wg0 up on 10.2.0.2");
     expect(describeNetwork({ ...base, address: "10.2.0.2", online: true, peerPort: 51413 })).toBe(

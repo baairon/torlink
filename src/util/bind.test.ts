@@ -10,6 +10,7 @@ import {
   resolveInterface,
   setBindAddress,
   uninstallBindShim,
+  unroutableAddress,
   type InterfaceTable,
 } from "./bind";
 
@@ -48,6 +49,14 @@ describe("resolveInterface", () => {
   });
   it("lists the interface names for a hint", () => {
     expect(interfaceNames(TABLE)).toEqual(["NordLynx", "eth0", "lo", "tun1", "wg0"]);
+  });
+});
+
+describe("unroutableAddress", () => {
+  it("never picks an address this host has, whichever documentation range a container sits in", () => {
+    expect(unroutableAddress(TABLE)).toBe("192.0.2.1");
+    expect(unroutableAddress({ eth0: [v4("192.0.2.1")] })).toBe("198.51.100.1");
+    expect(unroutableAddress({ eth0: [v4("192.0.2.1")], eth1: [v4("198.51.100.1")] })).toBe("203.0.113.1");
   });
 });
 

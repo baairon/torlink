@@ -8,15 +8,24 @@
 // touched, and nothing here runs unless an interface is configured.
 //
 // Fail closed: while the interface is configured but gone, new sockets get an
-// address no host has (RFC 5737 TEST-NET-1) and die with EADDRNOTAVAIL instead
-// of leaving through whatever the default route is now.
+// address this host does not have and die with EADDRNOTAVAIL instead of
+// leaving through whatever the default route is now.
 
 import dgram from "node:dgram";
 import { createRequire } from "node:module";
 import net from "node:net";
 import os from "node:os";
 
-export const UNROUTABLE = "192.0.2.1";
+// RFC 5737 documentation ranges. Containers do hand these out (a sandbox this
+// ran in sat on 192.0.2.2/24), so the one actually used is whichever is not
+// assigned to this host at the time the interface goes down.
+export const UNROUTABLE = ["192.0.2.1", "198.51.100.1", "203.0.113.1"] as const;
+
+export function unroutableAddress(table: InterfaceTable = os.networkInterfaces()): string {
+  const local = new Set<string>();
+  for (const entries of Object.values(table)) for (const e of entries ?? []) local.add(e.address);
+  return UNROUTABLE.find((a) => !local.has(a)) ?? UNROUTABLE[0];
+}
 
 export type InterfaceTable = NodeJS.Dict<os.NetworkInterfaceInfo[]>;
 
@@ -61,10 +70,11 @@ export function resolveInterface(
 // undefined: no interface configured, every socket behaves as it always has.
 // null: configured but down, so sockets fail closed. A string: bound to it.
 let current: string | null | undefined;
+let sentinel: string = UNROUTABLE[0];
 
 function effective(): string | undefined {
   if (current === undefined) return undefined;
-  return current ?? UNROUTABLE;
+  return current ?? sentinel;
 }
 
 export function bindAddress(): string | null | undefined {
@@ -73,6 +83,7 @@ export function bindAddress(): string | null | undefined {
 
 export function setBindAddress(address: string | null): void {
   install();
+  if (address === null) sentinel = unroutableAddress();
   current = address;
 }
 

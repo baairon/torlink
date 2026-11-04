@@ -12,6 +12,9 @@ class FakeClient extends EventEmitter {
   torrentPort = 6881;
   listening = false;
   destroyed = false;
+  on(event: string, listener: (...args: unknown[]) => void): this {
+    return super.on(event, listener);
+  }
   added: string[] = [];
   constructor(opts?: Record<string, unknown>) {
     super();
@@ -218,6 +221,7 @@ const MAGNET = "magnet:?xt=urn:btih:0000000000000000000000000000000000000000";
 const flush = async (): Promise<void> => {
   await vi.advanceTimersByTimeAsync(0);
 };
+const RESUME_SETTLE_MS = 3000;
 
 describe("TorrentEngine fixed ports (#164)", () => {
   it("passes --peer-port and --dht-port through as torrentPort and dhtPort", async () => {
@@ -268,10 +272,12 @@ describe("TorrentEngine bound to an interface (#164)", () => {
 
     current = table({ eth0: "192.168.1.2", wg0: "10.2.0.2" });
     await vi.advanceTimersByTimeAsync(100);
-    await flush();
+    // Up, but settling: nothing attached until the interface has held.
+    expect(engine.networkStatus()).toMatchObject({ online: true, address: "10.2.0.2" });
+    expect(constructorCalls).toHaveLength(0);
+    await vi.advanceTimersByTimeAsync(RESUME_SETTLE_MS);
     expect(constructorCalls).toHaveLength(1);
     expect(clients[0]?.added).toEqual([MAGNET]);
-    expect(engine.networkStatus()).toMatchObject({ online: true, address: "10.2.0.2" });
     const torrent = (engine as unknown as { torrents: Map<string, EventEmitter> }).torrents.get("test-id");
     torrent?.emit("ready");
     expect(onReady).toHaveBeenCalledTimes(1);
@@ -305,14 +311,55 @@ describe("TorrentEngine bound to an interface (#164)", () => {
 
     meta = true;
     current = table({ wg0: "10.2.0.9" });
-    await vi.advanceTimersByTimeAsync(100);
-    await flush();
+    await vi.advanceTimersByTimeAsync(100 + RESUME_SETTLE_MS);
     expect(clients).toHaveLength(2);
     expect(clients[1]?.added).toEqual(["/meta/keep.torrent", MAGNET]);
     expect(engine.networkStatus()).toMatchObject({ online: true, address: "10.2.0.9" });
     const torrent = (engine as unknown as { torrents: Map<string, EventEmitter> }).torrents.get("keep");
     torrent?.emit("ready");
     expect(onReady).toHaveBeenCalledTimes(1);
+    engine.destroy();
+  });
+
+  it("does not re-attach while the interface is still bouncing", async () => {
+    vi.useFakeTimers();
+    const { TorrentEngine } = await import("./engine");
+    let current = table({ wg0: "10.2.0.2" });
+    const engine = new TorrentEngine({ interface: "wg0", interfaces: () => current, guardIntervalMs: 100 });
+    engine.add("test-id", MAGNET, "/downloads", {});
+    expect(clients).toHaveLength(1);
+    for (let i = 0; i < 3; i++) {
+      current = table({});
+      await vi.advanceTimersByTimeAsync(100);
+      current = table({ wg0: "10.2.0.2" });
+      await vi.advanceTimersByTimeAsync(100);
+    }
+    expect(clients).toHaveLength(1);
+    expect(engine.stats("test-id")).toBeNull();
+    await vi.advanceTimersByTimeAsync(RESUME_SETTLE_MS);
+    expect(clients).toHaveLength(2);
+    expect(clients[1]?.added).toEqual([MAGNET]);
+    engine.destroy();
+  });
+
+  it("surfaces a client error, drops a destroyed client, and recovers on reconfigure", async () => {
+    vi.useFakeTimers();
+    const { TorrentEngine } = await import("./engine");
+    const seen: (string | undefined)[] = [];
+    const engine = new TorrentEngine({ peerPort: 51413, onNetwork: (s) => seen.push(s.error) });
+    engine.add("test-id", MAGNET, "/downloads", {});
+    const client = clients[0]!;
+    client.destroyed = true;
+    client.emit("error", new Error("listen EADDRINUSE: address already in use :::51413"));
+    expect(seen.at(-1)).toBe("listen EADDRINUSE: address already in use :::51413");
+    expect(engine.networkStatus()).toMatchObject({ error: "listen EADDRINUSE: address already in use :::51413" });
+    expect(engine.stats("test-id")).toBeNull();
+
+    expect(engine.reconfigure({ peerPort: 51414 }).ok).toBe(true);
+    await flush();
+    expect(clients).toHaveLength(2);
+    expect(clients[1]?.added).toEqual([MAGNET]);
+    expect(engine.networkStatus()).not.toHaveProperty("error");
     engine.destroy();
   });
 
@@ -410,7 +457,7 @@ describe("TorrentEngine client construction failures (#164)", () => {
     engine.add("test-id", MAGNET, "/downloads", { onError });
     failConstruct = true;
     current = table({ wg0: "10.2.0.2" });
-    await vi.advanceTimersByTimeAsync(100);
+    await vi.advanceTimersByTimeAsync(100 + RESUME_SETTLE_MS);
     expect(onError).toHaveBeenCalledWith("no native module");
     engine.destroy();
   });
