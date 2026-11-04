@@ -47,6 +47,15 @@ if (cmd.kind === "attach") {
 // seedboxes and servers). Kept above the alt-screen setup below — these paths
 // never touch the TUI. Each is dynamically imported so a plain `torlnk` launch
 // pays nothing for them.
+//
+// Every long-running mode resolves from its SIGINT/SIGTERM handler once the
+// synchronous state flush (queue.suspend) is done, and the CLI exits right
+// there. It must never wait for the event loop to drain: that would mean
+// waiting on webtorrent's teardown, which a single peer connection it has lost
+// track of keeps from ever finishing, and the process then outlives its
+// supervisor's stop forever (#207). State is already on disk, and the OS
+// reclaims the sockets, the same bargain engine.destroy() and the TUI's
+// forceExit make.
 function failHeadless(err: unknown): never {
   console.error(err instanceof Error ? err.message : String(err));
   process.exit(1);
@@ -57,9 +66,10 @@ if (cmd.kind === "update") {
 } else if (cmd.kind === "watch") {
   if (cmd.daemon) daemonize("watch"); // parent exits here; the detached child continues
   const { dir, downloadDir, seedTimeMs, deleteFiles, playlist } = cmd;
-  void import("./daemon/watch").then(({ runWatch }) =>
-    runWatch(dir, downloadDir, { seedTimeMs, deleteFiles, playlist }).catch(failHeadless),
-  );
+  void import("./daemon/watch")
+    .then(({ runWatch }) => runWatch(dir, downloadDir, { seedTimeMs, deleteFiles, playlist }))
+    .then(() => process.exit(0))
+    .catch(failHeadless);
 } else if (cmd.kind === "seed") {
   if (cmd.daemon) daemonize("seed");
   const { path: target, seedTimeMs, deleteFiles } = cmd;
@@ -90,7 +100,10 @@ if (cmd.kind === "update") {
     token: cmd.token ?? process.env.TORLINK_FILES_TOKEN,
     dir: cmd.dir,
   };
-  void import("./daemon/files").then(({ runFiles }) => runFiles(options).catch(failHeadless));
+  void import("./daemon/files")
+    .then(({ runFiles }) => runFiles(options))
+    .then(() => process.exit(0))
+    .catch(failHeadless);
 } else if (cmd.kind === "search") {
   // One JSON document on stdout, then exit: the shape a script can pipe into
   // jq. Exit 1 only when every source failed, so an empty-but-healthy search
