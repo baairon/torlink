@@ -340,6 +340,8 @@ network (TUI/watch/serve/seed; search takes --interface alone):
   --dht-port <n>         fixed DHT UDP port (must differ from --peer-port)
 Env: TORLINK_INTERFACE, TORLINK_PEER_PORT, TORLINK_DHT_PORT (flags win; a
 daemon restarted by torlnk update keeps its flags, not its environment).
+IPv4 only; DNS lookups use the OS resolver, and the git/npm processes that
+torlnk update spawns are not bound.
 serve adds GET /network (address, online, listen port, incoming peers) and
 POST /network {"interface":..,"peerPort":..,"dhtPort":..} to change them in
 place, no restart; null clears a field.
