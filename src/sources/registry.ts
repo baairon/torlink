@@ -4,7 +4,6 @@ import { fitgirl } from "./fitgirl";
 import { nyaa } from "./nyaa";
 import { subsplease } from "./subsplease";
 import { tpbMovies, tpbTv } from "./piratebay";
-import { x1337Movies, x1337Tv } from "./x1337";
 import { yts } from "./yts";
 import type { Source, SourceGroup, SourceId } from "./types";
 
@@ -12,10 +11,8 @@ export const SOURCES: readonly Source[] = [
   fitgirl,
   yts,
   tpbMovies,
-  x1337Movies,
   eztv,
   tpbTv,
-  x1337Tv,
   nyaa,
   subsplease,
   bittorrented,

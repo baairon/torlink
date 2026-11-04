@@ -31,22 +31,22 @@ describe("dedupeResults", () => {
   it("keeps the healthiest row's own fields", () => {
     const out = dedupeResults([
       row({ source: "tpb-movies", seeders: 3, name: "TPB name" }),
-      row({ source: "x1337-movies", seeders: 90, name: "1337x name" }),
+      row({ source: "eztv", seeders: 90, name: "EZTV name" }),
     ]);
     expect(out).toHaveLength(1);
     expect(out[0]!.seeders).toBe(90);
-    expect(out[0]!.source).toBe("x1337-movies");
-    expect(out[0]!.name).toBe("1337x name");
+    expect(out[0]!.source).toBe("eztv");
+    expect(out[0]!.name).toBe("EZTV name");
   });
 
   it("carries the losing row's trackers into the surviving magnet", () => {
-    // The row 1337x returns carries the torrent's own announce list; the row
+    // The row EZTV returns carries the torrent's own announce list; the row
     // buildMagnet() writes carries only torlink's public defaults. Whichever
     // wins on seeders, both lists have to survive.
     const own = "udp://private.example:6969/announce/passkey";
     const out = dedupeResults([
       row({ source: "tpb-movies", seeders: 90 }),
-      row({ source: "x1337-movies", seeders: 3, magnet: buildMagnet(HASH, "x", [own]) }),
+      row({ source: "eztv", seeders: 3, magnet: buildMagnet(HASH, "x", [own]) }),
     ]);
     expect(out).toHaveLength(1);
     expect(out[0]!.seeders).toBe(90);
@@ -60,7 +60,7 @@ describe("dedupeResults", () => {
     const out = dedupeResults([
       row({ source: "tpb-movies", seeders: 1, magnet: buildMagnet(HASH, "x", [a]) }),
       row({ source: "yts", seeders: 5, magnet: buildMagnet(HASH, "x", [b]) }),
-      row({ source: "x1337-movies", seeders: 2, magnet: buildMagnet(HASH, "x", [a]) }),
+      row({ source: "eztv", seeders: 2, magnet: buildMagnet(HASH, "x", [a]) }),
     ]);
     expect(out).toHaveLength(1);
     const tr = trackers(out[0]!.magnet);
