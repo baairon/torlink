@@ -10,11 +10,13 @@ import {
   extractSeedTime,
   parseControl,
   applyControl,
+  parseNetworkPatch,
 } from "./serve";
 import type { Runtime } from "./runtime";
 
 const HASH = "abcdef0123456789abcdef0123456789abcdef01";
 const MAGNET = `magnet:?xt=urn:btih:${HASH}&dn=Example`;
+const NETWORK = { interface: "wg0", address: "10.2.0.2", online: true, peerPort: 51413, incoming: 2 };
 
 describe("isAuthorized", () => {
   it("is open when no token is configured", () => {
@@ -62,6 +64,8 @@ describe("handleApi", () => {
         getItems: () => [],
         getSeeds: () => [],
         getHistory: () => [],
+        networkStatus: () => NETWORK,
+        reconfigureNetwork: vi.fn(() => ({ ok: true, status: NETWORK })),
       } as unknown as Runtime["queue"],
       downloadDir: dir,
     };
@@ -192,6 +196,7 @@ describe("handleApi", () => {
         { id: "forever", completedAt, seedTimeMs: 0 },
         { id: "plain", completedAt },
       ],
+      networkStatus: () => NETWORK,
     } as unknown as Runtime["queue"];
     const res = await handleApi(runtime, null, "GET", "/downloads", undefined, "");
     const body = res.body as { downloads: Record<string, unknown>[]; seeds: Record<string, unknown>[] };
@@ -199,6 +204,35 @@ describe("handleApi", () => {
     expect(body.seeds[0]).toMatchObject({ id: "own", seedTimeMs: 3_600_000, seedUntil: completedAt + 3_600_000 });
     expect(body.seeds[1]).toMatchObject({ id: "forever", seedTimeMs: 0, seedUntil: null });
     expect("seedTimeMs" in body.seeds[2]!).toBe(false);
+  });
+
+  it("reports the network state on GET /downloads and GET /network", async () => {
+    const downloads = await handleApi(runtime, null, "GET", "/downloads", undefined, "");
+    expect(downloads.body.network).toEqual(NETWORK);
+    const network = await handleApi(runtime, null, "GET", "/network", undefined, "");
+    expect(network.status).toBe(200);
+    expect(network.body).toEqual(NETWORK);
+  });
+
+  it("changes the network in place on POST /network", async () => {
+    const res = await handleApi(runtime, null, "POST", "/network", undefined, '{"peerPort":51414,"interface":null}');
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ ok: true, ...NETWORK });
+    expect(runtime.queue.reconfigureNetwork).toHaveBeenCalledWith({ peerPort: 51414, interface: null });
+  });
+
+  it("refuses a bad network body, and relays the engine's refusal", async () => {
+    expect((await handleApi(runtime, null, "POST", "/network", undefined, '{"peerPort":"abc"}')).status).toBe(400);
+    expect((await handleApi(runtime, null, "POST", "/network", undefined, "{}")).status).toBe(400);
+    (runtime.queue.reconfigureNetwork as ReturnType<typeof vi.fn>).mockReturnValueOnce({ ok: false, error: "dhtPort must differ from peerPort" });
+    const res = await handleApi(runtime, null, "POST", "/network", undefined, '{"dhtPort":51413}');
+    expect(res.status).toBe(400);
+    expect(res.body).toEqual({ error: "dhtPort must differ from peerPort" });
+  });
+
+  it("requires auth for /network like every other route", async () => {
+    expect((await handleApi(runtime, "tok", "GET", "/network", undefined, "")).status).toBe(401);
+    expect((await handleApi(runtime, "tok", "POST", "/network", undefined, "{}")).status).toBe(401);
   });
 
   it("pauses a known download on POST /control", async () => {
@@ -351,5 +385,27 @@ describe("extractSeedTime", () => {
     expect(extractSeedTime(`{"seedTime":-5}`)).toBeNull();
     expect(extractSeedTime(`{"seedTime":true}`)).toBeNull();
     expect(extractSeedTime(`{"seedTime":{}}`)).toBeNull();
+  });
+});
+
+describe("parseNetworkPatch", () => {
+  it("takes each field as a value or null, and nothing else", () => {
+    expect(parseNetworkPatch('{"interface":"wg0","peerPort":51413,"dhtPort":null}')).toEqual({
+      interface: "wg0",
+      peerPort: 51413,
+      dhtPort: null,
+    });
+    expect(parseNetworkPatch('{"interface":null}')).toEqual({ interface: null });
+    expect(parseNetworkPatch('{"peerPort":51413,"other":1}')).toEqual({ peerPort: 51413 });
+  });
+  it("rejects what the flags would reject", () => {
+    expect(parseNetworkPatch("{}")).toBeNull();
+    expect(parseNetworkPatch("[]")).toBeNull();
+    expect(parseNetworkPatch("nope")).toBeNull();
+    expect(parseNetworkPatch('{"peerPort":0}')).toBeNull();
+    expect(parseNetworkPatch('{"peerPort":"51413"}')).toBeNull();
+    expect(parseNetworkPatch('{"dhtPort":70000}')).toBeNull();
+    expect(parseNetworkPatch('{"interface":""}')).toBeNull();
+    expect(parseNetworkPatch('{"interface":"fd00::2"}')).toBeNull();
   });
 });

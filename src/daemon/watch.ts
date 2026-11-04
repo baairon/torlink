@@ -8,6 +8,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { startRuntime, addInput, type Runtime, type AddOutcome } from "./runtime";
 import { startSeedReaper } from "./seed-reaper";
+import { logNetwork } from "../download/network";
 
 // Subfolders the watcher moves handled files into, so each is processed once and
 // the drop folder stays tidy. Leading dots keep them out of the way and out of
@@ -100,6 +101,7 @@ export async function runWatch(
 
   const runtime = await startRuntime(downloadDir, { playlist: options.playlist });
   runtime.queue.on("completed", (name: string) => log(`done, now seeding: ${name}`));
+  logNetwork(runtime.queue, log);
 
   // Always on: with no --seed-time it only acts on torrents that carry their
   // own limit (set over the API), and does nothing at all otherwise.

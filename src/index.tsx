@@ -3,6 +3,8 @@ import { parseCliArgs, HELP_TEXT } from "./cli/args";
 import { daemonize } from "./daemon/daemonize";
 import { runAttach } from "./daemon/attach";
 import { containUnhandledRejections, logCrash } from "./util/crashlog";
+import { armInterface, exportNetworkEnv } from "./download/network";
+import { bindAddress, interfaceNames } from "./util/bind";
 import { VERSION } from "./version";
 import { App } from "./ui/App";
 
@@ -23,6 +25,14 @@ if (cmd.kind === "invalid") {
   console.error(HELP_TEXT);
   process.exit(1);
 }
+
+// --interface / --peer-port / --dht-port ride on the environment from here,
+// the way TORLINK_NO_UTP does: the TUI's own boot, a --daemon child and the
+// search command all read it there, and a restart after `torlnk update`
+// replays argv, so the flags survive where the environment would not. The
+// bind is armed now, before any mode can open a socket (#164).
+if ("network" in cmd && cmd.network) exportNetworkEnv(cmd.network);
+if (process.env.TORLINK_INTERFACE) armInterface(process.env.TORLINK_INTERFACE);
 
 // An unhandled promise rejection must never take the whole app down: webtorrent
 // can produce one from inside its own async internals where no caller's
@@ -105,6 +115,12 @@ if (cmd.kind === "update") {
     .then(() => process.exit(0))
     .catch(failHeadless);
 } else if (cmd.kind === "search") {
+  // A bound search with its interface down would only report every source as
+  // unreachable; say why instead.
+  const iface = process.env.TORLINK_INTERFACE;
+  if (iface && bindAddress() === null) {
+    failHeadless(new Error(`interface ${iface} is down (interfaces: ${interfaceNames().join(", ")})`));
+  }
   // One JSON document on stdout, then exit: the shape a script can pipe into
   // jq. Exit 1 only when every source failed, so an empty-but-healthy search
   // is still a success.

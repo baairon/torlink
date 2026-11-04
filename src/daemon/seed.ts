@@ -21,6 +21,7 @@ import { createTorrentFor } from "../download/create";
 import { saveTorrentMeta } from "../download/persist";
 import { startRuntime, addInput } from "./runtime";
 import { startSeedReaper } from "./seed-reaper";
+import { logNetwork } from "../download/network";
 
 export interface SeedOptions {
   seedTimeMs?: number;
@@ -61,6 +62,7 @@ export async function runSeed(target: string, options: SeedOptions = {}): Promis
   // No playlists either: the folder is the user's own, and a playlist.m3u left
   // in it would be hashed into the next run's torrent and change the magnet.
   const runtime = await startRuntime(root, { playlist: false });
+  logNetwork(runtime.queue, log);
   const outcome = await addInput(runtime, created.torrentPath, { allowTorrentPath: true });
   if (outcome === "invalid") throw new Error(`could not seed ${created.torrentPath}`);
   if (outcome === "duplicate") log("already in the queue — leaving it alone");

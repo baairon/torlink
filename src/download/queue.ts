@@ -1,5 +1,6 @@
 import { EventEmitter } from "node:events";
-import { TorrentEngine, message, type AddHandlers } from "./engine";
+import { TorrentEngine, message, type AddHandlers, type NetworkPatch, type ReconfigureResult } from "./engine";
+import type { NetworkStatus } from "./network";
 import {
   saveQueue,
   saveQueueSync,
@@ -78,7 +79,7 @@ export interface RestoreOptions {
 
 export class DownloadQueue extends EventEmitter {
   private items = new Map<string, QueueItem>();
-  private engine = new TorrentEngine();
+  private engine: TorrentEngine;
   private poll: ReturnType<typeof setInterval> | null = null;
   private history: HistoryItem[] = [];
   private seeds = new Map<string, SeedItem>();
@@ -97,6 +98,48 @@ export class DownloadQueue extends EventEmitter {
     super();
     this.maxDownloads = opts?.maxDownloads ?? readMaxDownloads();
     this.playlist = opts?.playlist ?? !process.env.TORLINK_NO_PLAYLIST;
+    // Last, after every field above: a bound interface that is down at boot
+    // reports so from inside this call, and that report touches the maps.
+    this.engine = new TorrentEngine({ onNetwork: (status) => this.networkChanged(status) });
+  }
+
+  // The bound interface (see download/network.ts) came or went. Nothing about
+  // an item changes: it stays "downloading" or "seeding" and the engine brings
+  // it back by itself. Only the live numbers go, so a stalled row reads as
+  // stalled, and a seed re-verifies on its return like a restored one does.
+  private networkChanged(status: NetworkStatus): void {
+    if (!status.online) {
+      this.zeroLiveStats();
+      for (const sd of this.seeds.values()) {
+        if (sd.status === "seeding") this.seedStartedAt.set(sd.id, null);
+      }
+      this.changed();
+    }
+    this.emit("network", status);
+  }
+
+  networkStatus(): NetworkStatus {
+    return this.engine.networkStatus();
+  }
+
+  reconfigureNetwork(patch: NetworkPatch): ReconfigureResult {
+    return this.engine.reconfigure(patch);
+  }
+
+  private zeroLiveStats(): void {
+    for (const it of this.items.values()) {
+      if (it.status === "downloading") {
+        it.speed = 0;
+        it.peers = 0;
+        it.eta = undefined;
+      }
+    }
+    for (const sd of this.seeds.values()) {
+      if (sd.status === "seeding") {
+        sd.uploadSpeed = 0;
+        sd.peers = 0;
+      }
+    }
   }
 
   // Extra announce URLs appended to every torrent added from now on.
@@ -182,8 +225,10 @@ export class DownloadQueue extends EventEmitter {
       // With the metadata on disk it verifies the local files immediately, so
       // a re-add of something already downloaded, and a torrent created from
       // local content, both go straight to complete instead of waiting on
-      // peers that may not exist.
-      const source = torrentMetaExists(item.id) ? torrentMetaPath(item.id) : item.magnet;
+      // peers that may not exist. Resolved on every attach, so metadata that
+      // lands later still wins when the engine re-attaches after a reconnect.
+      const source = (): string =>
+        torrentMetaExists(item.id) ? torrentMetaPath(item.id) : item.magnet;
       // The magnet's own trackers ride along regardless of which source won.
       // A row merged from several sources carries all of their announce URLs
       // (see mergeMagnetTrackers), and a stored .torrent only knows the list it
@@ -616,7 +661,7 @@ export class DownloadQueue extends EventEmitter {
     this.seedStartedAt.set(h.id, null);
     // Seed from the stored .torrent metadata when we have it (verifies the local
     // file immediately, no swarm needed); fall back to the magnet otherwise.
-    const source = torrentMetaExists(h.id) ? torrentMetaPath(h.id) : h.magnet;
+    const source = (): string => (torrentMetaExists(h.id) ? torrentMetaPath(h.id) : h.magnet);
     try {
       this.engine.add(h.id, source, h.dir, this.engineHandlers(h.id), this.trackers);
     } catch {
@@ -834,13 +879,7 @@ export class DownloadQueue extends EventEmitter {
   suspend(): void {
     // Keep active downloads as "downloading" so restore() resumes them on the
     // next launch (mirroring how seeds auto-restore); just zero the live stats.
-    for (const it of this.items.values()) {
-      if (it.status === "downloading") {
-        it.speed = 0;
-        it.peers = 0;
-        it.eta = undefined;
-      }
-    }
+    this.zeroLiveStats();
     this.persistSync();
     if (this.poll) {
       clearInterval(this.poll);

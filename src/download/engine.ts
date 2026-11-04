@@ -1,4 +1,17 @@
 import WebTorrent, { type Torrent } from "webtorrent";
+import {
+  clearBindAddress,
+  interfaceNames,
+  setBindAddress,
+  utpBindable,
+  type InterfaceTable,
+} from "../util/bind";
+import {
+  networkFromEnv,
+  startInterfaceGuard,
+  type NetworkOptions,
+  type NetworkStatus,
+} from "./network";
 
 export interface TorrentProgress {
   progress: number;
@@ -31,13 +44,220 @@ export interface AddHandlers {
   onError?: (message: string) => void;
 }
 
+export interface EngineOptions extends NetworkOptions {
+  onNetwork?: (status: NetworkStatus) => void;
+  // Test seams: where the interface guard reads the interface table, and how
+  // often it looks.
+  interfaces?: () => InterfaceTable;
+  guardIntervalMs?: number;
+}
+
+// A runtime change to the network options; null clears a field.
+export interface NetworkPatch {
+  interface?: string | null;
+  peerPort?: number | null;
+  dhtPort?: number | null;
+}
+
+export type ReconfigureResult = { ok: true; status: NetworkStatus } | { ok: false; error: string };
+
+// A magnet URI, an info hash, or a path to a .torrent file; a thunk is
+// re-resolved every time the torrent is attached, so a .torrent stored after
+// the first add wins on a re-attach.
+export type TorrentSource = string | (() => string);
+
+interface Registration {
+  source: TorrentSource;
+  dir: string;
+  handlers: AddHandlers;
+  announce?: string[];
+}
+
+// How long a torn-down client gets to release its sockets before the next one
+// is built on the same fixed ports.
+const TEARDOWN_WAIT_MS = 3000;
+
+// How long an interface has to stay up after a drop before everything is
+// re-attached. Re-attaching re-verifies every seed on disk, so a link that
+// bounces for a few seconds must not re-hash a seedbox each time.
+export const RESUME_SETTLE_MS = 3000;
+
 export function message(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
+}
+
+export function applyNetworkPatch(current: NetworkOptions, patch: NetworkPatch): NetworkOptions {
+  const next: NetworkOptions = { ...current };
+  if (patch.interface !== undefined) {
+    if (patch.interface === null) delete next.interface;
+    else next.interface = patch.interface;
+  }
+  if (patch.peerPort !== undefined) {
+    if (patch.peerPort === null) delete next.peerPort;
+    else next.peerPort = patch.peerPort;
+  }
+  if (patch.dhtPort !== undefined) {
+    if (patch.dhtPort === null) delete next.dhtPort;
+    else next.dhtPort = patch.dhtPort;
+  }
+  return next;
 }
 
 export class TorrentEngine {
   private client: WebTorrent | null = null;
   private torrents = new Map<string, Torrent>();
+  // Everything add()ed and not yet remove()d, live torrent or not. While the
+  // bound interface is down nothing is attached; when it is back, all of this
+  // is, with the handlers it was added with.
+  private registry = new Map<string, Registration>();
+  private net: NetworkOptions;
+  private readonly onNetwork: ((status: NetworkStatus) => void) | undefined;
+  private readonly interfaces: (() => InterfaceTable) | undefined;
+  private readonly guardIntervalMs: number | undefined;
+  // False only while a configured interface is down.
+  private online = true;
+  private address: string | null = null;
+  private known: string[] | undefined;
+  private stopGuard: (() => void) | null = null;
+  // Settles once every client torn down so far has released its sockets.
+  private teardown: Promise<void> = Promise.resolve();
+  private pendingTeardowns = 0;
+  private rebuilding = false;
+  private generation = 0;
+  // True from a drop until the rebuild that follows it has landed.
+  private wasDown = false;
+  private resumeTimer: ReturnType<typeof setTimeout> | null = null;
+  // The last error the client itself raised (a listen that failed, uTP that
+  // would not start), cleared on the next rebuild.
+  private lastError: string | null = null;
+
+  constructor(opts: EngineOptions = {}) {
+    const { onNetwork, interfaces, guardIntervalMs, ...net } = opts;
+    this.onNetwork = onNetwork;
+    this.interfaces = interfaces;
+    this.guardIntervalMs = guardIntervalMs;
+    this.net = applyNetworkPatch(networkFromEnv(), net);
+    this.applyNetwork();
+  }
+
+  private applyNetwork(): void {
+    this.stopGuard?.();
+    this.stopGuard = null;
+    this.clearResume();
+    this.wasDown = false;
+    this.known = undefined;
+    const spec = this.net.interface;
+    if (!spec) {
+      clearBindAddress();
+      this.address = null;
+      this.online = true;
+      return;
+    }
+    // Closed until the guard's first check (synchronous, below) says otherwise.
+    this.online = false;
+    setBindAddress(null);
+    this.stopGuard = startInterfaceGuard(spec, (address, table) => this.onInterface(address, table), {
+      ...(this.guardIntervalMs !== undefined ? { intervalMs: this.guardIntervalMs } : {}),
+      ...(this.interfaces ? { table: this.interfaces } : {}),
+    });
+  }
+
+  private onInterface(address: string | null, table: InterfaceTable): void {
+    if (address === null) {
+      this.clearResume();
+      this.wasDown = true;
+      this.online = false;
+      this.address = null;
+      this.known = interfaceNames(table);
+      setBindAddress(null);
+      this.report();
+      this.teardownClient();
+      return;
+    }
+    this.online = true;
+    this.address = address;
+    this.known = undefined;
+    setBindAddress(address);
+    this.report();
+    if (!this.wasDown) {
+      this.rebuild();
+      return;
+    }
+    // Back after a drop: let it settle first. Anything added meanwhile waits
+    // with the rest.
+    this.rebuilding = true;
+    this.resumeTimer = setTimeout(() => {
+      this.resumeTimer = null;
+      this.rebuild();
+    }, RESUME_SETTLE_MS);
+    this.resumeTimer.unref();
+  }
+
+  private clearResume(): void {
+    if (this.resumeTimer) clearTimeout(this.resumeTimer);
+    this.resumeTimer = null;
+  }
+
+  private report(): void {
+    this.onNetwork?.(this.networkStatus());
+  }
+
+  // Drop the live client and every torrent on it; the registry stays. The
+  // async half waits (bounded) for webtorrent to let go of the ports, so a
+  // rebuild on a fixed --peer-port does not race its own predecessor.
+  private teardownClient(): void {
+    const client = this.client;
+    this.client = null;
+    for (const t of this.torrents.values()) {
+      try {
+        t.destroy();
+      } catch {}
+    }
+    this.torrents.clear();
+    if (!client) return;
+    this.pendingTeardowns++;
+    const released = new Promise<void>((resolve) => {
+      const timer = setTimeout(resolve, TEARDOWN_WAIT_MS);
+      timer.unref();
+      try {
+        client.destroy(() => {
+          clearTimeout(timer);
+          resolve();
+        });
+      } catch {
+        clearTimeout(timer);
+        resolve();
+      }
+    });
+    this.teardown = Promise.all([this.teardown, released.then(() => void this.pendingTeardowns--)]).then(
+      () => {},
+    );
+  }
+
+  // Re-attach every registration on a fresh client: right away when nothing is
+  // still letting go of its sockets, otherwise once the last teardown lands.
+  // A newer rebuild (or destroy) supersedes one still waiting.
+  private rebuild(): void {
+    if (this.pendingTeardowns === 0) {
+      this.rebuilding = false;
+      this.attachAll();
+      return;
+    }
+    const gen = ++this.generation;
+    this.rebuilding = true;
+    void this.teardown.then(() => {
+      if (gen !== this.generation) return;
+      this.rebuilding = false;
+      this.attachAll();
+    });
+  }
+
+  private attachAll(): void {
+    if (!this.online) return;
+    this.wasDown = false;
+    this.lastError = null;
+    for (const [id, reg] of this.registry) this.attach(id, reg);
+  }
 
   private ensureClient(): WebTorrent {
     if (!this.client) {
@@ -60,29 +280,87 @@ export class TorrentEngine {
       // webtorrent 3 (webtorrent/webtorrent#3019) dials over the one listening
       // uTP socket instead, which is why the dependency is on 3.x. The opt-out
       // stays for anyone who wants TCP-only peers.
+      //
+      // Bound to an interface (#164), anything that would talk through another
+      // one stays off: LSD is LAN multicast; UPnP and NAT-PMP map ports on
+      // whatever gateway the default route has, and would fight the mapping
+      // the interface's owner keeps alive; WebRTC gathers ICE candidates from
+      // every interface in native code the bind shim cannot reach. The uTP
+      // socket is bound natively as well, and when that patch is unavailable
+      // uTP stays off rather than open on every interface.
+      const bound = this.net.interface !== undefined;
       const opts = {
+        ...(this.net.peerPort ? { torrentPort: this.net.peerPort } : {}),
+        ...(this.net.dhtPort ? { dhtPort: this.net.dhtPort } : {}),
+        ...(bound
+          ? {
+              lsd: false,
+              natUpnp: false,
+              natPmp: false,
+              tracker: { wrtc: false },
+              ...(utpBindable() ? {} : { utp: false }),
+            }
+          : {}),
         ...(process.env.TORLINK_NO_UTP ? { utp: false } : {}),
         ...(process.platform === "darwin" ? { natPmp: false } : {}),
       };
-      this.client = new WebTorrent(opts);
-      this.client.on("error", () => {});
+      const client = new WebTorrent(opts);
+      // webtorrent raises this for a listen that failed (the fixed port is
+      // taken) or uTP that would not start. The fatal kind has destroyed the
+      // client under its torrents, so drop it here too: the next add, or a
+      // POST /network with a free port, then builds a fresh one.
+      client.on("error", (err: unknown) => {
+        if (this.client !== client) return;
+        this.lastError = message(err);
+        if (client.destroyed) {
+          this.client = null;
+          this.torrents.clear();
+        }
+        this.report();
+      });
+      client.once("listening", () => {
+        if (this.client === client) this.report();
+      });
+      this.client = client;
     }
     return this.client;
   }
 
-  // `source` is a magnet URI, an infoHash, or a path to a .torrent file. Seeding
-  // an existing file passes the stored .torrent path so webtorrent can verify it
-  // locally instead of re-fetching metadata from the swarm.
-  // `announce` supplements whatever trackers are already in the source URI;
-  // webtorrent dedupes internally.
+  // `source` is a magnet URI, an infoHash, or a path to a .torrent file (or a
+  // thunk returning one). Seeding an existing file passes the stored .torrent
+  // path so webtorrent can verify it locally instead of re-fetching metadata
+  // from the swarm. `announce` supplements whatever trackers are already in
+  // the source URI; webtorrent dedupes internally.
+  //
+  // While the bound interface is down, or a rebuild is in flight, this only
+  // records the torrent; it is attached when the client is back.
   add(
     id: string,
-    source: string,
+    source: TorrentSource,
     dir: string,
     handlers: AddHandlers,
     announce?: string[],
   ): void {
-    const client = this.ensureClient();
+    const reg: Registration = {
+      source,
+      dir,
+      handlers,
+      ...(announce && announce.length > 0 ? { announce } : {}),
+    };
+    this.registry.set(id, reg);
+    if (!this.online || this.rebuilding) return;
+    // A client that will not construct throws here, on the caller's stack,
+    // as it always has; the queue fails that one item and moves on.
+    try {
+      this.ensureClient();
+    } catch (e) {
+      this.registry.delete(id);
+      throw e;
+    }
+    this.attach(id, reg);
+  }
+
+  private attach(id: string, reg: Registration): void {
     const existing = this.torrents.get(id);
     if (existing) {
       this.torrents.delete(id);
@@ -91,16 +369,22 @@ export class TorrentEngine {
       } catch {}
     }
 
-    const opts = announce && announce.length > 0 ? { path: dir, announce } : { path: dir };
     let torrent: Torrent;
     try {
+      // From a rebuild this runs on the guard's timer, so a client that will
+      // not construct is an error on this torrent, never an uncaught exception.
+      const client = this.ensureClient();
+      const source = typeof reg.source === "function" ? reg.source() : reg.source;
+      const opts = reg.announce ? { path: reg.dir, announce: reg.announce } : { path: reg.dir };
       torrent = client.add(source, opts);
     } catch (e) {
-      handlers.onError?.(message(e));
+      this.registry.delete(id);
+      reg.handlers.onError?.(message(e));
       return;
     }
     this.torrents.set(id, torrent);
 
+    const handlers = reg.handlers;
     torrent.on("metadata", () => {
       handlers.onMetadata?.({
         name: torrent.name,
@@ -119,7 +403,10 @@ export class TorrentEngine {
     });
     torrent.on("error", (err: unknown) => {
       handlers.onError?.(message(err));
-      this.torrents.delete(id);
+      // The queue marks it failed or missing and re-adds on retry; a reconnect
+      // must not quietly bring it back.
+      if (this.registry.get(id) === reg) this.registry.delete(id);
+      if (this.torrents.get(id) === torrent) this.torrents.delete(id);
       try {
         torrent.destroy();
       } catch {}
@@ -129,6 +416,41 @@ export class TorrentEngine {
   // The TCP port the client accepts incoming peers on (diagnostics / tests).
   listenPort(): number | null {
     return this.client?.torrentPort ?? null;
+  }
+
+  networkStatus(): NetworkStatus {
+    const client = this.client;
+    let incoming = 0;
+    for (const t of this.torrents.values()) {
+      try {
+        for (const w of t.wires ?? []) if (typeof w.type === "string" && w.type.includes("Incoming")) incoming++;
+      } catch {}
+    }
+    return {
+      interface: this.net.interface ?? null,
+      address: this.address,
+      online: this.online,
+      peerPort: client?.listening ? client.torrentPort : null,
+      incoming,
+      ...(this.known ? { known: this.known } : {}),
+      ...(this.lastError !== null ? { error: this.lastError } : {}),
+    };
+  }
+
+  // Change interface or ports in place: the live client is torn down and
+  // every registered torrent comes back on a new one.
+  reconfigure(patch: NetworkPatch): ReconfigureResult {
+    const next = applyNetworkPatch(this.net, patch);
+    if (next.peerPort !== undefined && next.peerPort === next.dhtPort) {
+      return { ok: false, error: "dhtPort must differ from peerPort" };
+    }
+    this.net = next;
+    this.teardownClient();
+    // With an interface, the guard's first check triggers the rebuild (or
+    // keeps everything down); without one nothing else will.
+    this.applyNetwork();
+    if (!this.net.interface) this.rebuild();
+    return { ok: true, status: this.networkStatus() };
   }
 
   // A torrent's file paths relative to its download dir, top-level folder
@@ -182,6 +504,7 @@ export class TorrentEngine {
   }
 
   remove(id: string): void {
+    this.registry.delete(id);
     const t = this.torrents.get(id);
     this.torrents.delete(id);
     if (t) {
@@ -192,6 +515,11 @@ export class TorrentEngine {
   }
 
   destroy(): void {
+    this.generation++;
+    this.stopGuard?.();
+    this.stopGuard = null;
+    this.clearResume();
+    this.registry.clear();
     this.torrents.clear();
     // Never block shutdown on webtorrent's async teardown: hand off the client
     // destroy to a later tick and let the OS reclaim sockets if we exit first.

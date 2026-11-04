@@ -7,6 +7,11 @@ declare module "webtorrent" {
     length: number;
   }
 
+  interface Wire {
+    // tcpIncoming, tcpOutgoing, utpIncoming, utpOutgoing, webrtc, webSeed
+    type: string;
+  }
+
   interface Torrent extends EventEmitter {
     infoHash: string;
     magnetURI: string;
@@ -25,6 +30,7 @@ declare module "webtorrent" {
     paused: boolean;
     path: string;
     files: TorrentFile[];
+    wires: Wire[];
     pause(): void;
     resume(): void;
     addPeer(peer: string): boolean;
@@ -40,7 +46,9 @@ declare module "webtorrent" {
     maxConns?: number;
     dht?: boolean;
     utp?: boolean;
-    tracker?: boolean;
+    tracker?: boolean | { wrtc?: boolean };
+    torrentPort?: number;
+    dhtPort?: number;
     lsd?: boolean;
     natPmp?: boolean;
     natUpnp?: boolean | "permanent";
@@ -52,6 +60,8 @@ declare module "webtorrent" {
     readonly downloadSpeed: number;
     readonly uploadSpeed: number;
     readonly torrentPort: number;
+    readonly listening: boolean;
+    readonly destroyed: boolean;
     add(
       torrentId: string,
       opts?: TorrentOptions,
