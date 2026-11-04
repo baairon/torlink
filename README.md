@@ -84,6 +84,16 @@ Either can carry a `seedTime` for that one torrent, in the same grammar as `--se
 
 `GET /downloads` reports the limit and when it falls due (`seedUntil`) on every torrent that has one.
 
+### Binding to a VPN or interface
+
+If your torrents should only ever leave through one interface, name it:
+
+    torlnk serve --interface wg0 --peer-port 51413
+
+Every peer, tracker, DHT and search socket is then bound to that interface's IPv4 address (`wg0`, `tun0`, `NordLynx`, `utun4`, or the address itself), and `--peer-port` fixes the TCP/uTP listen port so one forward on the VPN side covers it. If the interface drops, downloads and seeds pause instead of falling back to another route, and they pick up on their own when it is back, on the new address if that changed. Nothing is tied to a particular VPN: torlink only knows the interface. LSD, UPnP, NAT-PMP and WebRTC peers stay off while bound, since each would use another interface; whoever owns the interface's gateway owns the port mapping. `--dht-port` fixes the DHT port too (it cannot share the peer port, where uTP already listens).
+
+The same flags work on `watch` and `seed`, `search` takes `--interface` alone, and the TUI honors them as `torlnk --interface wg0` or through `TORLINK_INTERFACE`, `TORLINK_PEER_PORT` and `TORLINK_DHT_PORT` (handy for `attach`) without changing anything on screen: a stalled download looks stalled. Daemons should take the flag rather than the variable, since a restart after `torlnk update` keeps the flags and not the environment. `serve` reports the state on `GET /network` (address, whether it is up, the listen port, and how many peers dialed in, which is the proof a forwarded port works), and `POST /network {"interface":"wg0","peerPort":51413,"dhtPort":null}` changes any of them in place with no restart, so a script that reads a forwarded port from your VPN client can hand it over. Limits, stated plainly: IPv4 only, DNS lookups go through the OS resolver, and the `git`/`npm` processes `torlnk update` spawns are not bound.
+
 ## Contributing
 
 To run or work on torlink locally:

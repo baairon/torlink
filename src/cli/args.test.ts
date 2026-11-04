@@ -278,3 +278,55 @@ describe("seed", () => {
     expect(parseCliArgs(["seed"])).toEqual({ kind: "invalid", arg: "seed (missing path)" });
   });
 });
+
+describe("network flags (#164)", () => {
+  it.each([
+    [],
+    ["magnet:?xt=urn:btih:abc"],
+    ["watch", "/srv/incoming", "--to", "/srv/downloads", "--daemon"],
+    ["serve", "--port", "9161", "--daemon"],
+    ["seed", "./album", "--seed-time", "1h"],
+  ])("accepts --interface / --peer-port / --dht-port before or after download arguments: %j", (...args) => {
+    const expected = { ...parseCliArgs(args), network: { interface: "wg0", peerPort: 51413, dhtPort: 6881 } };
+    const flags = ["--interface", "wg0", "--peer-port", "51413", "--dht-port", "6881"];
+    expect(parseCliArgs([...flags, ...args])).toEqual(expected);
+    expect(parseCliArgs([...args, ...flags])).toEqual(expected);
+  });
+  it("takes an IPv4 literal, or a Windows-style name with spaces", () => {
+    expect(parseCliArgs(["--interface", "10.2.0.2"])).toEqual({ kind: "run", network: { interface: "10.2.0.2" } });
+    expect(parseCliArgs(["serve", "--interface", "Proton VPN"])).toMatchObject({ kind: "serve", network: { interface: "Proton VPN" } });
+  });
+  it("lets a headless search bind its scraping, but not take ports", () => {
+    expect(parseCliArgs(["search", "ubuntu", "--interface", "wg0"])).toEqual({
+      kind: "search",
+      query: "ubuntu",
+      network: { interface: "wg0" },
+    });
+    expect(parseCliArgs(["search", "ubuntu", "--peer-port", "51413"]).kind).toBe("invalid");
+  });
+  it("rejects the flags on modes that open no peer sockets", () => {
+    expect(parseCliArgs(["files", "--interface", "wg0"]).kind).toBe("invalid");
+    expect(parseCliArgs(["attach", "--interface", "wg0"]).kind).toBe("invalid");
+    expect(parseCliArgs(["update", "--peer-port", "51413"]).kind).toBe("invalid");
+  });
+  // Unlike --port, a bind flag that was silently dropped would run unbound, so
+  // every bad value is an error.
+  it("refuses a missing or unusable value instead of dropping it", () => {
+    expect(parseCliArgs(["serve", "--interface"])).toEqual({ kind: "invalid", arg: "--interface (missing value)" });
+    expect(parseCliArgs(["--interface", "--daemon", "serve"])).toEqual({ kind: "invalid", arg: "--interface (missing value)" });
+    expect(parseCliArgs(["--interface", "fd00::2"])).toEqual({ kind: "invalid", arg: "--interface (IPv4 only: 'fd00::2')" });
+    expect(parseCliArgs(["serve", "--peer-port", "abc"])).toEqual({ kind: "invalid", arg: "--peer-port (invalid port 'abc')" });
+    expect(parseCliArgs(["serve", "--dht-port", "70000"])).toEqual({ kind: "invalid", arg: "--dht-port (invalid port '70000')" });
+    expect(parseCliArgs(["serve", "--peer-port", "0"])).toEqual({ kind: "invalid", arg: "--peer-port (invalid port '0')" });
+  });
+  it("refuses the DHT on the peer port, where uTP already is", () => {
+    expect(parseCliArgs(["serve", "--peer-port", "51413", "--dht-port", "51413"])).toEqual({
+      kind: "invalid",
+      arg: "--dht-port (must differ from --peer-port)",
+    });
+  });
+  it("does not change a command that passed no network flag", () => {
+    expect(parseCliArgs(["serve"])).not.toHaveProperty("network");
+    expect(parseCliArgs(["search", "ubuntu"])).not.toHaveProperty("network");
+  });
+});

@@ -9,12 +9,12 @@ vi.mock("./engine", () => ({
   TorrentEngine: class {
     add(
       id: string,
-      source: string,
+      source: string | (() => string),
       _dir: string,
       _handlers: unknown,
       announce?: string[],
     ): void {
-      added.push({ id, source, announce });
+      added.push({ id, source: typeof source === "function" ? source() : source, announce });
     }
     remove(): void {}
     stats(): undefined {

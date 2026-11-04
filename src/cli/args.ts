@@ -1,15 +1,24 @@
+import { isIPv6 } from "node:net";
 import { isInfoHash } from "../sources/magnet";
 import { parseDuration } from "../util/duration";
+import { validPort, type NetworkOptions } from "../download/network";
 
 export type SearchCategory = "games" | "movies" | "tv" | "anime";
 
 export type CliCommand =
   | { kind: "version" }
   | { kind: "help" }
-  | { kind: "run"; initialMagnet?: string; initialTorrent?: string; playlist?: boolean }
+  | {
+      kind: "run";
+      initialMagnet?: string;
+      initialTorrent?: string;
+      playlist?: boolean;
+      network?: NetworkOptions;
+    }
   | {
       kind: "watch";
       playlist?: boolean;
+      network?: NetworkOptions;
       dir: string;
       downloadDir?: string;
       seedTimeMs?: number;
@@ -19,6 +28,7 @@ export type CliCommand =
   | {
       kind: "serve";
       playlist?: boolean;
+      network?: NetworkOptions;
       port?: number;
       host?: string;
       token?: string;
@@ -30,6 +40,7 @@ export type CliCommand =
   | {
       kind: "seed";
       path: string;
+      network?: NetworkOptions;
       seedTimeMs?: number;
       deleteFiles?: boolean;
       daemon?: boolean;
@@ -37,7 +48,13 @@ export type CliCommand =
   | { kind: "files"; port?: number; host?: string; token?: string; dir?: string; daemon?: boolean }
   | { kind: "attach" }
   | { kind: "update"; force?: boolean }
-  | { kind: "search"; query: string; category?: SearchCategory; timeoutMs?: number }
+  | {
+      kind: "search";
+      query: string;
+      category?: SearchCategory;
+      timeoutMs?: number;
+      network?: NetworkOptions;
+    }
   | { kind: "invalid"; arg: string };
 
 // Valueless boolean flags for the headless subcommands (everything else is a
@@ -82,6 +99,12 @@ function seedTimeFrom(raw: string | undefined): number | undefined {
 }
 
 export function parseCliArgs(argv: string[]): CliCommand {
+  const taken = takeNetworkFlags(argv);
+  if (taken.error !== undefined) return { kind: "invalid", arg: taken.error };
+  return withNetwork(withPlaylist(taken.rest), taken.network);
+}
+
+function withPlaylist(argv: string[]): CliCommand {
   const noPlaylist = argv.includes("--no-playlist");
   const cmd = parseCommand(argv.filter((arg) => arg !== "--no-playlist"));
   if (!noPlaylist || cmd.kind === "invalid" || cmd.kind === "help" || cmd.kind === "version") return cmd;
@@ -89,6 +112,69 @@ export function parseCliArgs(argv: string[]): CliCommand {
     return { ...cmd, playlist: false };
   }
   return { kind: "invalid", arg: "--no-playlist (use with the TUI, watch, or serve)" };
+}
+
+// Global `--flag value` pairs, taken out before the command is read so the
+// per-command readers never see them. Strict on purpose, unlike parsePort: a
+// kill-switch flag that was silently dropped would run unbound.
+const NETWORK_FLAGS: Record<string, keyof NetworkOptions> = {
+  "--interface": "interface",
+  "--peer-port": "peerPort",
+  "--dht-port": "dhtPort",
+};
+
+function takeNetworkFlags(argv: string[]): { rest: string[]; network?: NetworkOptions; error?: string } {
+  const rest: string[] = [];
+  const network: NetworkOptions = {};
+  let any = false;
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i]!;
+    const key = NETWORK_FLAGS[arg];
+    if (!key) {
+      rest.push(arg);
+      continue;
+    }
+    const value = argv[i + 1];
+    if (value === undefined || value.startsWith("--") || !value.trim()) {
+      return { rest, error: `${arg} (missing value)` };
+    }
+    i++;
+    if (key === "interface") {
+      if (isIPv6(value.trim())) return { rest, error: `${arg} (IPv4 only: '${value}')` };
+      network.interface = value.trim();
+    } else {
+      const n = Number(value);
+      if (!validPort(n)) return { rest, error: `${arg} (invalid port '${value}')` };
+      network[key] = n;
+    }
+    any = true;
+  }
+  if (network.peerPort !== undefined && network.peerPort === network.dhtPort) {
+    return { rest, error: "--dht-port (must differ from --peer-port)" };
+  }
+  return any ? { rest, network } : { rest };
+}
+
+function withNetwork(cmd: CliCommand, network?: NetworkOptions): CliCommand {
+  if (!network) return cmd;
+  switch (cmd.kind) {
+    case "run":
+    case "watch":
+    case "serve":
+    case "seed":
+      return { ...cmd, network };
+    case "search":
+      if (network.peerPort !== undefined || network.dhtPort !== undefined) {
+        return { kind: "invalid", arg: "--peer-port / --dht-port (use with the TUI, watch, serve, or seed)" };
+      }
+      return { ...cmd, network };
+    case "invalid":
+    case "help":
+    case "version":
+      return cmd;
+    default:
+      return { kind: "invalid", arg: "--interface (use with the TUI, watch, serve, seed, or search)" };
+  }
 }
 
 function parseCommand(argv: string[]): CliCommand {
@@ -240,6 +326,23 @@ seeding for good.
 
 --daemon (watch/serve/files): background the process (own session, logs to a
 file), so you can log out and it keeps running. Prints the pid and log path.
+
+network (TUI/watch/serve/seed; search takes --interface alone):
+  --interface <name|ip>  bind every peer, tracker, DHT and search socket to one
+                         interface (wg0, tun0, NordLynx, utun4) or its IPv4
+                         address. If it drops, downloads and seeds pause instead
+                         of falling back to another route, and resume on their
+                         own when it is back, on its new address if that
+                         changed. LSD, UPnP, NAT-PMP and WebRTC peers stay off:
+                         whoever owns the interface's gateway owns the port map.
+  --peer-port <n>        fixed TCP/uTP listen port, the one to forward for
+                         incoming peers (random otherwise)
+  --dht-port <n>         fixed DHT UDP port (must differ from --peer-port)
+Env: TORLINK_INTERFACE, TORLINK_PEER_PORT, TORLINK_DHT_PORT (flags win; a
+daemon restarted by torlnk update keeps its flags, not its environment).
+serve adds GET /network (address, online, listen port, incoming peers) and
+POST /network {"interface":..,"peerPort":..,"dhtPort":..} to change them in
+place, no restart; null clears a field.
 
 torlnk attach: run the TUI inside a persistent tmux session. Detach with
 tmux's ctrl-b d, log out, then torlnk attach again to reattach where you

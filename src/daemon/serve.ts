@@ -13,6 +13,8 @@ import { magnetFromTorrentBytes } from "../sources/torrentFile";
 import { startSeedReaper } from "./seed-reaper";
 import { LOOPBACK_HOSTS, isAuthorized, hostHeaderOk } from "./auth";
 import { parseDuration } from "../util/duration";
+import { logNetwork, validPort } from "../download/network";
+import type { NetworkPatch } from "../download/engine";
 import { VERSION } from "../version";
 
 export { isAuthorized } from "./auth";
@@ -237,7 +239,36 @@ function statusPayload(runtime: Runtime): Record<string, unknown> {
         : {}),
     };
   });
-  return { downloads, seeds };
+  return { downloads, seeds, network: runtime.queue.networkStatus() };
+}
+
+// Body of POST /network: { interface?: string | null, peerPort?: number | null,
+// dhtPort?: number | null }. null clears a field; a key left out is kept.
+export function parseNetworkPatch(bodyText: string): NetworkPatch | null {
+  let body: unknown;
+  try {
+    body = JSON.parse(bodyText);
+  } catch {
+    return null;
+  }
+  if (typeof body !== "object" || body === null || Array.isArray(body)) return null;
+  const raw = body as Record<string, unknown>;
+  const patch: NetworkPatch = {};
+  if ("interface" in raw) {
+    const v = raw.interface;
+    if (v === null) patch.interface = null;
+    else if (typeof v === "string" && v.trim() && !/:/.test(v)) patch.interface = v.trim();
+    else return null;
+  }
+  for (const key of ["peerPort", "dhtPort"] as const) {
+    if (!(key in raw)) continue;
+    const v = raw[key];
+    if (v === null) patch[key] = null;
+    else if (validPort(v)) patch[key] = v;
+    else return null;
+  }
+  if (Object.keys(patch).length === 0) return null;
+  return patch;
 }
 
 // Pure request router — no node:http types, so it's trivially testable.
@@ -257,6 +288,21 @@ export async function handleApi(
   }
   if (method === "GET" && (urlPath === "/downloads" || urlPath === "/status")) {
     return { status: 200, body: statusPayload(runtime) };
+  }
+  if (method === "GET" && urlPath === "/network") {
+    return { status: 200, body: { ...runtime.queue.networkStatus() } };
+  }
+  if (method === "POST" && urlPath === "/network") {
+    const patch = parseNetworkPatch(bodyText);
+    if (!patch) {
+      return {
+        status: 400,
+        body: { error: "expected { interface?: string|null, peerPort?: 1-65535|null, dhtPort?: 1-65535|null }" },
+      };
+    }
+    const result = runtime.queue.reconfigureNetwork(patch);
+    if (!result.ok) return { status: 400, body: { error: result.error } };
+    return { status: 200, body: { ok: true, ...result.status } };
   }
   if (method === "POST" && urlPath === "/add") {
     // A .torrent is tried first because it is strictly more information: it
@@ -344,6 +390,7 @@ export async function runServe(options: ServeOptions = {}): Promise<void> {
   }
 
   const runtime = await startRuntime(options.downloadDir, { playlist: options.playlist });
+  logNetwork(runtime.queue, log);
 
   // Always on: with no --seed-time it only acts on torrents that carry their
   // own limit (set over the API), and does nothing at all otherwise.
