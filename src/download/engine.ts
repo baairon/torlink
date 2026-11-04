@@ -50,17 +50,16 @@ export class TorrentEngine {
       // and let UPnP handle NAT traversal instead.
       //
       // TORLINK_NO_UTP turns uTP off. It stays on by default, the way every
-      // major client ships it, but webtorrent can exhaust the socket pool with
-      // it: `utp-native` multiplexes perfectly well (UTP.prototype.connect
-      // reuses an existing binding) and webtorrent already holds a bound uTP
-      // socket on the TCP port, yet lib/torrent.js dials through the
-      // module-level `UTP.connect`, which allocates a fresh UDP socket per
-      // outgoing peer. Sockets then scale with peer count until the ephemeral
-      // port pool or buffer space runs out (WSAENOBUFS on Windows, EMFILE
-      // against the fd limit elsewhere), and a failed bind is re-emitted on an
-      // emitter nothing listens to, so it arrives as an uncaughtException and
-      // kills the process. The opt-out is a workaround until that dial path is
-      // fixed upstream.
+      // major client ships it. Up to webtorrent 2.8.5, lib/torrent.js dialed
+      // every outgoing uTP peer through the module-level `UTP.connect`, which
+      // bound a fresh UDP socket (plus a 20 ms utp-native timer) per peer, and
+      // a peer destroyed while still in the dial queue was dialed anyway with
+      // nothing left to close it. Sockets then grew with peer churn until the
+      // port pool or buffer space ran out (WSAENOBUFS, #185), or a 10-day
+      // daemon sat on ~1000 dead sockets with no torrents at all (#205).
+      // webtorrent 3 (webtorrent/webtorrent#3019) dials over the one listening
+      // uTP socket instead, which is why the dependency is on 3.x. The opt-out
+      // stays for anyone who wants TCP-only peers.
       const opts = {
         ...(process.env.TORLINK_NO_UTP ? { utp: false } : {}),
         ...(process.platform === "darwin" ? { natPmp: false } : {}),
