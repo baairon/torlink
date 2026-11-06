@@ -39,7 +39,9 @@ function leech(
   timeout: number,
 ): Promise<{ done: boolean; downloaded: number }> {
   return new Promise((resolve) => {
-    const client = new WebTorrent({ dht: false, tracker: false, lsd: false });
+    // Plaintext, as torlink itself is: webtorrent 3's default opens with an
+    // encrypted handshake that a plaintext peer refuses, and never falls back.
+    const client = new WebTorrent({ dht: false, tracker: false, lsd: false, secure: 0 });
     const torrent = client.add(source, { path: dir, announce: [] });
     let settled = false;
     let rewire: ReturnType<typeof setInterval> | null = null;

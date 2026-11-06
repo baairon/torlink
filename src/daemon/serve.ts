@@ -11,7 +11,7 @@ import http from "node:http";
 import { startRuntime, addInput, type Runtime } from "./runtime";
 import { magnetFromTorrentBytes } from "../sources/torrentFile";
 import { startSeedReaper } from "./seed-reaper";
-import { LOOPBACK_HOSTS, isAuthorized, hostHeaderOk } from "./auth";
+import { LOOPBACK_HOSTS, isAuthorized, hostHeaderOk, localRequestOk } from "./auth";
 import { parseDuration } from "../util/duration";
 import { logNetwork, validPort } from "../download/network";
 import type { NetworkPatch } from "../download/engine";
@@ -400,12 +400,13 @@ export async function runServe(options: ServeOptions = {}): Promise<void> {
     void (async () => {
       const method = req.method ?? "GET";
       const urlPath = (req.url ?? "/").split("?")[0]!;
-      // Tokenless means loopback-bound; require a loopback Host so a hostile
-      // webpage can't reach us through DNS rebinding.
-      if (!token && !hostHeaderOk(req.headers.host)) {
+      // Tokenless means loopback-bound; require a loopback Host and no Origin
+      // so a hostile webpage can't drive us, by DNS rebinding or a no-cors POST.
+      if (!token && !localRequestOk(req.headers.host, req.headers.origin)) {
+        const why = hostHeaderOk(req.headers.host) ? "origin" : "host";
         res.writeHead(403, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ error: "forbidden host" }));
-        log(`${method} ${urlPath} -> 403 (host)`);
+        res.end(JSON.stringify({ error: `forbidden ${why}` }));
+        log(`${method} ${urlPath} -> 403 (${why})`);
         return;
       }
       const body = method === "POST" ? await readBody(req) : { text: "", tooLarge: false };

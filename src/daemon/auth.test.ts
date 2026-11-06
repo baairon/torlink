@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isAuthorized, hostHeaderOk } from "./auth";
+import { isAuthorized, hostHeaderOk, localRequestOk } from "./auth";
 
 describe("isAuthorized", () => {
   it("is open when no token is configured", () => {
@@ -36,5 +36,16 @@ describe("hostHeaderOk", () => {
     expect(hostHeaderOk(undefined)).toBe(false);
     expect(hostHeaderOk("")).toBe(false);
     expect(hostHeaderOk("[::1")).toBe(false);
+  });
+});
+
+describe("localRequestOk", () => {
+  it("accepts a loopback request without an Origin (curl, scripts)", () => {
+    expect(localRequestOk("127.0.0.1:9161", undefined)).toBe(true);
+  });
+  it("rejects anything a browser sent, whatever the Host", () => {
+    expect(localRequestOk("127.0.0.1:9161", "https://attacker.example")).toBe(false);
+    expect(localRequestOk("127.0.0.1:9161", "null")).toBe(false);
+    expect(localRequestOk("attacker.example", undefined)).toBe(false);
   });
 });

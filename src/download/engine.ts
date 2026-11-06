@@ -289,7 +289,11 @@ export class TorrentEngine {
       // socket is bound natively as well, and when that patch is unavailable
       // uTP stays off rather than open on every interface.
       const bound = this.net.interface !== undefined;
+      // webtorrent 3 opens every outgoing peer with an encrypted handshake by
+      // default, which plaintext-only peers (torlink 1.10 among them) refuse.
+      // 1.10 never encrypted, so neither does this.
       const opts = {
+        secure: 0 as const,
         ...(this.net.peerPort ? { torrentPort: this.net.peerPort } : {}),
         ...(this.net.dhtPort ? { dhtPort: this.net.dhtPort } : {}),
         ...(bound

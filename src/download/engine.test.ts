@@ -239,6 +239,7 @@ describe("TorrentEngine fixed ports (#164)", () => {
     engine.destroy();
     expect(constructorCalls[0]).not.toHaveProperty("torrentPort");
     expect(constructorCalls[0]).not.toHaveProperty("dhtPort");
+    expect(constructorCalls[0]).toMatchObject({ secure: 0 });
     expect(engine.networkStatus()).toMatchObject({ interface: null, address: null, online: true });
   });
 });
@@ -249,7 +250,7 @@ describe("TorrentEngine bound to an interface (#164)", () => {
     const { TorrentEngine } = await import("./engine");
     const engine = new TorrentEngine({ interface: "wg0", interfaces: () => table({ wg0: "10.2.0.2" }) });
     engine.add("test-id", MAGNET, "/downloads", {});
-    expect(constructorCalls[0]).toMatchObject({ lsd: false, natUpnp: false, natPmp: false, tracker: { wrtc: false } });
+    expect(constructorCalls[0]).toMatchObject({ secure: 0, lsd: false, natUpnp: false, natPmp: false, tracker: { wrtc: false } });
     engine.destroy();
   });
 

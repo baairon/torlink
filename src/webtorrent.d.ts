@@ -52,6 +52,7 @@ declare module "webtorrent" {
     lsd?: boolean;
     natPmp?: boolean;
     natUpnp?: boolean | "permanent";
+    secure?: 0 | 1 | 2;
   }
 
   class WebTorrent extends EventEmitter {

@@ -79,9 +79,13 @@ export async function runSeed(target: string, options: SeedOptions = {}): Promis
   // Hold the process open and shut down cleanly, exactly as watch and serve do.
   // Without this the mode ends here and stays alive only because webtorrent's
   // handles do, so a SIGTERM (systemctl stop, or ctrl-c) would kill it without
-  // ever flushing state through suspend().
+  // ever flushing state through suspend(). The interval holds the event loop
+  // itself: bound to an interface that drops, the client and its sockets are
+  // torn down and nothing else would.
   await new Promise<void>((resolve) => {
+    const hold = setInterval(() => {}, 1 << 30);
     const shutdown = (): void => {
+      clearInterval(hold);
       runtime.queue.suspend();
       resolve();
     };

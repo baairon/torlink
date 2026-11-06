@@ -39,3 +39,11 @@ export function hostHeaderOk(hostHeader: string | undefined): boolean {
   }
   return LOOPBACK_HOSTS.has(name);
 }
+
+// A page can still reach loopback with its Host intact through a no-cors POST,
+// which needs no preflight; POST /network {"interface":null} would unbind. The
+// browser stamps every such request with Origin, and curl and scripts never
+// send one, so a tokenless API refuses anything that carries it.
+export function localRequestOk(hostHeader: string | undefined, origin: string | undefined): boolean {
+  return hostHeaderOk(hostHeader) && origin === undefined;
+}

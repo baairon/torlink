@@ -341,7 +341,9 @@ network (TUI/watch/serve/seed; search takes --interface alone):
 Env: TORLINK_INTERFACE, TORLINK_PEER_PORT, TORLINK_DHT_PORT (flags win; a
 daemon restarted by torlnk update keeps its flags, not its environment).
 IPv4 only; DNS lookups use the OS resolver, and the git/npm processes that
-torlnk update spawns are not bound.
+torlnk update spawns are not bound. On Linux and macOS this sets the source
+address, so use a VPN that routes all traffic (a full tunnel, the usual
+default); Windows also pins the exit interface.
 serve adds GET /network (address, online, listen port, incoming peers) and
 POST /network {"interface":..,"peerPort":..,"dhtPort":..} to change them in
 place, no restart; null clears a field.
