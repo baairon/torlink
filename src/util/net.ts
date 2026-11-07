@@ -113,6 +113,14 @@ export async function fetchResilient(
 
     if (!RETRY_STATUS.has(res.status)) return res;
 
+    // Every path below discards this response. Release its stream and socket
+    // before retrying or throwing, even if the server never finishes the body.
+    try {
+      await res.body?.cancel();
+    } catch {
+      // Cleanup must not hide the HTTP error or prevent a retry.
+    }
+
     const server = res.headers.get("server")?.toLowerCase() || "";
     if (res.status === 503 && (server.includes("ddos-guard") || server.includes("cloudflare"))) {
       throw new HttpError(
