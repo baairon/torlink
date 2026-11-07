@@ -11,6 +11,15 @@ export function unescapeEntities(s: string): string {
     .replace(/&gt;/g, ">");
 }
 
+// The first <img> in a post's body is its cover. Only plain http(s) URLs are
+// kept: the value is fetched later, so nothing else from the feed gets through.
+export function parseCover(item: string): string | undefined {
+  const src = item.match(/<img\b[^>]*?\ssrc="([^"]+)"/i)?.[1];
+  if (!src) return undefined;
+  const url = unescapeEntities(src);
+  return /^https?:\/\/[^\s"<>]+$/i.test(url) ? url : undefined;
+}
+
 function parseRssItems(xml: string, source: SourceId): TorrentResult[] {
   const items = xml.split("<item>").slice(1);
   const out: TorrentResult[] = [];
@@ -25,7 +34,11 @@ function parseRssItems(xml: string, source: SourceId): TorrentResult[] {
     const addedStr = item.match(/<pubDate>(.*?)<\/pubDate>/)?.[1] ?? "";
     const added = addedStr ? new Date(addedStr).getTime() / 1000 : 0;
 
-    out.push({ infoHash, name, sizeBytes: 0, seeders: 0, leechers: 0, source, magnet, added });
+    const cover = parseCover(item);
+    out.push({
+      infoHash, name, sizeBytes: 0, seeders: 0, leechers: 0, source, magnet, added,
+      ...(cover ? { cover } : {}),
+    });
   }
   return out;
 }

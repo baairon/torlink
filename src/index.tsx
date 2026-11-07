@@ -7,6 +7,7 @@ import { armInterface, exportNetworkEnv } from "./download/network";
 import { bindAddress, interfaceNames } from "./util/bind";
 import { VERSION } from "./version";
 import { App } from "./ui/App";
+import { installOverlay, sixelSupported } from "./ui/overlay";
 
 const cmd = parseCliArgs(process.argv.slice(2));
 
@@ -142,6 +143,8 @@ if (cmd.kind === "update") {
 // cursor (the search field block, list pointers), so the terminal's should
 // stay hidden. restoreTerminal shows it again on exit.
 process.stdout.write("\x1b[?1049h\x1b[?25l\x1b[22;0t\x1b]0;torlink\x07");
+// Game covers as real images where the terminal draws Sixel; text blocks otherwise.
+if (sixelSupported()) installOverlay(process.stdout);
 if (process.platform === "win32") process.title = "torlink";
 
 let restored = false;
