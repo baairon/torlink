@@ -39,6 +39,39 @@ afterEach(() => {
 });
 
 describe("cachedSearch", () => {
+  it("does not cache an empty recovery interrupted by cancellation", async () => {
+    const cachedSearch = await freshCache();
+    const source = countingSource();
+    const row = (await source.search("Elden Ring"))[0]!;
+    const controller = new AbortController();
+    const search = vi.fn(async (query: string) => {
+      if (query !== "elden") return [];
+      if (!controller.signal.aborted) {
+        controller.abort();
+        throw new DOMException("Cancelled", "AbortError");
+      }
+      return [row];
+    });
+    source.search = search;
+
+    expect(await cachedSearch(source, "elden rign", { signal: controller.signal })).toEqual([]);
+    expect(await cachedSearch(source, "elden rign")).toEqual([row]);
+    expect(search.mock.calls.map(([query]) => query))
+      .toEqual(["elden rign", "elden", "elden rign", "elden"]);
+  });
+
+  it("caches recovered results under the original query", async () => {
+    const cachedSearch = await freshCache();
+    const source = countingSource();
+    const row = (await source.search("Elden Ring"))[0]!;
+    const search = vi.fn(async (query: string) => query === "elden" ? [row] : []);
+    source.search = search;
+
+    expect(await cachedSearch(source, "elden rign")).toEqual([row]);
+    expect(await cachedSearch(source, "  ELDEN RIGN ")).toEqual([row]);
+    expect(search.mock.calls.map(([query]) => query)).toEqual(["elden rign", "elden"]);
+  });
+
   it("serves a repeat query from the cache", async () => {
     const cachedSearch = await freshCache();
     const source = countingSource();
