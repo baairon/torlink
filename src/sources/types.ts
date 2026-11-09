@@ -20,6 +20,8 @@ export interface TorrentResult {
   source: SourceId;
   magnet: string;
   added?: number;
+  // Cover art URL, when the source's post embeds one (FitGirl does).
+  cover?: string;
 }
 
 export interface SearchOptions {

@@ -6,6 +6,7 @@ import { SearchBar } from "./SearchBar";
 import { TextField } from "./TextField";
 import { Panel } from "./Panel";
 import { Rule } from "./Rule";
+import { CoverPreview } from "./CoverPreview";
 import { useConcurrentSearch } from "../hooks/useConcurrentSearch";
 import { getSource, SOURCES } from "../../sources/registry";
 import { stickCursor, wrapStep, windowStart, resultsPanelOuter } from "../move";
@@ -22,6 +23,12 @@ type Mode = "list" | "search" | "detail" | "filter";
 const MARK_W = 2;
 
 const PLACEHOLDER = "Search or paste a magnet link…";
+
+// Cover preview beside the list: its width in cells, the gap before it, and
+// the narrowest the list may get before the preview is dropped.
+const COVER_W = 26;
+const COVER_GAP = 2;
+const MIN_LIST_W = 48;
 
 function DetailRow({ label, value }: { label: string; value: ReactNode }) {
   return (
@@ -417,6 +424,12 @@ export function Results() {
   const start = windowStart(clamped, results.length, listHeight);
   const visible = results.slice(start, start + listHeight);
   const count = results.length > 0 ? `(${results.length})` : undefined;
+  // The cover column is held while any visible row has art, so the list
+  // doesn't jump sideways when the cursor crosses a row without one.
+  const innerW = contentWidth - 4;
+  const showCover =
+    innerW - COVER_W - COVER_GAP >= MIN_LIST_W && visible.some((r) => r.cover);
+  const coverH = Math.max(1, panelOuter - 1);
 
   return (
     <Box flexDirection="column">
@@ -440,7 +453,8 @@ export function Results() {
           {mode === "detail" && detail ? (
             <Detail r={detail} width={Math.max(10, contentWidth - 4)} />
           ) : (
-            <>
+            <Box>
+            <Box flexDirection="column" flexGrow={1} minWidth={0}>
               <Box>{status()}</Box>
               <Box flexDirection="column" marginTop={results.length > 0 ? 1 : 0}>
                 {results.length > 0 ? (
@@ -538,7 +552,13 @@ export function Results() {
                   );
                 })}
               </Box>
-            </>
+            </Box>
+            {showCover ? (
+              <Box marginLeft={COVER_GAP} flexShrink={0}>
+                <CoverPreview url={results[clamped]?.cover} width={COVER_W} height={coverH} />
+              </Box>
+            ) : null}
+            </Box>
           )}
         </Panel>
       </Box>
