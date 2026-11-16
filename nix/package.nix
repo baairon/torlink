@@ -107,9 +107,9 @@ buildNpmPackage (finalAttrs: {
   '';
 
   meta = {
-    description = "Torlink is a torrent finder that lives in your terminal, with zero setup and nothing to configure.";
-    homepage = "https://git.bairon.dev/baairon/torlink";
-    changelog = "https://git.bairon.dev/baairon/torlink/releases/tag/v${finalAttrs.version}";
+    description = "Zero-setup torrent finder and downloader that lives right in your terminal";
+    homepage = "https://torlink.bairon.dev";
+    changelog = "https://github.com/baairon/torlink/releases/tag/v${finalAttrs.version}";
     license = lib.licenses.mit;
     maintainers = with lib.maintainers; [ ghastrum ];
     mainProgram = "torlnk";
