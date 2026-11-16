@@ -153,15 +153,14 @@ save(
       <Text dimColor>{CATEGORIES}</Text>
     </Box>
     <Box marginTop={1} width={62}>
-      <SearchBar width={62} value="" editing placeholder="Search or paste a magnet link…" onSubmit={() => {}} />
+      <SearchBar width={62} value="" editing placeholder="Search, paste a magnet, or drop a .torrent…" onSubmit={() => {}} />
     </Box>
     <Box marginTop={1}>
       <Text>
         <Text color={COLOR.alt}>↵</Text>
         <Text dimColor> search</Text>
         <Text dimColor>{`  ${ICON.dot}  `}</Text>
-        <Text dimColor>empty </Text>
-        <Text color={COLOR.alt}>↵</Text>
+        <Text color={COLOR.alt}>⇥</Text>
         <Text dimColor> browse</Text>
         <Text dimColor>{`  ${ICON.dot}  `}</Text>
         <Text color={COLOR.alt}>^c</Text>
@@ -187,7 +186,7 @@ save(
     <Box height={14} marginTop={1}>
       <Sidebar />
       <Box flexGrow={1} flexDirection="column">
-        <SearchBar width={CONTENT_WIDTH} value="" editing={false} placeholder="Search or paste a magnet link…" onSubmit={() => {}} />
+        <SearchBar width={CONTENT_WIDTH} value="" editing={false} placeholder="Search, paste a magnet, or drop a .torrent…" onSubmit={() => {}} />
         <Box marginTop={1}>
           <Panel title="latest" width={CONTENT_WIDTH} focused count={`(${browseResults.length})`} height={9}>
             <Box><Text dimColor>newest across all sources</Text></Box>

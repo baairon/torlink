@@ -21,7 +21,7 @@ type Mode = "list" | "search" | "detail" | "filter";
 // shares the row; the second cell is the gap before the row number.
 const MARK_W = 2;
 
-const PLACEHOLDER = "Search or paste a magnet link…";
+const PLACEHOLDER = "Search, paste a magnet, or drop a .torrent…";
 
 function DetailRow({ label, value }: { label: string; value: ReactNode }) {
   return (

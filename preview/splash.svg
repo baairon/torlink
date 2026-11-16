@@ -47,14 +47,14 @@
     <text x="137.6" y="282" textLength="9.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#a78bfa">❯</text>
     <rect x="156.8" y="266" width="9.6" height="22" fill="#ddd8ea"/>
     <text x="156.8" y="282" textLength="9.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#0a0810">S</text>
-    <text x="166.4" y="282" textLength="278.4" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill-opacity="0.55">earch or paste a magnet link…</text>
+    <text x="166.4" y="282" textLength="403.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill-opacity="0.55">earch, paste a magnet, or drop a .torrent…</text>
     <rect x="708.1" y="266" width="1.4" height="22" fill="#a78bfa"/>
     <text x="118.4" y="304" textLength="595.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#a78bfa">╰────────────────────────────────────────────────────────────╯</text>
-    <text x="233.6" y="348" textLength="9.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#b9a7e6">↵</text>
-    <text x="252.8" y="348" textLength="153.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill-opacity="0.55">search  ·  empty</text>
-    <text x="416" y="348" textLength="9.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#b9a7e6">↵</text>
-    <text x="435.2" y="348" textLength="86.4" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill-opacity="0.55">browse  ·</text>
-    <text x="540.8" y="348" textLength="19.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#b9a7e6">^c</text>
-    <text x="569.6" y="348" textLength="38.4" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill-opacity="0.55">quit</text>
+    <text x="262.4" y="348" textLength="9.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#b9a7e6">↵</text>
+    <text x="281.6" y="348" textLength="86.4" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill-opacity="0.55">search  ·</text>
+    <text x="387.2" y="348" textLength="9.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#b9a7e6">⇥</text>
+    <text x="406.4" y="348" textLength="86.4" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill-opacity="0.55">browse  ·</text>
+    <text x="512" y="348" textLength="19.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#b9a7e6">^c</text>
+    <text x="540.8" y="348" textLength="38.4" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill-opacity="0.55">quit</text>
   </g>
 </svg>

@@ -35,7 +35,7 @@ export const HELP_GROUPS: HelpGroup[] = [
       { keys: "y", label: "Copy magnet" },
       { keys: "↵", label: "Open details" },
       { keys: "e", label: "Export as .torrent" },
-      { keys: "m", label: "Paste magnet" },
+      { keys: "m", label: "Paste magnet or .torrent" },
     ],
   },
   {

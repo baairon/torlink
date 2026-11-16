@@ -1,5 +1,8 @@
+import path from "node:path";
 import { render } from "ink";
 import { parseCliArgs, HELP_TEXT } from "./cli/args";
+import { claim, type Handoff } from "./cli/handoff";
+import { resolveTorrentPath } from "./sources/torrentPath";
 import { daemonize } from "./daemon/daemonize";
 import { runAttach } from "./daemon/attach";
 import { containUnhandledRejections, logCrash } from "./util/crashlog";
@@ -138,6 +141,20 @@ if (cmd.kind === "update") {
     .catch(failHeadless);
 } else {
 
+// A magnet or .torrent given while torlink is already open goes to that
+// window (#216); only a launch nobody took becomes a TUI of its own. The
+// path is made absolute here because the other window has its own cwd.
+const launch: Handoff | undefined = cmd.initialMagnet
+  ? { magnet: cmd.initialMagnet }
+  : cmd.initialTorrent
+    ? { torrent: path.resolve(resolveTorrentPath(cmd.initialTorrent) ?? cmd.initialTorrent) }
+    : undefined;
+const inbox = await claim(launch);
+if (inbox === "sent") {
+  console.log("Sent to the running torlink.");
+  process.exit(0);
+}
+
 // Enter the alt-screen and hide the hardware cursor: the TUI draws its own
 // cursor (the search field block, list pointers), so the terminal's should
 // stay hidden. restoreTerminal shows it again on exit.
@@ -174,6 +191,7 @@ const app = render(
   <App
     initialMagnet={cmd.initialMagnet}
     initialTorrent={cmd.initialTorrent}
+    inbox={inbox}
     playlist={cmd.playlist}
     onQuit={() => forceExit(0)}
   />,

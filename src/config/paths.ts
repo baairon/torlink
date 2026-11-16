@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import os from "node:os";
 import path from "node:path";
 import envPaths from "env-paths";
@@ -33,3 +34,12 @@ export const bootMarkerFile = path.join(dataDir, "boot.marker");
 
 // Where a --daemon headless run writes its log and pidfile.
 export const logsDir = path.join(dataDir, "logs");
+
+// Where the running TUI listens for a magnet or .torrent handed over by a
+// later launch (see cli/handoff.ts). A socket file beside the state on Linux
+// and macOS; Windows has no socket files, so a named pipe keyed on the state
+// folder, which keeps it per user and per TORLINK_STATE_DIR there too.
+export const handoffEndpoint =
+  process.platform === "win32"
+    ? `\\\\.\\pipe\\torlink-${createHash("sha1").update(dataDir).digest("hex").slice(0, 12)}`
+    : path.join(dataDir, "handoff.sock");

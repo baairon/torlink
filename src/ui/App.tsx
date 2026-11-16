@@ -17,6 +17,7 @@ import { logCrash } from "../util/crashlog";
 import { parseInput } from "../sources/magnet";
 import { magnetFromTorrentFile } from "../sources/torrentFile";
 import { resolveTorrentPath } from "../sources/torrentPath";
+import type { Inbox } from "../cli/handoff";
 import { readClipboard, writeClipboard } from "../util/clipboard";
 import { openFolder } from "../util/openFolder";
 import { cleanText, formatBytes, truncate } from "../util/format";
@@ -69,9 +70,16 @@ function downloadSubject(inputs: DownloadInput[]): string {
 export function App({
   initialMagnet,
   initialTorrent,
+  inbox,
   playlist,
   onQuit,
-}: { initialMagnet?: string; initialTorrent?: string; playlist?: boolean; onQuit?: () => void } = {}) {
+}: {
+  initialMagnet?: string;
+  initialTorrent?: string;
+  inbox?: Inbox | null;
+  playlist?: boolean;
+  onQuit?: () => void;
+} = {}) {
   useMouseWheel();
   const { exit } = useApp();
   const { isRawModeSupported } = useStdin();
@@ -472,6 +480,26 @@ export function App({
     }
     setNotice("No magnet link on the clipboard.");
   }, [startDownload, startFromTorrentFile]);
+
+  // A magnet or .torrent passed to a later `torlnk` launch lands here instead
+  // of opening a second window (cli/handoff.ts), and is queued the way the
+  // search field would queue it.
+  useEffect(() => {
+    if (!inbox || !queue || !config) return;
+    return inbox.subscribe((msg) => {
+      if ("torrent" in msg) {
+        startFromTorrentFile(msg.torrent);
+        return;
+      }
+      const magnet = parseInput(msg.magnet);
+      if (!magnet) {
+        setNotice("Couldn't read that magnet link.");
+        return;
+      }
+      startDownload({ id: magnet.infoHash, name: magnet.name, magnet: magnet.magnet });
+      setView("browser");
+    });
+  }, [inbox, queue, config, startDownload, startFromTorrentFile]);
 
   useEffect(() => {
     if (!notice) return;
