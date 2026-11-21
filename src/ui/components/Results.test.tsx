@@ -18,6 +18,17 @@ vi.mock("../hooks/useConcurrentSearch", () => ({
   useConcurrentSearch: () => searchState.current,
 }));
 
+// Each cover renders as one row naming its URL, so tests can see which one is up.
+const coverLoads = vi.hoisted(() => [] as string[]);
+vi.mock("../cover", () => ({
+  loadPixels: async (url: string) => {
+    coverLoads.push(url);
+    return url.includes("broken") ? null : { width: 1, height: 1, data: new Uint8Array(4), url };
+  },
+  fitCells: () => ({ cols: 1, rows: 1 }),
+  toHalfBlocks: (img: { url: string }) => [`[cover ${img.url.split("/").pop()}]`],
+}));
+
 const t = (infoHash: string, name: string): TorrentResult => ({
   infoHash,
   name,
@@ -64,6 +75,8 @@ async function mount(
     <StoreContext.Provider value={makeTestStore({ query: "linux iso", ...store })}>
       <Results />
     </StoreContext.Provider>,
+    // A wider panel needs a terminal to match, or Ink wraps every line.
+    store.contentWidth ? { cols: store.contentWidth + 20 } : {},
   );
   const u = ui;
   await vi.waitFor(() => expect(u.frame()).toContain(`Results (${results.length})`));
@@ -320,5 +333,69 @@ describe("Results multi-select", () => {
     u.press("D");
     await vi.waitFor(() => expect(requestDownloadTo).toHaveBeenCalledTimes(1));
     expect(requestDownloadTo.mock.calls[0]![0].map((r: { id: string }) => r.id)).toEqual(["a1"]);
+  });
+});
+
+describe("Results cover preview", () => {
+  const WIDE = 110;
+  const game = (infoHash: string, name: string, cover?: string): TorrentResult => ({
+    ...t(infoHash, name),
+    source: "fitgirl",
+    ...(cover ? { cover } : {}),
+  });
+  const GAMES = [
+    game("g1", "Alpha Game", "https://img.test/alpha.jpg"),
+    game("g2", "Beta Game", "https://img.test/beta.jpg"),
+    game("g3", "Gamma Game"),
+    game("g4", "Delta Game", "https://img.test/broken.jpg"),
+  ];
+
+  afterEach(() => {
+    coverLoads.length = 0;
+  });
+
+  // One key per frame: presses sent together arrive as a single "jj" input.
+  async function down(u: RenderedUI, toRow: number): Promise<void> {
+    u.press("j");
+    await vi.waitFor(() => expect(u.frame()).toMatch(new RegExp(`❯\\s+${toRow} `)), { interval: 5 });
+  }
+
+  it("shows the cover of the row under the cursor and follows it", async () => {
+    const u = await mount(GAMES, { contentWidth: WIDE });
+    await vi.waitFor(() => expect(u.frame()).toContain("[cover alpha.jpg]"));
+    await down(u, 2);
+    await vi.waitFor(() => expect(u.frame()).toContain("[cover beta.jpg]"));
+    expect(u.frame()).not.toContain("alpha.jpg");
+    for (const l of lines(u)) expect(l.length).toBeLessThanOrEqual(WIDE);
+  });
+
+  it("keeps the column but says so when a row has no usable cover", async () => {
+    const u = await mount(GAMES, { contentWidth: WIDE });
+    await down(u, 2);
+    await down(u, 3);
+    await down(u, 4);
+    await vi.waitFor(() => expect(u.frame()).toContain("no preview"));
+  });
+
+  it("doesn't fetch rows the cursor only passes through", async () => {
+    const u = await mount(GAMES, { contentWidth: WIDE });
+    await down(u, 2);
+    await down(u, 3);
+    await down(u, 4);
+    await vi.waitFor(() => expect(u.frame()).toContain("no preview"));
+    expect(coverLoads).not.toContain("https://img.test/beta.jpg");
+    expect(coverLoads.at(-1)).toBe("https://img.test/broken.jpg");
+  });
+
+  it("is hidden when no row has a cover", async () => {
+    const u = await mount(LIST, { contentWidth: WIDE });
+    expect(u.frame()).not.toContain("cover");
+  });
+
+  it("is hidden when the terminal is too narrow", async () => {
+    const u = await mount(GAMES);
+    await new Promise((r) => setTimeout(r, 200));
+    expect(u.frame()).not.toContain("[cover");
+    expect(coverLoads).toEqual([]);
   });
 });

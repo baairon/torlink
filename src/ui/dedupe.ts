@@ -22,6 +22,7 @@ function merge(a: TorrentResult, b: TorrentResult): TorrentResult {
     magnet: mergeMagnetTrackers(win.magnet, [lost.magnet]),
     numFiles: win.numFiles ?? lost.numFiles,
     added: win.added ?? lost.added,
+    cover: win.cover ?? lost.cover,
   };
 }
 

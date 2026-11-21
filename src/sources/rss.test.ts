@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { fetchWordpressRss, unescapeEntities } from "./rss";
+import { fetchWordpressRss, parseCover, unescapeEntities } from "./rss";
 import { fetchResilient } from "../util/net";
 
 vi.mock("../util/net", async (importOriginal) => {
@@ -102,6 +102,31 @@ describe("fetchWordpressRss", () => {
       "https://x.site/?s=elden%20ring&feed=rss2&orderby=relevance&paged=2",
       "https://x.site/?s=elden%20ring&feed=rss2&orderby=relevance&paged=3",
     ]);
+  });
+});
+
+describe("parseCover", () => {
+  it("takes the first image in the post body", () => {
+    const body =
+      `<content:encoded><![CDATA[<p><a href="x"><img decoding="async" class="alignleft" width="150" ` +
+      `src="https://i3.imageban.ru/out/a.jpg" /></a><img src="https://other/b.jpg"></p>]]>`;
+    expect(parseCover(body)).toBe("https://i3.imageban.ru/out/a.jpg");
+  });
+
+  it("ignores anything that isn't a plain http(s) URL", () => {
+    expect(parseCover(`<img src="javascript:alert(1)">`)).toBeUndefined();
+    expect(parseCover(`<img src="data:image/png;base64,AAAA">`)).toBeUndefined();
+    expect(parseCover(`<p>no image</p>`)).toBeUndefined();
+  });
+
+  it("is carried onto the parsed result", async () => {
+    const hash = "c".repeat(40);
+    const withCover =
+      `<item><title>Game</title><img src="https://img.site/c.jpg">` +
+      `<a href="magnet:?xt=urn:btih:${hash}">m</a></item>`;
+    mockFetch.mockResolvedValueOnce(page(feed(withCover)));
+    const [r] = await fetchWordpressRss("https://x.site", "fitgirl", "");
+    expect(r!.cover).toBe("https://img.site/c.jpg");
   });
 });
 
