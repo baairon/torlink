@@ -2,7 +2,7 @@
 # (profullstack/threatcrush → .github/workflows/threatcrush-scan.yml).
 # Deviations from that pack, all to fit this repo:
 #   - Node 22, not 20, matching `engines.node` and the CI matrix floor
-#   - fails on critical/high, matching vu1nz-scan.yml, which already does
+#   - fails on critical/high findings
 #   - the legacy text-output compatibility path is dropped; see "Detect the
 #     CLI output interface" below
 # The sh1pt fleet header is deliberately not carried over: this file is no
@@ -85,8 +85,7 @@ jobs:
           fi
           echo "Native SARIF output available."
 
-      # --fail-on critical,high matches vu1nz-scan.yml, which already exits 1
-      # on high/critical findings. It is not as noisy as it sounds:
+      # --fail-on critical,high exits 1 on high/critical findings. It is not as noisy as it sounds:
       # `pattern`-confidence findings are capped at medium upstream, so a bare
       # "this construct exists" match cannot break a build. Only `contextual`
       # and `evidence` findings reach this floor. Drop the flag to make the
@@ -237,7 +236,7 @@ jobs:
           path: threatcrush.sarif
           retention-days: 30
 
-      # Best-effort, exactly as vu1nz-scan.yml treats its own comment step.
+      # Best-effort comment step.
       # `pull_request` gives fork PRs a read-only token, so this 403s on fork
       # submissions — the report is in the job summary either way, and the
       # scan's pass/fail is decided by the scan step, not by whether a comment
