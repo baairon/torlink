@@ -1,15 +1,33 @@
 import { Box, Text } from "ink";
 import { COL_GAP, FRAME, KEY_W, pickLayout } from "../helpLayout";
 import { HELP_GROUPS } from "../keymap";
-import { useStore } from "../store";
+import { useStore, type Section } from "../store";
 import { COLOR, ICON, RULE, lerpHex } from "../theme";
+import { Clickable, hintBytes } from "../mouse";
 
 const CARD_BORDER = lerpHex(COLOR.accent, RULE, 0.55);
 
 const FOOT_FULL = "Your downloaded files always stay on disk.";
 
-export function HelpOverlay() {
-  const { cols, rows } = useStore();
+// A key in the sheet only does what its row says while its own list is the
+// one on screen, so only those rows (and the always-on Navigate keys) click.
+function applies(title: string, section: Section): boolean {
+  if (title === "Navigate") return true;
+  if (title === "Downloads") return section === "downloads";
+  if (title === "Seeding") return section === "seeding";
+  return section !== "downloads" && section !== "seeding";
+}
+
+export function HelpOverlay({
+  onClose,
+  onPick,
+}: {
+  /** A click on the sheet itself closes it, as any key does. */
+  onClose?: () => void;
+  /** A click on a key's row closes the sheet and runs that key. */
+  onPick?: (bytes: string, group: string) => void;
+} = {}) {
+  const { cols, rows, section } = useStore();
   const m = pickLayout(cols);
   const width = Math.min(m.width, cols - 2);
   // Condense when the full card (gridH + 9 rows, under 3 rows of app chrome)
@@ -17,7 +35,8 @@ export function HelpOverlay() {
   const short = rows < m.gridH + 12 || width - FRAME < FOOT_FULL.length;
 
   return (
-    <Box
+    <Clickable
+      onClick={onClose}
       flexDirection="column"
       alignSelf="flex-start"
       width={width}
@@ -46,16 +65,22 @@ export function HelpOverlay() {
                   marginTop={pos > 0 ? 1 : 0}
                 >
                   <Text bold>{group.title}</Text>
-                  {group.hints.map((h) => (
-                    <Box key={h.keys + h.label}>
-                      <Box width={KEY_W[gi]} flexShrink={0}>
-                        <Text color={COLOR.alt}>{h.keys}</Text>
-                      </Box>
-                      <Text dimColor wrap="truncate-end">
-                        {h.label}
-                      </Text>
-                    </Box>
-                  ))}
+                  {group.hints.map((h) => {
+                    const bytes = applies(group.title, section) ? hintBytes(h.keys) : null;
+                    return (
+                      <Clickable
+                        key={h.keys + h.label}
+                        onClick={bytes && onPick ? () => onPick(bytes, group.title) : undefined}
+                      >
+                        <Box width={KEY_W[gi]} flexShrink={0}>
+                          <Text color={COLOR.alt}>{h.keys}</Text>
+                        </Box>
+                        <Text dimColor wrap="truncate-end">
+                          {h.label}
+                        </Text>
+                      </Clickable>
+                    );
+                  })}
                 </Box>
               );
             })}
@@ -72,6 +97,6 @@ export function HelpOverlay() {
           <Text dimColor>Press ? or esc to close</Text>
         </Box>
       )}
-    </Box>
+    </Clickable>
   );
 }

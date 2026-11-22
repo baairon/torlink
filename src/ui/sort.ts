@@ -36,6 +36,18 @@ export function nextSort(current: Sort): Sort {
   return SORT_CYCLE[(i + 1) % SORT_CYCLE.length]!;
 }
 
+/**
+ * What clicking a column header does: the first click sorts by that column
+ * the way it is usually wanted (biggest or most seeded first, sources A-Z),
+ * the second flips it, the third goes back to the default order.
+ */
+export function clickSort(current: Sort, field: SortField): Sort {
+  const first: SortDir = field === "source" ? "asc" : "desc";
+  if (current === "none" || current.field !== field) return { field, dir: first };
+  if (current.dir === first) return { field, dir: first === "asc" ? "desc" : "asc" };
+  return "none";
+}
+
 export function sortArrow(dir: SortDir): string {
   return dir === "asc" ? "▴" : "▾";
 }

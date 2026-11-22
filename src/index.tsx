@@ -157,8 +157,10 @@ if (inbox === "sent") {
 
 // Enter the alt-screen and hide the hardware cursor: the TUI draws its own
 // cursor (the search field block, list pointers), so the terminal's should
-// stay hidden. restoreTerminal shows it again on exit.
-process.stdout.write("\x1b[?1049h\x1b[?25l\x1b[22;0t\x1b]0;torlink\x07");
+// stay hidden. restoreTerminal shows it again on exit. The cursor is homed
+// because terminals differ on where it lands in the alt-screen, and a click
+// is matched to the layout by counting rows from the top of the screen.
+process.stdout.write("\x1b[?1049h\x1b[H\x1b[?25l\x1b[22;0t\x1b]0;torlink\x07");
 if (process.platform === "win32") process.title = "torlink";
 
 let restored = false;

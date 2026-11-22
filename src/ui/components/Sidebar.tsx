@@ -2,6 +2,7 @@ import { Box, Text, useInput } from "ink";
 import { useStore, useQueueItems, CATEGORIES, type Section } from "../store";
 import { wrapStep } from "../move";
 import { ACCENT_RAMP, COLOR, GUTTER, ICON, RULE } from "../theme";
+import { Clickable } from "../mouse";
 
 interface NavItem {
   key: Section;
@@ -52,7 +53,13 @@ export function Sidebar() {
           {items.map((item) => {
             const selected = item.key === section;
             return (
-              <Box key={item.key}>
+              <Clickable
+                key={item.key}
+                onClick={() => {
+                  setSection(item.key);
+                  setRegion("content");
+                }}
+              >
                 <Box width={GUTTER} flexShrink={0}>
                   {selected ? (
                     <Text color={focused ? ACCENT_RAMP[1] : RULE} bold={focused}>
@@ -75,7 +82,7 @@ export function Sidebar() {
                     </Box>
                   ) : null;
                 })()}
-              </Box>
+              </Clickable>
             );
           })}
         </Box>

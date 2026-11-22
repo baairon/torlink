@@ -15,6 +15,7 @@ import {
 } from "../../util/format";
 import type { QueueItem } from "../../download/types";
 import type { HistoryItem } from "../../download/history";
+import { Clickable } from "../mouse";
 
 const ROWS_PER_ACTIVE = 2;
 const MARK = 2;
@@ -49,6 +50,7 @@ export function Downloads() {
   const {
     queue,
     region,
+    setRegion,
     contentWidth,
     listRows,
     startDownload,
@@ -64,6 +66,12 @@ export function Downloads() {
   const [cursor, setCursor] = useState(0);
   const clamped = Math.min(cursor, Math.max(0, total - 1));
   const inActive = clamped < active.length;
+  // A click puts the cursor on a row; what to do with it stays a second,
+  // deliberate click on a footer action, so nothing is cancelled by accident.
+  const select = (n: number): void => {
+    setRegion("content");
+    setCursor(n);
+  };
   const recentCursor = clamped - active.length;
 
   useInput(
@@ -167,7 +175,7 @@ export function Downloads() {
         const sc = statusColor(it.status);
         const ss = sourceStyle(it.source);
         return (
-          <Box key={it.id} flexDirection="column">
+          <Clickable key={it.id} flexDirection="column" onClick={() => select(activeStart + i)}>
             <Box>
               <Box width={MARK} flexShrink={0}>
                 <Text color={COLOR.accent} bold>
@@ -215,7 +223,7 @@ export function Downloads() {
                 <Text dimColor>{truncate(rightStats(it), statsW)}</Text>
               </Box>
             </Box>
-          </Box>
+          </Clickable>
         );
       })}
 
@@ -230,7 +238,7 @@ export function Downloads() {
         const ss = sourceStyle(h.source);
         const when = formatRelative(h.completedAt / 1000);
         return (
-          <Box key={h.id}>
+          <Clickable key={h.id} onClick={() => select(active.length + recentStart + i)}>
             <Box width={MARK} flexShrink={0}>
               <Text color={COLOR.accent} bold>
                 {here ? ICON.pointer : ""}
@@ -273,7 +281,7 @@ export function Downloads() {
               >{h.source ? ss.tag : "mag"}
               </Text>
             </Box>
-          </Box>
+          </Clickable>
         );
       })}
     </Panel>

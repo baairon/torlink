@@ -5,6 +5,20 @@ export interface Hint {
   label: string;
 }
 
+/** The blank run the footer puts between two hints. */
+export const HINT_GAP = "   ";
+
+/** The footer hint drawn at column `x` of the hint row, if any. */
+export function hintAt(hints: Hint[], x: number): Hint | null {
+  let start = 0;
+  for (const h of hints) {
+    const width = [...`${h.keys} ${h.label}`].length;
+    if (x >= start && x < start + width) return h;
+    start += width + HINT_GAP.length;
+  }
+  return null;
+}
+
 interface HelpGroup {
   title: string;
   hints: Hint[];
