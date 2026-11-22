@@ -32,6 +32,16 @@ export function stripAnsi(s: string): string {
   return s.replace(/\u001b\[[0-9;?]*[A-Za-z]/g, "");
 }
 
+/** Zero-based cell of the first occurrence of `text` in a frame. */
+export function locate(frame: string, text: string): { x: number; y: number } | null {
+  const lines = frame.split("\n");
+  for (let y = 0; y < lines.length; y++) {
+    const x = lines[y]!.indexOf(text);
+    if (x >= 0) return { x, y };
+  }
+  return null;
+}
+
 export interface RenderedUI {
   /** Latest rendered frame, ANSI-stripped. */
   frame: () => string;
@@ -39,6 +49,12 @@ export interface RenderedUI {
   rawFrame: () => string;
   /** Feed raw bytes to the app as if typed. */
   press: (bytes: string) => void;
+  /** Left-click a zero-based screen cell, as the terminal would report it. */
+  click: (x: number, y: number) => void;
+  /** Left-click the first cell of `text` in the current frame. */
+  clickText: (text: string) => void;
+  /** Turn the mouse wheel one notch. */
+  wheel: (dir: "up" | "down") => void;
   unmount: () => void;
 }
 
@@ -91,13 +107,24 @@ export function renderUI(node: ReactNode, opts: { cols?: number; rows?: number }
     if (fatal) throw fatal;
   };
 
+  const frame = (): string => {
+    guard();
+    return stripAnsi(writes.at(-1) ?? "");
+  };
+  const click = (x: number, y: number): void =>
+    void stdin.write(`\u001b[<0;${x + 1};${y + 1}M\u001b[<0;${x + 1};${y + 1}m`);
+
   return {
-    frame: () => {
-      guard();
-      return stripAnsi(writes.at(-1) ?? "");
-    },
+    frame,
     rawFrame: () => writes.at(-1) ?? "",
     press: (bytes: string) => void stdin.write(bytes),
+    click,
+    clickText: (text: string) => {
+      const at = locate(frame(), text);
+      if (!at) throw new Error(`"${text}" is not on screen:\n${frame()}`);
+      click(at.x, at.y);
+    },
+    wheel: (dir) => void stdin.write(`\u001b[<${dir === "up" ? 64 : 65};1;1M`),
     unmount: () => instance.unmount(),
   };
 }

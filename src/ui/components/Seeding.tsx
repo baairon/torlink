@@ -6,6 +6,7 @@ import { wrapStep, windowStart } from "../move";
 import { COLOR, GUTTER, ICON, sourceStyle } from "../theme";
 import { cleanText, formatBytes, formatBytesPerSec, truncate } from "../../util/format";
 import type { SeedItem } from "../../download/types";
+import { Clickable } from "../mouse";
 
 const MARK = 2;
 const SIZE_W = 10;
@@ -30,8 +31,16 @@ function statusCell(seed: SeedItem | undefined): { text: string; color?: string;
 }
 
 export function Seeding() {
-  const { queue, region, contentWidth, listRows, setNotice, openDownloadFolder, setSeedFocus } =
-    useStore();
+  const {
+    queue,
+    region,
+    setRegion,
+    contentWidth,
+    listRows,
+    setNotice,
+    openDownloadFolder,
+    setSeedFocus,
+  } = useStore();
   const history = useQueueHistory(queue);
   const seeds = useSeeds(queue);
   const focused = region === "content";
@@ -142,7 +151,13 @@ export function Seeding() {
           const st = statusCell(seed);
           const ss = sourceStyle(h.source);
           return (
-            <Box key={h.id}>
+            <Clickable
+              key={h.id}
+              onClick={() => {
+                setRegion("content");
+                setCursor(start + i);
+              }}
+            >
               <Box width={MARK} flexShrink={0}>
                 <Text color={COLOR.accent} bold>{here ? ICON.pointer : ""}</Text>
               </Box>
@@ -177,7 +192,7 @@ export function Seeding() {
                 >{h.source ? ss.tag : "mag"}
                 </Text>
               </Box>
-            </Box>
+            </Clickable>
           );
         })}
       </Box>

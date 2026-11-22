@@ -6,6 +6,7 @@ import { LOGO_WIDTH } from "../logo";
 import { useStore } from "../store";
 import { sourcesByGroup } from "../../sources/registry";
 import { COLOR, ICON } from "../theme";
+import { Clickable, useMouse } from "../mouse";
 
 const CATEGORIES = sourcesByGroup()
   .map((g) => g.group.toLowerCase())
@@ -17,6 +18,7 @@ export function Splash({
 }: { updateVersion?: string | null; recovered?: boolean } = {}) {
   const { submitQuery, quitAll, cols, rows } = useStore();
   const { isRawModeSupported } = useStdin();
+  const { press } = useMouse();
 
   useInput(
     (input, key) => {
@@ -64,16 +66,20 @@ export function Splash({
         />
       </Box>
       <Box marginTop={1}>
-        <Text>
+        <Clickable onClick={() => press("\r")}>
           <Text color={COLOR.alt}>↵</Text>
           <Text dimColor> search</Text>
-          <Text dimColor>{`  ${ICON.dot}  `}</Text>
+        </Clickable>
+        <Text dimColor>{`  ${ICON.dot}  `}</Text>
+        <Clickable onClick={() => press("\t")}>
           <Text color={COLOR.alt}>⇥</Text>
           <Text dimColor> browse</Text>
-          <Text dimColor>{`  ${ICON.dot}  `}</Text>
+        </Clickable>
+        <Text dimColor>{`  ${ICON.dot}  `}</Text>
+        <Clickable onClick={() => press("\x03")}>
           <Text color={COLOR.alt}>^c</Text>
           <Text dimColor> quit</Text>
-        </Text>
+        </Clickable>
       </Box>
     </Box>
   );

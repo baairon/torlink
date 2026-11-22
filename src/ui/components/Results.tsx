@@ -9,11 +9,20 @@ import { Rule } from "./Rule";
 import { useConcurrentSearch } from "../hooks/useConcurrentSearch";
 import { getSource, SOURCES } from "../../sources/registry";
 import { stickCursor, wrapStep, windowStart, resultsPanelOuter } from "../move";
-import { sortResults, nextSort, sortLabel, sortArrow, type Sort, type SortField } from "../sort";
+import {
+  clickSort,
+  sortResults,
+  nextSort,
+  sortLabel,
+  sortArrow,
+  type Sort,
+  type SortField,
+} from "../sort";
 import { filterResults } from "../filter";
 import { COLOR, GUTTER, ICON, sourceStyle } from "../theme";
 import { cleanText, formatBytes, formatCount, formatRelative, stripControl, truncate } from "../../util/format";
 import type { Source, TorrentResult } from "../../sources/types";
+import { Clickable, useMouse } from "../mouse";
 
 type Mode = "list" | "search" | "detail" | "filter";
 
@@ -35,6 +44,7 @@ function DetailRow({ label, value }: { label: string; value: ReactNode }) {
 }
 
 function Detail({ r, width }: { r: TorrentResult; width: number }) {
+  const { press } = useMouse();
   const ss = sourceStyle(r.source);
   const date = formatRelative(r.added);
   const health =
@@ -97,23 +107,31 @@ function Detail({ r, width }: { r: TorrentResult; width: number }) {
         />
       </Box>
       <Box marginTop={1}>
-        <Text color={COLOR.accent} bold>
-          d
-        </Text>
-        <Text color={COLOR.text}> Download</Text>
+        <Clickable onClick={() => press("d")}>
+          <Text color={COLOR.accent} bold>
+            d
+          </Text>
+          <Text color={COLOR.text}> Download</Text>
+        </Clickable>
         <Text dimColor>{`  ${ICON.dot}  `}</Text>
-        <Text color={COLOR.accent} bold>
-          y
-        </Text>
-        <Text color={COLOR.text}> Copy</Text>
+        <Clickable onClick={() => press("y")}>
+          <Text color={COLOR.accent} bold>
+            y
+          </Text>
+          <Text color={COLOR.text}> Copy</Text>
+        </Clickable>
         <Text dimColor>{`  ${ICON.dot}  `}</Text>
-        <Text color={COLOR.accent} bold>
-          e
-        </Text>
-        <Text color={COLOR.text}> Export</Text>
+        <Clickable onClick={() => press("e")}>
+          <Text color={COLOR.accent} bold>
+            e
+          </Text>
+          <Text color={COLOR.text}> Export</Text>
+        </Clickable>
         <Text dimColor>{`  ${ICON.dot}  `}</Text>
-        <Text color={COLOR.alt}>esc</Text>
-        <Text dimColor> back</Text>
+        <Clickable onClick={() => press("\x1b")}>
+          <Text color={COLOR.alt}>esc</Text>
+          <Text dimColor> back</Text>
+        </Clickable>
       </Box>
     </Box>
   );
@@ -230,6 +248,23 @@ export function Results() {
     setCursor(n);
     selRef.current = results[n]?.infoHash ?? null;
   };
+
+  // Clicking a row puts the cursor on it; clicking the row the cursor is
+  // already on opens it, the same step enter takes.
+  const clickRow = (n: number, here: boolean): void => {
+    const r = results[n];
+    if (!r) return;
+    if (here) {
+      setDetail(r);
+      setMode("detail");
+      return;
+    }
+    setRegion("content");
+    setMode("list");
+    moveTo(n);
+  };
+
+  const clickHeader = (field: SortField): void => setSort((cur) => clickSort(cur, field));
 
   useInput(
     (input, key) => {
@@ -420,15 +455,22 @@ export function Results() {
 
   return (
     <Box flexDirection="column">
-      <SearchBar
-        width={contentWidth}
-        value={query}
-        editing={mode === "search"}
-        placeholder={PLACEHOLDER}
-        onSubmit={onSubmit}
-        onExitDown={() => setMode("list")}
-        onExitLeft={() => setRegion("sidebar")}
-      />
+      <Clickable
+        onClick={() => {
+          setRegion("content");
+          setMode("search");
+        }}
+      >
+        <SearchBar
+          width={contentWidth}
+          value={query}
+          editing={mode === "search"}
+          placeholder={PLACEHOLDER}
+          onSubmit={onSubmit}
+          onExitDown={() => setMode("list")}
+          onExitLeft={() => setRegion("sidebar")}
+        />
+      </Clickable>
       <Box marginTop={1}>
         <Panel
           title={mode === "detail" ? "details" : browsing ? "latest" : "results"}
@@ -455,21 +497,45 @@ export function Results() {
                     </Box>
                     {showStats ? (
                       <>
-                        <Box width={10} flexShrink={0} marginLeft={1} justifyContent="flex-end">
+                        <Clickable
+                          width={10}
+                          flexShrink={0}
+                          marginLeft={1}
+                          justifyContent="flex-end"
+                          onClick={() => clickHeader("size")}
+                        >
                           <Text bold dimColor>{sortMark("size", "Size")}</Text>
-                        </Box>
-                        <Box width={9} flexShrink={0} marginLeft={1} justifyContent="flex-end">
+                        </Clickable>
+                        <Clickable
+                          width={9}
+                          flexShrink={0}
+                          marginLeft={1}
+                          justifyContent="flex-end"
+                          onClick={() => clickHeader("seeders")}
+                        >
                           <Text bold dimColor>{sortMark("seeders", "Seed:Lch")}</Text>
-                        </Box>
+                        </Clickable>
                       </>
                     ) : (
-                      <Box width={12} flexShrink={0} marginLeft={1} justifyContent="flex-end">
-                        <Text bold dimColor>Added</Text>
-                      </Box>
+                      <Clickable
+                        width={12}
+                        flexShrink={0}
+                        marginLeft={1}
+                        justifyContent="flex-end"
+                        onClick={() => clickHeader("added")}
+                      >
+                        <Text bold dimColor>{sortMark("added", "Added")}</Text>
+                      </Clickable>
                     )}
-                    <Box width={4} flexShrink={0} marginLeft={1} justifyContent="flex-end">
+                    <Clickable
+                      width={4}
+                      flexShrink={0}
+                      marginLeft={1}
+                      justifyContent="flex-end"
+                      onClick={() => clickHeader("source")}
+                    >
                       <Text bold dimColor>{sortMark("source", "Src")}</Text>
-                    </Box>
+                    </Clickable>
                   </Box>
                 ) : null}
                 {visible.map((r, i) => {
@@ -477,7 +543,7 @@ export function Results() {
                   const here = index === clamped && focused && mode === "list";
                   const ss = sourceStyle(r.source);
                   return (
-                    <Box key={r.infoHash}>
+                    <Clickable key={r.infoHash} onClick={() => clickRow(index, here)}>
                       <Box width={GUTTER} flexShrink={0}>
                         <Text color={COLOR.accent}>{here ? ICON.pointer : ""}</Text>
                       </Box>
@@ -534,7 +600,7 @@ export function Results() {
                         >{ss.tag}
                         </Text>
                       </Box>
-                    </Box>
+                    </Clickable>
                   );
                 })}
               </Box>
@@ -543,7 +609,14 @@ export function Results() {
         </Panel>
       </Box>
       {(mode === "filter" || textFilter.trim()) && (
-        <Box width={contentWidth} paddingLeft={1}>
+        <Clickable
+          width={contentWidth}
+          paddingLeft={1}
+          onClick={() => {
+            setRegion("content");
+            setMode("filter");
+          }}
+        >
           <Box flexShrink={0}>
             <Text color={COLOR.accent}>{`Filter ${ICON.pointer} `}</Text>
           </Box>
@@ -564,7 +637,7 @@ export function Results() {
               <Text wrap="truncate-end">{textFilter}</Text>
             )}
           </Box>
-        </Box>
+        </Clickable>
       )}
     </Box>
   );

@@ -295,6 +295,8 @@ usage
 
 once open: type to search every source at once, enter to run, arrows to move,
 d to download, ? for keys
+mouse: click tabs, rows, column headers, the search box and any key hint;
+the wheel scrolls
 tip: quote magnet links (they contain & characters)
 already open: a magnet or .torrent passed to torlnk is added to that window
 instead of opening another

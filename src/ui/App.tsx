@@ -48,7 +48,7 @@ import { FolderPrompt } from "./components/FolderPrompt";
 import { TrackersPrompt } from "./components/TrackersPrompt";
 import { footerHints } from "./keymap";
 import { COLOR, ICON } from "./theme";
-import { useMouseWheel } from "./hooks/useMouseWheel";
+import { MouseProvider, useMouse } from "./mouse";
 import { VERSION } from "../version";
 import { fetchLatestVersion, isNewer } from "../update/version";
 
@@ -67,20 +67,24 @@ function downloadSubject(inputs: DownloadInput[]): string {
     : `${inputs.length} torrents`;
 }
 
-export function App({
-  initialMagnet,
-  initialTorrent,
-  inbox,
-  playlist,
-  onQuit,
-}: {
+interface AppProps {
   initialMagnet?: string;
   initialTorrent?: string;
   inbox?: Inbox | null;
   playlist?: boolean;
   onQuit?: () => void;
-} = {}) {
-  useMouseWheel();
+}
+
+export function App(props: AppProps = {}) {
+  return (
+    <MouseProvider reporting>
+      <AppBody {...props} />
+    </MouseProvider>
+  );
+}
+
+function AppBody({ initialMagnet, initialTorrent, inbox, playlist, onQuit }: AppProps) {
+  const { press } = useMouse();
   const { exit } = useApp();
   const { isRawModeSupported } = useStdin();
   const { stdout } = useStdout();
@@ -120,6 +124,10 @@ export function App({
   const [seedFocus, setSeedFocus] = useState<SeedFocus | null>(null);
   const [resultFocus, setResultFocus] = useState<ResultFocus | null>(null);
   const [showHelp, setShowHelp] = useState(false);
+  // A key clicked in the help sheet, held until the sheet has closed: the
+  // lists stop listening while it is up, so the key is replayed only once
+  // they are listening again.
+  const [helpPick, setHelpPick] = useState<string | null>(null);
   const [editingFolder, setEditingFolder] = useState(false);
   const [editingTrackers, setEditingTrackers] = useState(false);
   // Results waiting on the "download to" prompt (D); null when the prompt is
@@ -507,6 +515,29 @@ export function App({
     return () => clearTimeout(t);
   }, [notice]);
 
+  useEffect(() => {
+    if (helpPick === null || showHelp) return;
+    setHelpPick(null);
+    press(helpPick);
+  }, [helpPick, showHelp, press]);
+
+  const pickFromHelp = useCallback((bytes: string, group: string) => {
+    setShowHelp(false);
+    if (group !== "Navigate") setRegion("content");
+    setHelpPick(bytes);
+  }, []);
+
+  // A clicked footer hint runs its key. While a text field is being edited a
+  // letter would be typed into it instead, so only the non-printing keys
+  // (enter, esc, tab) go through then.
+  const pressHint = useCallback(
+    (bytes: string) => {
+      if (captureMode === "text" && bytes >= " ") return;
+      press(bytes);
+    },
+    [captureMode, press],
+  );
+
   const compact = rows < 18;
   const showTopRule = !compact;
   const showFooter = rows >= 12;
@@ -687,7 +718,7 @@ export function App({
 
         {showHelp ? (
           <Box marginTop={1}>
-            <HelpOverlay />
+            <HelpOverlay onClose={() => setShowHelp(false)} onPick={pickFromHelp} />
           </Box>
         ) : null}
 
@@ -747,7 +778,10 @@ export function App({
 
         {showFooter ? (
           <Box display={showHelp || editingFolder || editingTrackers || pendingDownload ? "none" : "flex"}>
-            <Footer hints={footerHints(region, section, downloadFocus, seedFocus, resultFocus)} />
+            <Footer
+              hints={footerHints(region, section, downloadFocus, seedFocus, resultFocus)}
+              onPress={pressHint}
+            />
           </Box>
         ) : null}
       </Box>

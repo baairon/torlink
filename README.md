@@ -18,6 +18,8 @@ torlink is a torrent finder that lives in your terminal, with zero setup and not
 
 That's the only thing you'll type. torlink opens straight to a search bar: search for what you want, paste in a magnet link or a bare infohash, drag a `.torrent` file from your file manager onto the window, or just press Enter on an empty box to browse the curated library. From there it's all keypresses, nothing to memorize, and `?` brings up the full list anytime.
 
+The mouse works too, if you'd rather point. Click a tab, a result, or a download to select it, and click a selected result to open it. Column headers sort, the search box takes a click to start typing, and every key shown along the bottom, in a prompt, or in the `?` sheet is a button that does what the key does. The wheel scrolls whichever list has focus. Because torlink is listening to the mouse, selecting text takes your terminal's bypass key held down (Shift in most terminals, Option in iTerm2, Fn in macOS Terminal).
+
 ## Finding something
 
 Type what you're looking for and press Enter. Results stream in from every source as they answer, tagged with size and how many people are sharing each one, so you can see what'll come down fast. Arrow to a result and press `d` to save it, or press space on several rows and then `d` to download them together. `shift+d` picks a folder for the current result or marked batch.
