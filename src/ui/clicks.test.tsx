@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { useInput } from "ink";
+import { useState } from "react";
+import { Box, useInput } from "ink";
 import { SOURCES } from "../sources/registry";
-import { StoreContext, type Store } from "./store";
+import { StoreContext, type Region, type Section, type Store } from "./store";
 import { fakeQueue, makeTestStore, renderUI, type RenderedUI } from "./testHarness";
 import { MouseProvider } from "./mouse";
 import { footerHints, hintAt } from "./keymap";
@@ -225,6 +226,57 @@ describe("clicking results", () => {
     await vi.waitFor(() => expect(lineWith(u, "bravo")).toContain("❯"));
     u.wheel("up");
     await vi.waitFor(() => expect(lineWith(u, "alpha")).toContain("❯"));
+  });
+});
+
+describe("clicking a tab from the results pane", () => {
+  // The real app's wiring for the two pieces of state a tab click touches.
+  function Shell() {
+    const [section, setSection] = useState<Section>("all");
+    const [region, setRegion] = useState<Region>("content");
+    return (
+      <StoreContext.Provider
+        value={makeTestStore({ query: "iso", section, setSection, region, setRegion })}
+      >
+        <Box>
+          <Sidebar />
+          <Results />
+        </Box>
+      </StoreContext.Provider>
+    );
+  }
+
+  async function mountShell(): Promise<RenderedUI> {
+    searchState.current = settled(LIST);
+    ui = renderUI(
+      <MouseProvider>
+        <Shell />
+      </MouseProvider>,
+    );
+    const u = ui;
+    await vi.waitFor(() => expect(u.frame()).toContain("Results (3)"));
+    return u;
+  }
+
+  it("closes the open details instead of leaving them over the new tab", async () => {
+    const u = await mountShell();
+    u.clickText("alpha desktop");
+    await vi.waitFor(() => expect(u.frame()).toContain("Details"));
+    u.clickText("Movies");
+    await vi.waitFor(() => expect(u.frame()).toContain("Results (3)"));
+    expect(u.frame()).not.toContain("Details");
+    expect(lineWith(u, "Movies")).toContain("▌");
+  });
+
+  it("drops an open filter field with its text", async () => {
+    const u = await mountShell();
+    u.press("f");
+    await vi.waitFor(() => expect(u.frame()).toContain("Filter ❯"));
+    u.press("bravo");
+    await vi.waitFor(() => expect(u.frame()).toContain("Results (1)"));
+    u.clickText("Movies");
+    await vi.waitFor(() => expect(u.frame()).toContain("Results (3)"));
+    expect(u.frame()).not.toContain("Filter ❯");
   });
 });
 

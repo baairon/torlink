@@ -187,6 +187,10 @@ export function Results() {
     setCursor(0);
     setTextFilter("");
     setMarked(new Set());
+    // A clicked tab changes the section without focus ever leaving this pane,
+    // so the details or filter field of the list just left would stay up.
+    setMode("list");
+    setDetail(null);
   }, [query, section]);
 
   useEffect(() => {
