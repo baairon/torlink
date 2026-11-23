@@ -1,4 +1,5 @@
 import type { SearchOptions, Source, TorrentResult } from "./types";
+import { searchWithFallback } from "./search";
 
 const TTL_MS = 5 * 60 * 1000;
 
@@ -28,7 +29,10 @@ export async function cachedSearch(
   const hit = cache.get(k);
   if (hit && Date.now() - hit.at < TTL_MS) return hit.results;
 
-  const results = await source.search(query, opts);
+  const results = await searchWithFallback(source, query, opts);
+  // An interrupted fallback is not a completed empty search. Let the next
+  // submission retry rather than hiding recoverable results for the TTL.
+  if (opts.signal?.aborted) return results;
   // Re-inserting rather than overwriting keeps the map's iteration order equal
   // to fetch order, so the entry that gives way below is always the oldest.
   cache.delete(k);
